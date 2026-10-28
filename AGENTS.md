@@ -35,6 +35,8 @@ outside the app.
 - **[Textual](https://textual.textualize.io/)** for the TUI
 - **pytest** for tests (Textual's `App.run_test()` / `Pilot` for UI tests)
 - **ruff** for linting and formatting
+- **[prek](https://github.com/j178/prek)** to run the pre-commit hooks
+  (configured in `.pre-commit-config.yaml`)
 
 ## Commands
 
@@ -44,9 +46,24 @@ uv run tskmngr              # launch the TUI
 uv run pytest               # run the test suite
 uv run ruff check .         # lint
 uv run ruff format .        # format
+uv tool install prek        # install prek (once per machine)
+prek install                # install the git pre-commit hook (once per clone)
+prek run --all-files        # run all pre-commit hooks manually
 ```
 
 Run lint, format and tests before every commit. All must pass.
+
+## Pre-commit hooks
+
+The prek hook runs on every `git commit`: whitespace and end-of-file fixes,
+YAML/TOML checks, merge-conflict markers, large files, private keys, ruff lint
+(with auto-fix) and ruff format. It also blocks commits made directly to `main`.
+
+- If a hook modifies files, review the changes, stage them and commit again.
+- Never bypass the hooks (`git commit --no-verify`) unless the maintainer
+  explicitly says so.
+- Changes to `.pre-commit-config.yaml` (adding hooks, bumping versions) count
+  as adding dependencies: ask first.
 
 ## Project layout
 
@@ -99,6 +116,13 @@ Notes go here, in **Markdown**.
   that fails before the fix.
 - Storage tests use pytest's `tmp_path`, never the real tasks directory.
 - Run `uv run pytest` before committing; do not commit with failing tests.
+
+### Review the diff with the maintainer before every commit
+- Before each commit, stage the changes and show the maintainer the full diff
+  (`git diff --staged`, plus `git status` for new or deleted files).
+- Ask the maintainer whether the diff is fine, and commit only after they
+  explicitly approve. If they request changes, make them and show the new diff.
+- This applies to every commit, including small fixes and hook auto-fixes.
 
 ### Small PRs via branches
 - Never commit directly to `main`. Create a branch per change
