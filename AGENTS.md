@@ -123,6 +123,23 @@ Notes go here, in **Markdown**.
 - Ask the maintainer whether the diff is fine, and commit only after they
   explicitly approve. If they request changes, make them and show the new diff.
 - This applies to every commit, including small fixes and hook auto-fixes.
+- For Claude Code this is enforced by a project hook
+  (`.claude/settings.json` → `.claude/hooks/review-diff.sh`): every
+  `git commit` triggers an approval prompt showing `git status` and the staged
+  diff. Never work around it (e.g. by committing via another tool or script).
+
+#### Local vs. cloud sessions
+- **Local session:** strictly follow the diff-review hook. Commit only after
+  the maintainer approves the prompt. Nothing else overrides this.
+- **Cloud session** (e.g. Claude Code on the web; `CLAUDE_CODE_REMOTE=true`):
+  the environment has a built-in check that asks for uncommitted changes to be
+  committed and pushed. Handle it in this order:
+  1. First run the diff review: show the staged diff and wait for the
+     maintainer's explicit approval, exactly as in a local session.
+  2. Only after approval, satisfy the built-in check: commit and push to the
+     working branch.
+  If the built-in check fires while approval is still pending, do not commit;
+  tell the maintainer the changes are waiting for their review.
 
 ### Small PRs via branches
 - Never commit directly to `main`. Create a branch per change
