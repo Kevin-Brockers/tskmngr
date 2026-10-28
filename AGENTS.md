@@ -8,6 +8,26 @@ Guidance for AI coding agents (and humans) working in this repository.
 Tasks are stored as plain Markdown files so they stay readable and editable
 outside the app.
 
+## General working etiquette
+
+- **Never make things up.** Don't invent data, file contents, API names,
+  library features, command output, test results or requirements. If you
+  haven't read it, run it or been told it, don't state it as fact.
+- **Ask when in doubt.** If a requirement is ambiguous, information is missing,
+  or there are several reasonable approaches with real trade-offs, stop and ask
+  the maintainer instead of guessing. A short question is cheaper than a wrong
+  implementation.
+- **Verify before you claim.** Check the code, docs or command output before
+  saying something works or exists. Say "done" only after the checks have
+  actually passed.
+- **Report honestly.** If tests fail, a step was skipped, or you're unsure
+  whether something is correct, say so plainly, including the relevant output.
+- **Stay in scope.** Do what was asked. Mention other improvements you notice,
+  but don't make them without agreement.
+- **Don't destroy work.** Never delete or overwrite files, task data or git
+  history (no force-push, no `reset --hard` on shared branches) without
+  explicit confirmation.
+
 ## Tech stack
 
 - **Python** 3.12+
