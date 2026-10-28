@@ -147,6 +147,22 @@ Notes go here, in **Markdown**.
 - One concern per PR. Unrelated cleanups go in a separate PR.
 - Write clear commit messages explaining *why*, not just *what*.
 
+### Keep the changelog up to date
+- Every PR with a user-visible or developer-relevant change adds an entry to
+  `CHANGELOG.md` under `## [Unreleased]`, in the right category: `Added`,
+  `Changed`, `Deprecated`, `Removed`, `Fixed` or `Security`
+  ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)).
+- One line per change: a short description, then the reference in brackets.
+- **Reference by PR number**, e.g. `(#12)`. PR numbers stay valid after
+  squash or rebase merges; branch commit hashes don't.
+- Only for changes that reach `main` without a PR, use the short commit hash
+  instead, e.g. `(7982e5c)`.
+- Before the PR exists, write `(#TBD)`. After opening the PR, replace every
+  `#TBD` from this branch with the real number and commit that.
+- Never invent a PR number or commit hash. Look it up (`git log`, the PR page).
+- On a release, rename `[Unreleased]` to the version and date, e.g.
+  `## [0.1.0] - 2026-11-15`, and start a new empty `[Unreleased]` section.
+
 ### Ask before adding dependencies
 - Do not add a new dependency (runtime or dev) without asking the maintainer
   first. Explain what it's for and why the standard library or an existing
