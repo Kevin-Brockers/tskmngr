@@ -8,6 +8,9 @@ Guidance for AI coding agents (and humans) working in this repository.
 Tasks are stored as plain Markdown files so they stay readable and editable
 outside the app.
 
+The development plan, what's done and what comes next, lives in
+[`ROADMAP.md`](ROADMAP.md). Read it before starting any work.
+
 ## General working etiquette
 
 - **Never make things up.** Don't invent data, file contents, API names,
@@ -141,6 +144,21 @@ Notes go here, in **Markdown**.
      working branch.
   If the built-in check fires while approval is still pending, do not commit;
   tell the maintainer the changes are waiting for their review.
+
+### Follow the roadmap
+- [`ROADMAP.md`](ROADMAP.md) breaks the plan into milestones and small
+  steps, each sized for roughly one PR, in the order they should be built.
+- Before starting work, check the roadmap: take the first open step whose
+  dependencies are done, unless the maintainer asks for something else.
+- Name the branch after the step's type and topic (see below) and mention the
+  step ID (e.g. `M1.2`) in the PR description.
+- In the PR that implements a step, mark it `[x]` with that PR's link.
+  Before the PR exists, use `#TBD` and replace it once the PR is open, as with
+  the changelog. If a step is too big for one PR, agree with the maintainer on
+  splitting it into sub-steps (`M1.2a`, `M1.2b`, …). The format and rules are
+  at the top of `ROADMAP.md`.
+- Don't add, reorder or drop milestones or steps without the maintainer's
+  approval. New plans come from planning sessions.
 
 ### Branches and pull requests
 - `main` holds released code; `dev` is the integration branch. Never commit
