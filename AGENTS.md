@@ -57,7 +57,8 @@ Run lint, format and tests before every commit. All must pass.
 
 The prek hook runs on every `git commit`: whitespace and end-of-file fixes,
 YAML/TOML checks, merge-conflict markers, large files, private keys, ruff lint
-(with auto-fix) and ruff format. It also blocks commits made directly to `main`.
+(with auto-fix) and ruff format. It also blocks commits made directly to `main`
+or `dev`.
 
 - If a hook modifies files, review the changes, stage them and commit again.
 - Never bypass the hooks (`git commit --no-verify`) unless the maintainer
@@ -141,9 +142,17 @@ Notes go here, in **Markdown**.
   If the built-in check fires while approval is still pending, do not commit;
   tell the maintainer the changes are waiting for their review.
 
-### Small PRs via branches
-- Never commit directly to `main`. Create a branch per change
-  (e.g. `feat/add-due-dates`, `fix/crash-on-empty-title`).
+### Branches and pull requests
+- `main` holds released code; `dev` is the integration branch. Never commit
+  directly to either; both change only through pull requests.
+- Create one branch per change from the latest `dev`, named by type:
+  - `feature/<name>` for new features (e.g. `feature/due_dates`)
+  - `fix/<name>` for bug fixes (e.g. `fix/crash_on_empty_title`)
+  - `docs/<name>` for documentation only
+  - `chore/<name>` for tooling, config and dependency updates
+- Open every pull request against `dev`, **never against `main`**.
+- Only the maintainer opens `dev` → `main` pull requests, when cutting a
+  release. Agents don't open, merge or push to them.
 - One concern per PR. Unrelated cleanups go in a separate PR.
 - Write clear commit messages explaining *why*, not just *what*.
 
@@ -152,16 +161,21 @@ Notes go here, in **Markdown**.
   `CHANGELOG.md` under `## [Unreleased]`, in the right category: `Added`,
   `Changed`, `Deprecated`, `Removed`, `Fixed` or `Security`
   ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)).
-- One line per change: a short description, then the reference in brackets.
-- **Reference by PR number**, e.g. `(#12)`. PR numbers stay valid after
-  squash or rebase merges; branch commit hashes don't.
-- Only for changes that reach `main` without a PR, use the short commit hash
-  instead, e.g. `(7982e5c)`.
-- Before the PR exists, write `(#TBD)`. After opening the PR, replace every
-  `#TBD` from this branch with the real number and commit that.
+- One entry per change, in the form `[reference](link) - Description`:
+  - **Pull request (default):**
+    `- [#12](https://github.com/Kevin-Brockers/tskmngr/pull/12) - Add due dates`.
+    PR numbers stay valid after squash or rebase merges; branch commit hashes
+    don't.
+  - **Commit:** only for changes that reached `dev` or `main` without a PR
+    (like the initial commit), link the short hash to the full commit:
+    `- [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/<full-hash>) - Initial commit`.
+- Before the PR exists, write `- #TBD - Description`. After opening the PR,
+  replace every `#TBD` from this branch with the linked PR number and commit
+  that.
 - Never invent a PR number or commit hash. Look it up (`git log`, the PR page).
-- On a release, rename `[Unreleased]` to the version and date, e.g.
-  `## [0.1.0] - 2026-11-15`, and start a new empty `[Unreleased]` section.
+- On a release (in the maintainer's `dev` → `main` PR), rename `[Unreleased]`
+  to the version and date, e.g. `## [0.1.0] - 2026-11-15`, and start a new
+  empty `[Unreleased]` section.
 
 ### Ask before adding dependencies
 - Do not add a new dependency (runtime or dev) without asking the maintainer
