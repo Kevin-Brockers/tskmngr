@@ -12,13 +12,13 @@ its commit for changes that reached `dev` or `main` without a pull request.
 
 ### Added
 
-- #TBD - `AGENTS.md` with project overview, working etiquette, tech stack, task
+- [#1](https://github.com/Kevin-Brockers/tskmngr/pull/1) - `AGENTS.md` with project overview, working etiquette, tech stack, task
   storage format and working conventions for coding agents
-- #TBD - prek pre-commit hooks: file hygiene checks, ruff lint/format and a
+- [#1](https://github.com/Kevin-Brockers/tskmngr/pull/1) - prek pre-commit hooks: file hygiene checks, ruff lint/format and a
   guard against committing to `main` and `dev`
-- #TBD - Claude Code hook that shows the staged diff and asks for approval
+- [#1](https://github.com/Kevin-Brockers/tskmngr/pull/1) - Claude Code hook that shows the staged diff and asks for approval
   before every `git commit`
-- #TBD - `CHANGELOG.md` and the changelog policy in `AGENTS.md`
-- #TBD - Branching policy: `feature/`, `fix/`, `docs/` and `chore/` branches
+- [#1](https://github.com/Kevin-Brockers/tskmngr/pull/1) - `CHANGELOG.md` and the changelog policy in `AGENTS.md`
+- [#1](https://github.com/Kevin-Brockers/tskmngr/pull/1) - Branching policy: `feature/`, `fix/`, `docs/` and `chore/` branches
   with pull requests against `dev`; `dev` → `main` only for releases
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
