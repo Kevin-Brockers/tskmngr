@@ -66,38 +66,50 @@ Goal: tasks can be created, saved, loaded, filtered and sorted in code, with no
 UI. `models`, `storage` and `query` don't import Textual.
 
 - [ ] **M1.1** Package skeleton: `pyproject.toml` (uv, approved baseline
-  dependencies), `src/tskmngr` layout, `tskmngr` entry point that starts an
-  empty Textual app, smoke test · `chore/project_skeleton` · depends on M0.2
+  dependencies), committed `uv.lock`, `.gitignore`, `src/tskmngr` layout,
+  `tskmngr` entry point that starts an empty Textual app, smoke test, and a
+  GitHub Actions workflow running `ruff check`, `ruff format --check` and
+  `pytest` on pull requests to `dev` · `chore/project_skeleton` · depends on
+  M0.2
 - [ ] **M1.2** `Task` dataclass, `Status` and `Priority` enums, ID generation
-  and field validation · `feature/task_model` · depends on M1.1
-- [ ] **M1.3** Markdown serialization: parse and render frontmatter and body,
-  keep unknown frontmatter keys, raise a clear error for malformed files ·
-  `feature/task_markdown` · depends on M1.2
+  (random 10-character Crockford base32, regenerated on collision with an
+  existing ID) and field validation · `feature/task_model` · depends on M1.1
+- [ ] **M1.3** Markdown serialization with `ruamel.yaml` in round-trip mode:
+  parse and render frontmatter and body in the documented format, keep unknown
+  frontmatter keys, comments and formatting so an unchanged file saves back
+  byte for byte, raise a clear error for malformed files (including values of
+  the wrong type) · `feature/task_markdown` · depends on M1.2
 - [ ] **M1.4** Storage: resolve the tasks directory (`TSKMNGR_DIR` or the
-  default), load all tasks and report malformed files, atomic save, delete ·
-  `feature/task_storage` · depends on M1.3
+  default), load all tasks with the ID taken from the filename and report
+  malformed files, atomic save that refuses to overwrite a file changed on disk
+  since it was loaded (reported as a conflict), delete by moving the file to
+  `.trash/` · `feature/task_storage` · depends on M1.3
 - [ ] **M1.5** Query functions: filter by status, priority and tag, text
-  search over title and notes, sort by due date, priority, created or updated
-  (shared by CLI and TUI) · `feature/task_query` · depends on M1.2
+  search over title and notes, sort by due date, priority, created or updated,
+  find a task by a unique ID prefix (shared by CLI and TUI) ·
+  `feature/task_query` · depends on M1.2
 
 ### M2 · Command-line interface
 
 Goal: tasks can be managed from the shell without the TUI. `tskmngr` with no
-arguments still launches the TUI.
+arguments still launches the TUI. Commands that act on one task take any
+unique prefix of its ID.
 
 - [ ] **M2.1** CLI with subcommands (`argparse`) and `tskmngr add` with title,
   priority, due date and tags · `feature/cli_add` · depends on M1.4
-- [ ] **M2.2** `tskmngr list` with filter, search and sort options ·
-  `feature/cli_list` · depends on M2.1, M1.5
+- [ ] **M2.2** `tskmngr list` with filter, search and sort options; malformed
+  files reported on stderr · `feature/cli_list` · depends on M2.1, M1.5
 - [ ] **M2.3** `tskmngr show`, `edit` (fields) and `done` ·
-  `feature/cli_show_edit` · depends on M2.1
+  `feature/cli_show_edit` · depends on M2.1, M1.5
 - [ ] **M2.4** `tskmngr delete` with a confirmation prompt (`--yes` to skip) ·
-  `feature/cli_delete` · depends on M2.1
+  `feature/cli_delete` · depends on M2.1, M1.5
 
 ### M3 · TUI
 
 Goal: the full MVP in the interactive TUI. M1 to M3 together are the first
-usable release.
+usable release. Every key binding gets a stable `id`, so M4.3 can remap it
+through Textual's keymap. A save that hits a conflict (see M1.4) is shown to
+the user and the task reloaded, never overwritten.
 
 - [ ] **M3.1** Task list screen loaded from storage; malformed files shown as a
   warning, not hidden · `feature/tui_task_list` · depends on M1.4
@@ -115,17 +127,21 @@ usable release.
   depends on M3.1, M1.5
 - [ ] **M3.8** Sort the task list · `feature/tui_sorting` · depends on M3.1,
   M1.5
+- [ ] **M3.9** README: installation, CLI usage, TUI keys and the task file
+  format · `docs/readme_usage` · depends on all of M2, M3.1–M3.8
 
 ### M4 · External edits and configuration
 
 Goal: the app stays in sync with hand-edited files and can be configured.
 
 - [ ] **M4.1** Detect task files changed, added or removed on disk while the
-  app runs and reload them · `feature/watch_tasks_dir` · depends on M3.1
-- [ ] **M4.2** Config file (TOML via `tomllib`): tasks directory, default sort,
-  theme · `feature/config_file` · depends on M1.4
-- [ ] **M4.3** Custom keybindings from the config file ·
-  `feature/custom_keybindings` · depends on M4.2, M3.8
+  app runs, by polling the tasks directory's file times and sizes on a timer,
+  and reload them · `feature/watch_tasks_dir` · depends on M3.1
+- [ ] **M4.2** Config file (TOML via `tomllib`): tasks directory
+  (`TSKMNGR_DIR` first, then the config file, then the default), default sort,
+  theme · `feature/config_file` · depends on M1.4, M2.2, M3.8
+- [ ] **M4.3** Custom keybindings from the config file, applied through
+  Textual's keymap · `feature/custom_keybindings` · depends on M4.2, all of M3
 
 ### M5 · Subtasks and recurring tasks
 
@@ -134,5 +150,6 @@ the maintainer before starting, and `AGENTS.md` updated to match.
 
 - [ ] **M5.1** Subtasks as a checklist within a task, shown and toggled in the
   TUI · `feature/subtasks` · depends on M3.5
-- [ ] **M5.2** Recurring tasks: a repeat rule that creates the next occurrence
-  when a task is marked done · `feature/recurring_tasks` · depends on M3.4
+- [ ] **M5.2** Recurring tasks: a repeat rule, and core logic that creates the
+  next occurrence when a task is marked done, used by both `tskmngr done` and
+  the TUI · `feature/recurring_tasks` · depends on M2.3, M3.4

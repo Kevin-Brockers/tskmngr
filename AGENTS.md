@@ -36,7 +36,10 @@ The development plan, what's done and what comes next, lives in
 - **Python** 3.12+
 - **[uv](https://docs.astral.sh/uv/)** for environments, dependencies and running commands
 - **[Textual](https://textual.textualize.io/)** for the TUI
-- **pytest** for tests (Textual's `App.run_test()` / `Pilot` for UI tests)
+- **ruamel.yaml** for the frontmatter, in round-trip mode so saving a task
+  keeps comments and formatting
+- **pytest** with **pytest-asyncio** for tests (Textual's async
+  `App.run_test()` / `Pilot` for UI tests)
 - **ruff** for linting and formatting
 - **[prek](https://github.com/j178/prek)** to run the pre-commit hooks
   (configured in `.pre-commit-config.yaml`)
@@ -73,24 +76,27 @@ or `dev`.
 
 ```
 src/tskmngr/
-  app.py        # Textual App entry point
+  app.py        # Textual App (the TUI)
+  cli.py        # `tskmngr` entry point; no arguments launches the TUI
+  config.py     # config file (TOML)
   models.py     # Task dataclass and enums (status, priority)
+  query.py      # filter, search, sort, ID-prefix lookup; shared by CLI and TUI
   storage.py    # read/write tasks as Markdown files
   widgets/      # Textual widgets and screens
 tests/          # mirrors src/ layout; test_<module>.py
 ```
 
-Keep the layers separate: `models` and `storage` must not import Textual, so
-they can be tested without a UI.
+Keep the layers separate: `models`, `storage` and `query` must not import
+Textual, so they can be tested without a UI.
 
 ## Task storage format
 
-One Markdown file per task, with YAML frontmatter for structured fields and the
-Markdown body for free-form notes:
+One Markdown file per task, named after the task's ID (e.g. `01JB3K7Q2X.md`),
+with YAML frontmatter for structured fields and the Markdown body for free-form
+notes:
 
 ```markdown
 ---
-id: 01JB3K7Q2X
 title: Buy milk
 status: todo          # todo | doing | done
 priority: normal      # low | normal | high
@@ -104,14 +110,21 @@ Notes go here, in **Markdown**.
 ```
 
 - Files live in a tasks directory (default `~/.local/share/tskmngr/tasks/`,
-  overridable via `TSKMNGR_DIR`); filename is `<id>.md`.
+  overridable via `TSKMNGR_DIR`).
+- A task's ID is its filename without `.md`; the frontmatter has no `id` key.
+  New tasks get a random 10-character Crockford base32 ID, and a copied or
+  hand-made file is a new task under its own name.
 - The files are the source of truth. Any cache or index must be disposable and
   rebuildable from them.
 - Write files atomically (write to a temp file, then rename) so a crash never
   leaves a half-written task.
+- Deleting a task moves its file into `.trash/` inside the tasks directory.
+  Files there aren't loaded, moving one back restores the task, and the app
+  never empties the folder.
 - Tolerate hand-edited files: unknown frontmatter keys are preserved on save,
   and a malformed file is reported to the user, never silently deleted or
-  overwritten.
+  overwritten. A value of the wrong type counts as malformed (YAML reads
+  `title: 1.10` as a number); the report suggests quoting it.
 
 ## Working conventions
 
@@ -199,7 +212,8 @@ Notes go here, in **Markdown**.
 - Do not add a new dependency (runtime or dev) without asking the maintainer
   first. Explain what it's for and why the standard library or an existing
   dependency isn't enough.
-- Approved baseline: `textual`, `pyyaml`, `pytest`, `ruff`.
+- Approved baseline: `textual`, `ruamel.yaml`, `pytest`, `pytest-asyncio`,
+  `ruff`.
 
 ## Code style
 
