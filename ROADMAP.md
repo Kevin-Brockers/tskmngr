@@ -67,12 +67,12 @@ Goal: conventions, tooling and documentation in place before any app code.
 Goal: tasks can be created, saved, loaded, filtered and sorted in code, with no
 UI. `models`, `storage` and `query` don't import Textual.
 
-- [ ] **M1.1** Package skeleton: `pyproject.toml` (uv, approved baseline
+- [x] **M1.1** Package skeleton: `pyproject.toml` (uv, approved baseline
   dependencies), committed `uv.lock`, `.gitignore`, `src/tskmngr` layout,
   `tskmngr` entry point that starts an empty Textual app, smoke test, and a
   GitHub Actions workflow running `ruff check`, `ruff format --check` and
-  `pytest` on pull requests to `dev` · `chore/project_skeleton` · depends on
-  M0.2
+  `pytest` on Python 3.12 to 3.14 and the newest stable release, started
+  manually for now · `chore/project_skeleton` · #TBD
 - [ ] **M1.2** `Task` dataclass, `Status` and `Priority` enums, ID generation
   (random 10-character Crockford base32, regenerated on collision with an
   existing ID) and field validation · `feature/task_model` · depends on M1.1

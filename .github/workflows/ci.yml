@@ -1,0 +1,60 @@
+name: CI
+
+# Disabled for now: the workflow only runs when started by hand from the
+# Actions tab. To run it on pull requests to `dev`, add this trigger:
+#
+#   pull_request:
+#     branches: [dev]
+on:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.12"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check .
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Test
+        run: uv run pytest
+
+  # Tests on the newest stable CPython that uv can download, so a new Python
+  # release is covered before it's added to the matrix above.
+  python_latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Find the newest stable Python
+        run: |
+          latest=$(uv python list --only-downloads --output-format json | jq -r '
+            [.[] | select(.implementation == "cpython" and .variant == "default"
+                          and (.version | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")))]
+            | max_by(.version_parts | [.major, .minor, .patch]) | .version')
+          echo "Newest stable Python: $latest"
+          echo "UV_PYTHON=$latest" >> "$GITHUB_ENV"
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Test
+        run: uv run pytest

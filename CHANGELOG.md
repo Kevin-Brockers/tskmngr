@@ -26,6 +26,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#3](https://github.com/Kevin-Brockers/tskmngr/pull/3) - Roadmap milestones M1 to M5: core, CLI, TUI, external edits and
   configuration, subtasks and recurring tasks, with the planned modules in the
   `AGENTS.md` project layout
+- #TBD - Package skeleton: `pyproject.toml` with pinned dependencies, `uv.lock`,
+  `src/tskmngr` layout, `tskmngr` entry point that starts an empty Textual app,
+  smoke tests and a GitHub Actions workflow, started manually for now, that runs
+  ruff and the tests on Python 3.12 to 3.14 and the newest stable release
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
