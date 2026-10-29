@@ -75,7 +75,7 @@ UI. `models`, `storage` and `query` don't import Textual.
   manually for now · `chore/project_skeleton` · [#5](https://github.com/Kevin-Brockers/tskmngr/pull/5)
 - [x] **M1.2** `Task` dataclass, `Status` and `Priority` enums, ID generation
   (random 10-character Crockford base32, regenerated on collision with an
-  existing ID) and field validation · `feature/task_model` · #TBD
+  existing ID) and field validation · `feature/task_model` · [#8](https://github.com/Kevin-Brockers/tskmngr/pull/8)
 - [ ] **M1.3** Markdown serialization with `ruamel.yaml` in round-trip mode:
   parse and render frontmatter and body in the documented format, keep unknown
   frontmatter keys, comments and formatting so an unchanged file saves back
