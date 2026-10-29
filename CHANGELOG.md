@@ -30,6 +30,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `src/tskmngr` layout, `tskmngr` entry point that starts an empty Textual app,
   smoke tests and a GitHub Actions workflow, started manually for now, that runs
   ruff and the tests on Python 3.12 to 3.14 and the newest stable release
+- #TBD - Task model: `Task` dataclass with `Status` and `Priority` enums,
+  field validation and random 10-character Crockford base32 IDs
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

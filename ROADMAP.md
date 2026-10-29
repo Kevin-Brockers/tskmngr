@@ -73,9 +73,9 @@ UI. `models`, `storage` and `query` don't import Textual.
   GitHub Actions workflow running `ruff check`, `ruff format --check` and
   `pytest` on Python 3.12 to 3.14 and the newest stable release, started
   manually for now · `chore/project_skeleton` · [#5](https://github.com/Kevin-Brockers/tskmngr/pull/5)
-- [ ] **M1.2** `Task` dataclass, `Status` and `Priority` enums, ID generation
+- [x] **M1.2** `Task` dataclass, `Status` and `Priority` enums, ID generation
   (random 10-character Crockford base32, regenerated on collision with an
-  existing ID) and field validation · `feature/task_model` · depends on M1.1
+  existing ID) and field validation · `feature/task_model` · #TBD
 - [ ] **M1.3** Markdown serialization with `ruamel.yaml` in round-trip mode:
   parse and render frontmatter and body in the documented format, keep unknown
   frontmatter keys, comments and formatting so an unchanged file saves back
