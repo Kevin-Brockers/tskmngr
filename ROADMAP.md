@@ -59,6 +59,8 @@ Goal: conventions, tooling and documentation in place before any app code.
 - [x] **M0.1** `AGENTS.md`, prek hooks, diff-review hook, branching policy
   and `CHANGELOG.md` · `docs/agents-md` · [#1](https://github.com/Kevin-Brockers/tskmngr/pull/1)
 - [x] **M0.2** `ROADMAP.md` and its policy in `AGENTS.md` · `docs/roadmap` · [#2](https://github.com/Kevin-Brockers/tskmngr/pull/2)
+- [x] **M0.3** Plan milestones M1 to M5, refined after review, and the storage
+  format decisions in `AGENTS.md` · `docs/roadmap_mvp` · [#3](https://github.com/Kevin-Brockers/tskmngr/pull/3)
 
 ### M1 · Core
 
