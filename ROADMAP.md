@@ -85,7 +85,7 @@ UI. `models`, `taskfile`, `storage` and `query` don't import Textual.
   default), load all tasks with the ID taken from the filename and report
   malformed files, atomic save that refuses to overwrite a file changed on disk
   since it was loaded (reported as a conflict), delete by moving the file to
-  `.trash/` · `feature/task_storage` · #TBD
+  `.trash/` · `feature/task_storage` · [#11](https://github.com/Kevin-Brockers/tskmngr/pull/11)
 - [ ] **M1.5** Query functions: filter by status, priority and tag, text
   search over title and notes, sort by due date, priority, created or updated,
   find a task by a unique ID prefix (shared by CLI and TUI) ·
