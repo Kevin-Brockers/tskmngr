@@ -81,13 +81,14 @@ src/tskmngr/
   config.py     # config file (TOML)
   models.py     # Task dataclass and enums (status, priority)
   query.py      # filter, search, sort, ID-prefix lookup; shared by CLI and TUI
-  storage.py    # read/write tasks as Markdown files
+  storage.py    # read/write task files in the tasks directory
+  taskfile.py   # convert tasks to and from Markdown with frontmatter (no I/O)
   widgets/      # Textual widgets and screens
 tests/          # mirrors src/ layout; test_<module>.py
 ```
 
-Keep the layers separate: `models`, `storage` and `query` must not import
-Textual, so they can be tested without a UI.
+Keep the layers separate: `models`, `taskfile`, `storage` and `query` must not
+import Textual, so they can be tested without a UI.
 
 ## Task storage format
 
