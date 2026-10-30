@@ -89,7 +89,7 @@ UI. `models`, `taskfile`, `storage` and `query` don't import Textual.
 - [x] **M1.5** Query functions: filter by status, priority and tag, text
   search over title and notes, sort by due date, priority, created or updated,
   find a task by a unique ID prefix (shared by CLI and TUI) ·
-  `feature/task_query` · #TBD
+  `feature/task_query` · [#12](https://github.com/Kevin-Brockers/tskmngr/pull/12)
 
 ### M2 · Command-line interface
 
