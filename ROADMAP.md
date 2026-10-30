@@ -81,11 +81,11 @@ UI. `models`, `taskfile`, `storage` and `query` don't import Textual.
   frontmatter keys, comments and formatting so an unchanged file saves back
   byte for byte, raise a clear error for malformed files (including values of
   the wrong type) · `feature/task_markdown` · [#10](https://github.com/Kevin-Brockers/tskmngr/pull/10)
-- [ ] **M1.4** Storage: resolve the tasks directory (`TSKMNGR_DIR` or the
+- [x] **M1.4** Storage: resolve the tasks directory (`TSKMNGR_DIR` or the
   default), load all tasks with the ID taken from the filename and report
   malformed files, atomic save that refuses to overwrite a file changed on disk
   since it was loaded (reported as a conflict), delete by moving the file to
-  `.trash/` · `feature/task_storage` · depends on M1.3
+  `.trash/` · `feature/task_storage` · [#11](https://github.com/Kevin-Brockers/tskmngr/pull/11)
 - [ ] **M1.5** Query functions: filter by status, priority and tag, text
   search over title and notes, sort by due date, priority, created or updated,
   find a task by a unique ID prefix (shared by CLI and TUI) ·

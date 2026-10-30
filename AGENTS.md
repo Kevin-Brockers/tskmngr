@@ -119,9 +119,11 @@ Notes go here, in **Markdown**.
   rebuildable from them.
 - Write files atomically (write to a temp file, then rename) so a crash never
   leaves a half-written task.
-- Deleting a task moves its file into `.trash/` inside the tasks directory.
-  Files there aren't loaded, moving one back restores the task, and the app
-  never empties the folder.
+- Deleting a task moves its file into `.trash/` inside the tasks directory,
+  renamed to `<id>.<delete time>.md` in UTC (e.g.
+  `01JB3K7Q2X.2026-10-30T12-00-05Z.md`) so earlier deletes are kept. Files
+  there aren't loaded, moving one back as `<id>.md` restores the task, and the
+  app never empties the folder.
 - Tolerate hand-edited files: unknown frontmatter keys are preserved on save,
   and a malformed file is reported to the user, never silently deleted or
   overwritten. A value of the wrong type counts as malformed (YAML reads

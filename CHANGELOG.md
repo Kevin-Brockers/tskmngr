@@ -36,6 +36,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   frontmatter, keeping unknown keys, comments and formatting on save, and
   reporting malformed files with the field, line and a hint to quote values of
   the wrong type
+- [#11](https://github.com/Kevin-Brockers/tskmngr/pull/11) - Task storage: tasks directory from `TSKMNGR_DIR` or the default, load
+  all tasks with malformed files reported, atomic saves that refuse to
+  overwrite a file changed on disk since it was loaded, and delete by moving the
+  file to `.trash/` under a name with the delete time
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
