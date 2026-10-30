@@ -32,7 +32,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   ruff and the tests on Python 3.12 to 3.14 and the newest stable release
 - [#8](https://github.com/Kevin-Brockers/tskmngr/pull/8) - Task model: `Task` dataclass with `Status` and `Priority` enums,
   field validation and random 10-character Crockford base32 IDs
-- #TBD - Task file format: convert tasks to and from Markdown with YAML
+- [#10](https://github.com/Kevin-Brockers/tskmngr/pull/10) - Task file format: convert tasks to and from Markdown with YAML
   frontmatter, keeping unknown keys, comments and formatting on save, and
   reporting malformed files with the field, line and a hint to quote values of
   the wrong type

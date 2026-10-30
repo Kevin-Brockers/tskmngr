@@ -65,7 +65,7 @@ Goal: conventions, tooling and documentation in place before any app code.
 ### M1 · Core
 
 Goal: tasks can be created, saved, loaded, filtered and sorted in code, with no
-UI. `models`, `storage` and `query` don't import Textual.
+UI. `models`, `taskfile`, `storage` and `query` don't import Textual.
 
 - [x] **M1.1** Package skeleton: `pyproject.toml` (uv, approved baseline
   dependencies), committed `uv.lock`, `.gitignore`, `src/tskmngr` layout,
@@ -80,7 +80,7 @@ UI. `models`, `storage` and `query` don't import Textual.
   parse and render frontmatter and body in the documented format, keep unknown
   frontmatter keys, comments and formatting so an unchanged file saves back
   byte for byte, raise a clear error for malformed files (including values of
-  the wrong type) · `feature/task_markdown` · #TBD
+  the wrong type) · `feature/task_markdown` · [#10](https://github.com/Kevin-Brockers/tskmngr/pull/10)
 - [ ] **M1.4** Storage: resolve the tasks directory (`TSKMNGR_DIR` or the
   default), load all tasks with the ID taken from the filename and report
   malformed files, atomic save that refuses to overwrite a file changed on disk
