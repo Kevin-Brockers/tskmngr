@@ -40,6 +40,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   all tasks with malformed files reported, atomic saves that refuse to
   overwrite a file changed on disk since it was loaded, and delete by moving the
   file to `.trash/` under a name with the delete time
+- #TBD - Task queries: filter by status, priority and tags, search title
+  and notes for every word of a query, sort by due date, priority, created
+  or updated time, and find a task by a unique, case-insensitive ID prefix
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
