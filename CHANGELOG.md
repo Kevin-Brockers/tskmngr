@@ -43,6 +43,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#12](https://github.com/Kevin-Brockers/tskmngr/pull/12) - Task queries: filter by status, priority and tags, search title
   and notes for every word of a query, sort by due date, priority, created
   or updated time, and find a task by a unique, case-insensitive ID prefix
+- #TBD - `README.md` with an overview, the project status, how to run it from
+  source, the task file format and the development commands
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
