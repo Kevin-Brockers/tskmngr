@@ -60,3 +60,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
 
 - [#14](https://github.com/Kevin-Brockers/tskmngr/pull/14) - A task file with old Mac line endings (`\r` only) no longer crashes
   loading the tasks directory; such files now load like LF and CRLF files
+- #TBD - The diff-review hook now catches commits written as `git -C <path>
+  commit`, `git -c <key>=<value> commit`, `(git commit …)` or with a path to
+  `git`, refuses staging and committing in one command (its preview would
+  miss what gets staged), and blocks the commit instead of letting it through
+  when `jq` is missing or the preview fails
