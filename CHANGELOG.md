@@ -55,3 +55,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#3](https://github.com/Kevin-Brockers/tskmngr/pull/3) - Task storage format in `AGENTS.md`: the filename is the task's ID (no
   `id` key in the frontmatter), deleted tasks move to `.trash/`, and a value of
   the wrong type makes a file malformed
+
+### Fixed
+
+- [#14](https://github.com/Kevin-Brockers/tskmngr/pull/14) - A task file with old Mac line endings (`\r` only) no longer crashes
+  loading the tasks directory; such files now load like LF and CRLF files

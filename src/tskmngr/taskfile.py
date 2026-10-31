@@ -120,17 +120,20 @@ def _split(text: str) -> tuple[str, str, str]:
     The header is everything up to and including the closing delimiter line.
     The notes are the rest, without the blank line that separates them.
     """
-    header = _header(text)
-    frontmatter_text = header.split("\n", 1)[1].rsplit(DELIMITER, 1)[0]
+    lines = _header_lines(text)
+    header = "".join(lines)
+    # Taken from the lines, not split on "\n", so any line ending works.
+    frontmatter_text = "".join(lines[1:-1])
     notes = text[len(header) :]
-    for separator in ("\r\n", "\n"):
+    for separator in ("\r\n", "\n", "\r"):
         if notes.startswith(separator):
             notes = notes[len(separator) :]
             break
     return frontmatter_text, header, notes
 
 
-def _header(text: str) -> str:
+def _header_lines(text: str) -> list[str]:
+    """The lines of `text` up to and including the closing delimiter line."""
     lines = text.splitlines(keepends=True)
     if not lines or lines[0].rstrip("\r\n") != DELIMITER:
         raise MalformedTaskError(
@@ -139,7 +142,7 @@ def _header(text: str) -> str:
         )
     for index, line in enumerate(lines[1:], start=1):
         if line.rstrip("\r\n") == DELIMITER:
-            return "".join(lines[: index + 1])
+            return lines[: index + 1]
     raise MalformedTaskError(f"frontmatter has no closing {DELIMITER!r} line")
 
 

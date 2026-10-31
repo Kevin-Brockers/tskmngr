@@ -168,6 +168,17 @@ def test_parse_windows_line_endings() -> None:
     assert task.notes == "Notes\r\n"
 
 
+def test_parse_old_mac_line_endings() -> None:
+    task = load("---\rtitle: Buy milk\r---\r\rNotes\r").task
+
+    assert task.title == "Buy milk"
+    assert task.notes == "Notes\r"
+
+
+def test_parse_mixed_line_endings_in_the_frontmatter() -> None:
+    assert load("---\rtitle: Buy milk\n---\n").task.title == "Buy milk"
+
+
 def test_parse_ignores_unknown_keys() -> None:
     assert load("---\ntitle: x\nid: other\nproject: home\n---\n").task.id == (
         "01JB3K7Q2X"
@@ -282,6 +293,7 @@ Notes
         HAND_EDITED,
         "---\ntitle: Buy milk\n---\n",
         "---\r\ntitle: Buy milk\r\n---\r\n\r\nNotes\r\n",
+        "---\rtitle: Buy milk\r---\r\rNotes\r",
         "---\ntitle: x\n---\nNo trailing newline",
     ],
 )
