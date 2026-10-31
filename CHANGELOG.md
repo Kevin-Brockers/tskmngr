@@ -65,6 +65,6 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `git`, refuses staging and committing in one command (its preview would
   miss what gets staged), and blocks the commit instead of letting it through
   when `jq` is missing or the preview fails
-- #TBD - Malformed task files are reported in plain words instead of Python
+- [#16](https://github.com/Kevin-Brockers/tskmngr/pull/16) - Malformed task files are reported in plain words instead of Python
   type names, e.g. `due: expected a date like 2026-11-01, got the number 5`
   instead of `due: expected date or None, got int`
