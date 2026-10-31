@@ -179,6 +179,18 @@ def test_parse_mixed_line_endings_in_the_frontmatter() -> None:
     assert load("---\rtitle: Buy milk\n---\n").task.title == "Buy milk"
 
 
+def test_parse_utf8_byte_order_mark() -> None:
+    # Some Windows editors start UTF-8 files with one.
+    assert load("\ufeff---\ntitle: Buy milk\n---\n").task.title == "Buy milk"
+
+
+def test_parse_delimiters_with_trailing_whitespace() -> None:
+    task = load("---  \ntitle: Buy milk\n---\t\n\nNotes\n").task
+
+    assert task.title == "Buy milk"
+    assert task.notes == "Notes\n"
+
+
 def test_parse_ignores_unknown_keys() -> None:
     assert load("---\ntitle: x\nid: other\nproject: home\n---\n").task.id == (
         "01JB3K7Q2X"
@@ -294,6 +306,8 @@ Notes
         "---\ntitle: Buy milk\n---\n",
         "---\r\ntitle: Buy milk\r\n---\r\n\r\nNotes\r\n",
         "---\rtitle: Buy milk\r---\r\rNotes\r",
+        "\ufeff---\ntitle: Buy milk\n---\n\nNotes\n",
+        "--- \ntitle: Buy milk\n---  \n\nNotes\n",
         "---\ntitle: x\n---\nNo trailing newline",
     ],
 )
@@ -336,6 +350,12 @@ def test_edit_only_frontmatter_keeps_the_notes_byte_for_byte() -> None:
     text = edit(HAND_EDITED, priority=Priority.HIGH)
 
     assert text.endswith("---\n\n\nNotes\n  with odd   spacing\n")
+
+
+def test_edit_keeps_the_byte_order_mark() -> None:
+    text = edit("\ufeff---\ntitle: Buy milk\n---\n", status=Status.DONE)
+
+    assert text.startswith("\ufeff---\ntitle: Buy milk\nstatus: done\n")
 
 
 def test_edit_clearing_notes() -> None:
@@ -422,6 +442,11 @@ def test_malformed_without_opening_delimiter(text: str) -> None:
 
 def test_malformed_without_closing_delimiter() -> None:
     assert_malformed("---\ntitle: x\n")
+
+
+@pytest.mark.parametrize("line", ["----", "--- x", "- - -"])
+def test_only_dashes_and_trailing_whitespace_make_a_delimiter(line: str) -> None:
+    assert_malformed(f"---\ntitle: x\n{line}\n")
 
 
 def test_malformed_yaml_reports_the_line() -> None:

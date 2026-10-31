@@ -68,3 +68,6 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#16](https://github.com/Kevin-Brockers/tskmngr/pull/16) - Malformed task files are reported in plain words instead of Python
   type names, e.g. `due: expected a date like 2026-11-01, got the number 5`
   instead of `due: expected date or None, got int`
+- [#17](https://github.com/Kevin-Brockers/tskmngr/pull/17) - Task files starting with a UTF-8 byte order mark, or with spaces or
+  tabs after a `---` line, load instead of being reported as malformed; the
+  byte order mark is kept when the task is saved
