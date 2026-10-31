@@ -533,6 +533,55 @@ def test_malformed_naive_timestamp_says_why() -> None:
     assert error.message == "must include a timezone"
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("title", "[a]", "expected text, got a list"),
+        ("title", "{a: 1}", "expected text, got a mapping"),
+        ("title", "!!set {a}", "expected text, got a set"),
+        ("title", "!note Buy milk", "expected text, got an unsupported value"),
+        ("status", "[todo]", "expected text, got a list"),
+        ("tags", "{a: 1}", "expected a list like [errands, home], got a mapping"),
+        ("tags", "[[a]]", "expected text, got a list"),
+        ("due", "5", "expected a date like 2026-11-01, got the number 5"),
+        ("due", "true", "expected a date like 2026-11-01, got the boolean true"),
+        ("due", "[2026-11-01]", "expected a date like 2026-11-01, got a list"),
+        (
+            "due",
+            "2026-11-01T10:00:00Z",
+            "expected a date like 2026-11-01, got a timestamp",
+        ),
+        (
+            "created",
+            "2026-10-28",
+            "expected a timestamp like 2026-10-28T09:15:00Z, got a date",
+        ),
+        (
+            "updated",
+            "1",
+            "expected a timestamp like 2026-10-28T09:15:00Z, got the number 1",
+        ),
+        (
+            "created",
+            "",
+            "expected a timestamp like 2026-10-28T09:15:00Z, got no value",
+        ),
+    ],
+)
+def test_malformed_value_is_described_in_words(
+    field: str, value: str, message: str
+) -> None:
+    # The messages are shown to users, so no Python or ruamel type names.
+    if field == "title":
+        text = f"---\ntitle: {value}\n---\n"
+    else:
+        text = f"---\ntitle: x\n{field}: {value}\n---\n"
+
+    error = assert_malformed(text, field, 2 if field == "title" else 3)
+
+    assert error.message == message
+
+
 def test_malformed_line_numbers_count_from_the_file_start() -> None:
     text = "---\n# comment\n\ntitle: x\npriority: urgent\n---\n"
 
