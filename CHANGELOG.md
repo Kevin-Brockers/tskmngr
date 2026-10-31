@@ -58,5 +58,5 @@ its commit for changes that reached `dev` or `main` without a pull request.
 
 ### Fixed
 
-- #TBD - A task file with old Mac line endings (`\r` only) no longer crashes
+- [#14](https://github.com/Kevin-Brockers/tskmngr/pull/14) - A task file with old Mac line endings (`\r` only) no longer crashes
   loading the tasks directory; such files now load like LF and CRLF files
