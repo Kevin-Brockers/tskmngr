@@ -45,6 +45,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   or updated time, and find a task by a unique, case-insensitive ID prefix
 - [#13](https://github.com/Kevin-Brockers/tskmngr/pull/13) - `README.md` with an overview, the project status, how to run it from
   source, the task file format and the development commands
+- [#18](https://github.com/Kevin-Brockers/tskmngr/pull/18) - `tskmngr add` to add a task from the shell, with a title and
+  optional `--priority`, `--due` (YYYY-MM-DD) and repeatable `--tag`; it
+  prints the new task's ID. `tskmngr` without a command still opens the TUI
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
