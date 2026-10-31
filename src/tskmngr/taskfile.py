@@ -21,6 +21,9 @@ from tskmngr.models import Priority, Status, Task, TaskValidationError
 
 DELIMITER = "---"
 
+# Some Windows editors start UTF-8 files with a byte order mark.
+BOM = "\ufeff"
+
 # Frontmatter keys in the order they're written for a new task.
 FIELDS = ("title", "status", "priority", "due", "tags", "created", "updated")
 
@@ -107,7 +110,8 @@ def render(task: Task, source: TaskFile | None = None) -> str:
     header = old_header
     if any(getattr(task, field) != getattr(old, field) for field in FIELDS):
         frontmatter = _dump(_update(_load(frontmatter_text), task, old))
-        header = f"{DELIMITER}\n{frontmatter}{DELIMITER}\n"
+        bom = BOM if old_header.startswith(BOM) else ""
+        header = f"{bom}{DELIMITER}\n{frontmatter}{DELIMITER}\n"
     if task.notes == old.notes:
         return header + source.text[len(old_header) :]
     return _join(header, task.notes)
@@ -137,15 +141,20 @@ def _split(text: str) -> tuple[str, str, str]:
 def _header_lines(text: str) -> list[str]:
     """The lines of `text` up to and including the closing delimiter line."""
     lines = text.splitlines(keepends=True)
-    if not lines or lines[0].rstrip("\r\n") != DELIMITER:
+    if not lines or not _is_delimiter(lines[0].removeprefix(BOM)):
         raise MalformedTaskError(
             f"must start with a {DELIMITER!r} line followed by the frontmatter",
             line=1,
         )
     for index, line in enumerate(lines[1:], start=1):
-        if line.rstrip("\r\n") == DELIMITER:
+        if _is_delimiter(line):
             return lines[: index + 1]
     raise MalformedTaskError(f"frontmatter has no closing {DELIMITER!r} line")
+
+
+def _is_delimiter(line: str) -> bool:
+    # Trailing spaces are invisible in most editors, so they're allowed.
+    return line.rstrip(" \t\r\n") == DELIMITER
 
 
 def _join(header: str, notes: str) -> str:

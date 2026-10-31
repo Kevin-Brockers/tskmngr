@@ -137,6 +137,15 @@ def test_load_keeps_cr_line_endings(tmp_path: Path) -> None:
     assert load_one(tmp_path).text == text
 
 
+def test_load_keeps_utf8_byte_order_mark(tmp_path: Path) -> None:
+    path = tmp_path / "01JB3K7Q2X.md"
+    path.write_bytes(b"\xef\xbb\xbf" + TASK_TEXT.encode())
+    source = load_one(tmp_path)
+    assert source.task.title == "Buy milk"
+    save_task(tmp_path, source.task, source)
+    assert path.read_bytes().startswith(b"\xef\xbb\xbf---\n")
+
+
 def test_load_uses_mtime_for_missing_timestamps(tmp_path: Path) -> None:
     path = write(tmp_path, "a.md", "---\ntitle: Buy milk\n---\n")
     mtime = datetime(2026, 10, 29, 8, 30, 15, tzinfo=UTC)
