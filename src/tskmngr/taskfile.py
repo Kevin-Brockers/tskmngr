@@ -6,6 +6,8 @@ comments and formatting survive a save.
 """
 
 import io
+from collections.abc import Mapping
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
@@ -270,7 +272,14 @@ def _describe(value: object) -> str:
         return "a date"
     if isinstance(value, str):
         return f"the text {value!r}"
-    return f"a {type(value).__name__}"
+    # Checked by kind, since ruamel returns its own subclasses (CommentedSeq…).
+    if isinstance(value, list):
+        return "a list"
+    if isinstance(value, Mapping):
+        return "a mapping"
+    if isinstance(value, AbstractSet):
+        return "a set"
+    return "an unsupported value"
 
 
 def _is_scalar(value: object) -> bool:
@@ -303,11 +312,12 @@ def _choice[E: (Status, Priority)](
 
 def _due(frontmatter: CommentedMap) -> date | None:
     value = frontmatter.get("due")
-    if isinstance(value, str):
-        raise _error(
-            frontmatter, "due", f"expected a date like 2026-11-01, got {value!r}"
-        )
-    return value
+    # datetime is a subclass of date, but a due date has no time of day.
+    if value is None or (isinstance(value, date) and not isinstance(value, datetime)):
+        return value
+    raise _error(
+        frontmatter, "due", f"expected a date like 2026-11-01, got {_describe(value)}"
+    )
 
 
 def _tags(frontmatter: CommentedMap) -> tuple[str, ...]:
@@ -333,22 +343,20 @@ def _timestamp(frontmatter: CommentedMap, key: str, fallback: datetime) -> datet
     if key not in frontmatter:
         return fallback
     value = frontmatter[key]
-    if isinstance(value, datetime):
-        # Drop ruamel's TimeStamp subclass.
-        return datetime(
-            value.year,
-            value.month,
-            value.day,
-            value.hour,
-            value.minute,
-            value.second,
-            value.microsecond,
-            tzinfo=value.tzinfo,
-        )
-    if isinstance(value, str):
+    if not isinstance(value, datetime):
         raise _error(
             frontmatter,
             key,
-            f"expected a timestamp like 2026-10-28T09:15:00Z, got {value!r}",
+            f"expected a timestamp like 2026-10-28T09:15:00Z, got {_describe(value)}",
         )
-    return value
+    # Drop ruamel's TimeStamp subclass.
+    return datetime(
+        value.year,
+        value.month,
+        value.day,
+        value.hour,
+        value.minute,
+        value.second,
+        value.microsecond,
+        tzinfo=value.tzinfo,
+    )
