@@ -100,7 +100,7 @@ unique prefix of its ID.
 - [x] **M2.1** CLI with subcommands (`argparse`) and `tskmngr add` with title,
   priority, due date and tags · `feature/cli_add` · [#18](https://github.com/Kevin-Brockers/tskmngr/pull/18)
 - [x] **M2.2** `tskmngr list` with filter, search and sort options; malformed
-  files reported on stderr · `feature/cli_list` · #TBD
+  files reported on stderr · `feature/cli_list` · [#19](https://github.com/Kevin-Brockers/tskmngr/pull/19)
 - [ ] **M2.3** `tskmngr show`, `edit` (fields) and `done` ·
   `feature/cli_show_edit` · depends on M2.1, M1.5
 - [ ] **M2.4** `tskmngr delete` with a confirmation prompt (`--yes` to skip) ·

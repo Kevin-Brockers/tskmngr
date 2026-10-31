@@ -48,7 +48,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#18](https://github.com/Kevin-Brockers/tskmngr/pull/18) - `tskmngr add` to add a task from the shell, with a title and
   optional `--priority`, `--due` (YYYY-MM-DD) and repeatable `--tag`; it
   prints the new task's ID. `tskmngr` without a command still opens the TUI
-- #TBD - `tskmngr list` to list tasks in aligned columns, by default the
+- [#19](https://github.com/Kevin-Brockers/tskmngr/pull/19) - `tskmngr list` to list tasks in aligned columns, by default the
   ones not done yet, soonest due first; filter with `--status`, `--all`,
   `--priority` and `--tag`, search title and notes by giving words, and pick
   the order with `--sort` and `--reverse`. Malformed task files are reported
