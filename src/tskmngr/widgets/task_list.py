@@ -1,16 +1,19 @@
 """The task list screen: every task in a table, soonest due first.
 
 Task files that can't be loaded are named in a warning panel above the table,
-so they're never hidden. The tasks directory is shown in the header.
+so they're never hidden. The tasks directory is shown in the header. Enter
+opens the task under the cursor in the detail screen.
 """
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import ClassVar
 
 # Cells and the warning are built as `Text` so a title like "[b]old" is shown
 # as written instead of read as markup.
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding, BindingType
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Static
 
@@ -18,6 +21,7 @@ from tskmngr.models import Task
 from tskmngr.query import SortKey, sort_tasks
 from tskmngr.storage import BadFile, load_tasks
 from tskmngr.taskfile import TaskFile
+from tskmngr.widgets.task_detail import TaskDetailScreen
 
 COLUMNS = ("ID", "Status", "Priority", "Due", "Title")
 
@@ -58,6 +62,11 @@ def _display_path(directory: Path, path: Path) -> Path:
 
 class TaskListScreen(Screen):
     """All tasks in `directory`, done ones included, soonest due first."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        # Priority, so Enter reaches the screen before the focused table.
+        Binding("enter", "open_task", "Open", id="task_list.open", priority=True),
+    ]
 
     DEFAULT_CSS = """
     TaskListScreen #load-warning {
@@ -129,3 +138,17 @@ class TaskListScreen(Screen):
         for source in self.tasks:
             table.add_row(*task_row(source.task), key=source.task.id)
         self.query_one("#no-tasks").set_class(not self.tasks, "-shown")
+
+    def action_open_task(self) -> None:
+        """Show the task under the cursor in the detail screen."""
+        if not self.tasks:
+            return
+        table = self.query_one("#task-table", DataTable)
+        self.app.push_screen(
+            TaskDetailScreen(self.directory, self.tasks[table.cursor_row])
+        )
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        # Clicking a row selects it; Enter is handled by the binding.
+        event.stop()
+        self.action_open_task()
