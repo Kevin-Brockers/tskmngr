@@ -118,7 +118,7 @@ the user and the task reloaded, never overwritten.
 - [x] **M3.2** Task detail view with all fields and rendered notes ·
   `feature/tui_task_detail` · [#25](https://github.com/Kevin-Brockers/tskmngr/pull/25)
 - [x] **M3.3** Form to create and edit a task (title, status, priority, due
-  date, tags) with validation · `feature/tui_task_form` · #TBD
+  date, tags) with validation · `feature/tui_task_form` · [#26](https://github.com/Kevin-Brockers/tskmngr/pull/26)
 - [ ] **M3.4** Quick status change and delete with confirmation from the list ·
   `feature/tui_task_actions` · depends on M3.1
 - [ ] **M3.5** Edit notes in a built-in text area ·
