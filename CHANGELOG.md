@@ -53,7 +53,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `--priority` and `--tag`, search title and notes by giving words, and pick
   the order with `--sort` and `--reverse`. Malformed task files are reported
   on stderr
-- #TBD - `tskmngr show` to print all fields and the notes of a task,
+- [#20](https://github.com/Kevin-Brockers/tskmngr/pull/20) - `tskmngr show` to print all fields and the notes of a task,
   `tskmngr edit` to change its title, status, priority, due date (`--no-due`
   removes it) and tags (`--tag`, `--untag`, `--clear-tags`), and
   `tskmngr done` to mark it done. Each takes any unique prefix of the task's
