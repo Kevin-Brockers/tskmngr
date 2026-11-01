@@ -130,5 +130,10 @@ def test_bindings_have_stable_ids() -> None:
         "task_list.edit",
         "task_list.cycle_status",
         "task_list.delete",
+        "task_list.external_editor",
     }
-    assert detail_ids == {"task_detail.close", "task_detail.edit"}
+    assert detail_ids == {
+        "task_detail.close",
+        "task_detail.edit",
+        "task_detail.external_editor",
+    }

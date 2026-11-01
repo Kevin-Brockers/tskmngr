@@ -93,6 +93,12 @@ its commit for changes that reached `dev` or `main` without a pull request.
   byte for byte. Escape on a form with changes asks before discarding them
   (No has the focus), and Enter on the tags now moves to the notes instead of
   saving
+- #TBD - `o` on the TUI task list or detail view opens the task's file in
+  `$VISUAL` or `$EDITOR` (with any arguments, e.g. `code --wait`) while the TUI
+  is suspended, and reloads the task when the editor exits. The app never
+  writes the file afterwards; a file left malformed is reported and shown in
+  the list's warning panel. If neither variable is set, the editor can't be
+  started or the file is gone, that's shown instead
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
