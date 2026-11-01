@@ -14,6 +14,7 @@ from tskmngr.query import SortKey, filter_tasks, match_id_prefix, sort_tasks
 from tskmngr.storage import (
     ConflictError,
     LoadResult,
+    delete_task,
     load_tasks,
     save_task,
     tasks_dir,
@@ -192,6 +193,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     _add_id_argument(done)
     done.set_defaults(handler=_done, parser=done)
+
+    delete = commands.add_parser(
+        "delete",
+        help="delete a task",
+        description=(
+            "Move a task's file into .trash/ in the tasks directory, after asking "
+            "for confirmation. Without a terminal to ask on, --yes is required."
+        ),
+    )
+    _add_id_argument(delete)
+    delete.add_argument(
+        "-y", "--yes", action="store_true", help="delete without asking"
+    )
+    delete.set_defaults(handler=_delete, parser=delete)
     return parser
 
 
@@ -296,6 +311,48 @@ def _done(args: argparse.Namespace) -> int:
     source = _find(args, _load(directory))
     _save_changed(directory, source, replace(source.task, status=Status.DONE))
     return 0
+
+
+def _delete(args: argparse.Namespace) -> int:
+    directory = tasks_dir()
+    source = _find(args, _load(directory))
+    task = source.task
+    if not args.yes:
+        if not sys.stdin.isatty():
+            raise CommandError(
+                f"not deleting task {task.id} without confirmation; "
+                "stdin isn't a terminal, so pass --yes"
+            )
+        if not _confirm(f"Delete task {task.id} {task.title!r}? [y/N] "):
+            print("Not deleted.", file=sys.stderr)
+            return 1
+    try:
+        trashed = delete_task(directory, source)
+    except ConflictError as error:
+        raise CommandError(f"can't delete the task: {error}") from error
+    except OSError as error:
+        raise CommandError(
+            f"can't delete the task in {directory}: {_reason(error)}"
+        ) from error
+    print(f"Moved {task.id} to {trashed}")
+    return 0
+
+
+def _confirm(prompt: str) -> bool:
+    """Ask a yes/no question on stderr and read the answer from stdin.
+
+    Only `y` or `yes` (any case) is a yes; anything else, end of input or
+    Ctrl-C is a no.
+    """
+    print(prompt, end="", file=sys.stderr, flush=True)
+    try:
+        answer = sys.stdin.readline()
+    except KeyboardInterrupt:
+        answer = ""
+    if not answer.endswith("\n"):
+        # Move past the prompt line, which the user didn't end with Enter.
+        print(file=sys.stderr)
+    return answer.strip().lower() in ("y", "yes")
 
 
 def _find(args: argparse.Namespace, result: LoadResult) -> TaskFile:

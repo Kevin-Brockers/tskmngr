@@ -58,6 +58,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   removes it) and tags (`--tag`, `--untag`, `--clear-tags`), and
   `tskmngr done` to mark it done. Each takes any unique prefix of the task's
   ID; a prefix that picks a malformed file reports that file's error
+- #TBD - `tskmngr delete` to move a task's file into `.trash/`, taking any
+  unique prefix of its ID. It asks for confirmation first; `--yes` skips the
+  question, and without a terminal to ask on (piped input, scripts) it refuses
+  unless `--yes` is given
 - [#21](https://github.com/Kevin-Brockers/tskmngr/pull/21) - `init-work` Claude Code skill that reads `AGENTS.md` and `ROADMAP.md`
   and summarizes the next open roadmap step
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
