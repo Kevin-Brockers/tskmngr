@@ -215,7 +215,8 @@ Notes go here, in **Markdown**.
 - Do not add a new dependency (runtime or dev) without asking the maintainer
   first. Explain what it's for and why the standard library or an existing
   dependency isn't enough.
-- Approved baseline: `textual`, `ruamel.yaml`, `pytest`, `pytest-asyncio`,
+- Approved baseline: `textual`, `rich` (comes with Textual; pinned because
+  the TUI imports it directly), `ruamel.yaml`, `pytest`, `pytest-asyncio`,
   `ruff`.
 
 ## Code style

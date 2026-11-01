@@ -62,6 +62,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   unique prefix of its ID. It asks for confirmation first; `--yes` skips the
   question, and without a terminal to ask on (piped input, scripts) it refuses
   unless `--yes` is given
+- #TBD - The TUI opens on a list of all tasks, done ones included, soonest
+  due first, with their ID, status, priority, due date, title and tags. Task
+  files that can't be loaded are named with their error in a warning panel
+  above the list instead of being hidden. The header shows the tasks directory
 - [#21](https://github.com/Kevin-Brockers/tskmngr/pull/21) - `init-work` Claude Code skill that reads `AGENTS.md` and `ROADMAP.md`
   and summarizes the next open roadmap step
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
@@ -74,6 +78,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#3](https://github.com/Kevin-Brockers/tskmngr/pull/3) - Task storage format in `AGENTS.md`: the filename is the task's ID (no
   `id` key in the frontmatter), deleted tasks move to `.trash/`, and a value of
   the wrong type makes a file malformed
+- #TBD - `rich` is a pinned direct dependency and part of the approved
+  dependency baseline, since the TUI imports it; it was already installed
+  with Textual, at the same version
 
 ### Fixed
 
