@@ -121,8 +121,8 @@ the user and the task reloaded, never overwritten.
   date, tags) with validation · `feature/tui_task_form` · [#26](https://github.com/Kevin-Brockers/tskmngr/pull/26)
 - [x] **M3.4** Quick status change and delete with confirmation from the list ·
   `feature/tui_task_actions` · [#27](https://github.com/Kevin-Brockers/tskmngr/pull/27)
-- [ ] **M3.5** Edit notes in a built-in text area ·
-  `feature/tui_notes_editor` · depends on M3.3
+- [x] **M3.5** Edit notes in a built-in text area ·
+  `feature/tui_notes_editor` · #TBD
 - [ ] **M3.6** Open the task file in `$EDITOR` (TUI suspended) and reload it
   afterwards · `feature/tui_external_editor` · depends on M3.2
 - [ ] **M3.7** Filter and search the task list · `feature/tui_filter_search` ·

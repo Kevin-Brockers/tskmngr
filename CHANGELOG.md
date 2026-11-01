@@ -86,6 +86,13 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#28](https://github.com/Kevin-Brockers/tskmngr/pull/28) - `sync-dev` Claude Code skill that updates `dev` from GitHub and
   deletes local branches fully merged into it, keeping `main` and `dev`;
   branches on GitHub are left alone
+- #TBD - The TUI task form has a Notes text area below the tags, to write a
+  new task's notes or edit a task's notes as plain text (Enter starts a new
+  line, Tab moves on, ctrl+s saves). Whitespace-only notes are saved as no
+  notes, and edited notes end with a newline; notes left untouched are saved
+  byte for byte. Escape on a form with changes asks before discarding them
+  (No has the focus), and Enter on the tags now moves to the notes instead of
+  saving
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

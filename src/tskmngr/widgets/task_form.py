@@ -1,9 +1,11 @@
 """The task form: create a task or edit the fields of one.
 
-Title, status, priority, due date and tags; the notes are left as they are.
-Input is checked on save and each problem is shown under its field. A save
-that hits a conflict (the file changed or was deleted on disk) is shown as an
-error and the form closes without saving, so the caller reloads from disk.
+Title, status, priority, due date, tags and the notes, which are edited as
+plain text in a text area. Input is checked on save and each problem is shown
+under its field. A save that hits a conflict (the file changed or was deleted
+on disk) is shown as an error and the form closes without saving, so the
+caller reloads from disk. Cancelling a form with changes asks before
+discarding them.
 """
 
 import re
@@ -19,7 +21,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Input, Label, Select, Static
+from textual.widgets import Footer, Header, Input, Label, Select, Static, TextArea
 
 from tskmngr.models import (
     Priority,
@@ -31,8 +33,9 @@ from tskmngr.models import (
 )
 from tskmngr.storage import ConflictError, load_tasks, save_task, task_path
 from tskmngr.taskfile import TaskFile
+from tskmngr.widgets.confirm_discard import ConfirmDiscardScreen
 
-FIELDS = ("title", "status", "priority", "due", "tags")
+FIELDS = ("title", "status", "priority", "due", "tags", "notes")
 
 TAG_SEPARATORS = re.compile(r"[\s,]+")
 
@@ -49,6 +52,17 @@ def parse_tags(text: str) -> list[str]:
 def format_tags(tags: tuple[str, ...]) -> str:
     """Tags as the form shows them, for `parse_tags` to read back."""
     return ", ".join(tags)
+
+
+def tidy_notes(text: str, newline: str = "\n") -> str:
+    """Notes as typed in the form, ready to save.
+
+    Whitespace-only notes become no notes, and other notes end with `newline`,
+    so the task file ends with a line break.
+    """
+    if not text.strip():
+        return ""
+    return text if text.endswith(("\r\n", "\n", "\r")) else text + newline
 
 
 class TaskFormScreen(Screen[str | None]):
@@ -80,12 +94,17 @@ class TaskFormScreen(Screen[str | None]):
     TaskFormScreen .field-error.-shown {
         display: block;
     }
+    TaskFormScreen #notes {
+        height: 12;
+    }
     """
 
     def __init__(self, directory: Path, source: TaskFile | None = None) -> None:
         super().__init__()
         self.directory = directory
         self.source = source
+        # The fields as first shown, to tell whether anything was changed.
+        self._initial_values: tuple[object, ...] = ()
 
     def compose(self) -> ComposeResult:
         task = self.source.task if self.source else None
@@ -116,6 +135,8 @@ class TaskFormScreen(Screen[str | None]):
             tags = format_tags(task.tags) if task else ""
             yield Input(tags, placeholder="separated by spaces or commas", id="tags")
             yield from self._error("tags")
+            yield Label("Notes", classes="field-label")
+            yield TextArea(task.notes if task else "", id="notes")
         yield Footer()
 
     def _error(self, field: str) -> ComposeResult:
@@ -127,17 +148,33 @@ class TaskFormScreen(Screen[str | None]):
         else:
             self.sub_title = f"Edit {task_path(self.directory, self.source.task.id)}"
         self.query_one("#title", Input).focus()
+        self._initial_values = self._field_values()
+
+    def _field_values(self) -> tuple[object, ...]:
+        """What the fields hold, as shown, before any checks."""
+        return (
+            self.query_one("#title", Input).value,
+            self.query_one("#status", Select).value,
+            self.query_one("#priority", Select).value,
+            self.query_one("#due", Input).value,
+            self.query_one("#tags", Input).value,
+            self.query_one("#notes", TextArea).text,
+        )
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        # Enter moves to the next field, and saves from the last one.
+        # Enter moves to the next field; in the notes it starts a new line.
         event.stop()
-        if event.input.id == FIELDS[-1]:
-            self.action_save()
-        else:
-            self.focus_next()
+        self.focus_next()
 
     def action_cancel(self) -> None:
-        self.dismiss(None)
+        """Close without saving, after asking if anything was changed."""
+        if self._field_values() == self._initial_values:
+            self.dismiss(None)
+            return
+        self.app.push_screen(
+            ConfirmDiscardScreen(),
+            lambda discard: self.dismiss(None) if discard else None,
+        )
 
     def action_save(self) -> None:
         task = self._task_from_fields()
@@ -191,6 +228,7 @@ class TaskFormScreen(Screen[str | None]):
                 priority=self.query_one("#priority", Select).value,
                 due=due,
                 tags=parse_tags(self.query_one("#tags", Input).value),
+                notes=self._notes(),
             )
         except TaskValidationError as error:
             errors.setdefault(error.field, error.message)
@@ -207,6 +245,17 @@ class TaskFormScreen(Screen[str | None]):
         self._show_errors(errors)
         return None if errors else task
 
+    def _notes(self) -> str:
+        """The notes to save: the task's own if untouched, else tidied.
+
+        Untouched notes aren't taken from the text area, which would turn
+        mixed line endings into one kind and so change the file.
+        """
+        notes = self.query_one("#notes", TextArea)
+        if notes.text == self._initial_values[FIELDS.index("notes")]:
+            return self.source.task.notes if self.source else ""
+        return tidy_notes(notes.text, notes.document.newline)
+
     def _build(
         self,
         *,
@@ -215,6 +264,7 @@ class TaskFormScreen(Screen[str | None]):
         priority: Priority,
         due: date | None,
         tags: list[str],
+        notes: str,
     ) -> Task:
         if self.source is None:
             return new_task(
@@ -224,10 +274,17 @@ class TaskFormScreen(Screen[str | None]):
                 priority=priority,
                 due=due,
                 tags=tags,
+                notes=notes,
             )
         old = self.source.task
         task = replace(
-            old, title=title, status=status, priority=priority, due=due, tags=tags
+            old,
+            title=title,
+            status=status,
+            priority=priority,
+            due=due,
+            tags=tags,
+            notes=notes,
         )
         if task == old:
             return task
