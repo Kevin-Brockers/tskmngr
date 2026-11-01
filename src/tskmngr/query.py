@@ -99,21 +99,33 @@ def find_by_prefix[T: (Task, TaskFile)](items: Iterable[T], prefix: str) -> T:
     `TaskNotFoundError` if nothing matches, `AmbiguousIDError` if several
     tasks do, and `ValueError` for a blank prefix.
     """
+    items = list(items)
+    task_id = match_id_prefix([_task(item).id for item in items], prefix)
+    # match_id_prefix raises if task_id isn't unique, so exactly one item has it.
+    return next(item for item in items if _task(item).id == task_id)
+
+
+def match_id_prefix(ids: Iterable[str], prefix: str) -> str:
+    """Return the one ID in `ids` that starts with `prefix`, ignoring case.
+
+    The same rules and errors as `find_by_prefix`, for callers that also look
+    up IDs without a task, such as the files that failed to load.
+    """
     if not prefix.strip():
         raise ValueError("ID prefix must not be blank")
     folded = prefix.casefold()
-    matches = [item for item in items if _task(item).id.casefold().startswith(folded)]
+    matches = [task_id for task_id in ids if task_id.casefold().startswith(folded)]
     if not matches:
         raise TaskNotFoundError(prefix)
     if len(matches) == 1:
         return matches[0]
     # Hand-made filenames may differ only in case, so an exact match wins first.
-    exact = [item for item in matches if _task(item).id == prefix] or [
-        item for item in matches if _task(item).id.casefold() == folded
+    exact = [task_id for task_id in matches if task_id == prefix] or [
+        task_id for task_id in matches if task_id.casefold() == folded
     ]
     if len(exact) == 1:
         return exact[0]
-    raise AmbiguousIDError(prefix, sorted(_task(item).id for item in matches))
+    raise AmbiguousIDError(prefix, sorted(matches))
 
 
 def _task(item: Task | TaskFile) -> Task:

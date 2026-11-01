@@ -53,6 +53,11 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `--priority` and `--tag`, search title and notes by giving words, and pick
   the order with `--sort` and `--reverse`. Malformed task files are reported
   on stderr
+- #TBD - `tskmngr show` to print all fields and the notes of a task,
+  `tskmngr edit` to change its title, status, priority, due date (`--no-due`
+  removes it) and tags (`--tag`, `--untag`, `--clear-tags`), and
+  `tskmngr done` to mark it done. Each takes any unique prefix of the task's
+  ID; a prefix that picks a malformed file reports that file's error
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

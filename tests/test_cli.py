@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -476,4 +476,397 @@ def test_list_reports_a_tasks_directory_that_cant_be_read(
     assert capsys.readouterr() == (
         "",
         f"tskmngr: error: can't read the tasks in {tasks}: Permission denied\n",
+    )
+
+
+# show, edit and done
+
+
+def read(directory: Path, task_id: str) -> str:
+    return (directory / f"{task_id}.md").read_text(encoding="utf-8")
+
+
+def test_show_prints_all_fields_and_the_notes(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Buy milk",
+        status=Status.DOING,
+        priority=Priority.HIGH,
+        due=date(2026, 11, 1),
+        tags=("errands", "home"),
+        notes="Get **oat** milk.\n\n- two litres\n",
+    )
+
+    assert cli.main(["show", "6ac"]) == 0
+
+    assert capsys.readouterr() == (
+        (
+            "ID:        6ACV1F0HMW\n"
+            "Title:     Buy milk\n"
+            "Status:    doing\n"
+            "Priority:  high\n"
+            "Due:       2026-11-01\n"
+            "Tags:      errands, home\n"
+            "Created:   2026-10-28T09:15:00Z\n"
+            "Updated:   2026-10-28T09:15:00Z\n"
+            "\n"
+            "Get **oat** milk.\n"
+            "\n"
+            "- two litres\n"
+        ),
+        "",
+    )
+
+
+def test_show_without_due_date_tags_or_notes(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+
+    assert cli.main(["show", "6ACV1F0HMW"]) == 0
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[4:6] == ["Due:       -", "Tags:      -"]
+    assert lines[-1].startswith("Updated:")
+
+
+def test_show_keeps_a_timezone_other_than_utc(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    berlin = timezone(timedelta(hours=1))
+    task = Task(
+        id="6ACV1F0HMW",
+        title="Buy milk",
+        created=datetime(2026, 10, 28, 10, 15, tzinfo=berlin),
+        updated=CREATED,
+    )
+    save_task(tasks, task, None)
+
+    assert cli.main(["show", "6"]) == 0
+
+    assert "Created:   2026-10-28T10:15:00+01:00\n" in capsys.readouterr().out
+
+
+def test_show_unknown_prefix(tasks: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+
+    assert cli.main(["show", "XYZ"]) == 1
+
+    assert capsys.readouterr() == (
+        "",
+        "tskmngr: error: no task with ID prefix 'XYZ'\n",
+    )
+
+
+def test_show_ambiguous_prefix_lists_the_candidates(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    add_task(tasks, "6AQ0000000", "Write report")
+
+    assert cli.main(["show", "6a"]) == 1
+
+    assert capsys.readouterr().err == (
+        "tskmngr: error: ID prefix '6a' matches 2 tasks: 6ACV1F0HMW, 6AQ0000000\n"
+    )
+
+
+def test_show_blank_prefix_is_a_usage_error(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert "ID prefix must not be blank" in usage_error(["show", " "], capsys)
+
+
+@pytest.mark.parametrize("command", ["show", "edit", "done"])
+def test_commands_require_an_id(
+    command: str, tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert "the following arguments are required: ID" in usage_error([command], capsys)
+
+
+@pytest.mark.parametrize(
+    "argv", [["show"], ["edit", "--title", "New"], ["done"]], ids=lambda a: a[0]
+)
+def test_commands_report_a_malformed_file_matching_the_prefix(
+    argv: list[str], tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    broken = tasks / "7BROKEN000.md"
+    broken.write_text("---\nstatus: todo\n---\n", encoding="utf-8")
+
+    assert cli.main([argv[0], "7b", *argv[1:]]) == 1
+
+    assert capsys.readouterr() == (
+        "",
+        f"tskmngr: error: can't load {broken}: title: missing\n",
+    )
+    assert broken.read_text(encoding="utf-8") == "---\nstatus: todo\n---\n"
+
+
+def test_malformed_files_make_a_prefix_ambiguous(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    (tasks / "6ABROKEN00.md").write_text("not a task", encoding="utf-8")
+
+    assert cli.main(["done", "6a"]) == 1
+
+    assert capsys.readouterr().err == (
+        "tskmngr: error: ID prefix '6a' matches 2 tasks: 6ABROKEN00, 6ACV1F0HMW\n"
+    )
+    assert load_tasks(tasks).tasks[0].task.status is Status.TODO
+
+
+def test_done_marks_the_task_done_and_updates_the_timestamp(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk", status=Status.DOING)
+
+    assert cli.main(["done", "6ACV"]) == 0
+
+    assert capsys.readouterr() == ("", "")
+    [source] = load_all(tasks)
+    assert source.task.status is Status.DONE
+    assert source.task.created == CREATED
+    assert source.task.updated > CREATED
+    assert source.task.updated.utcoffset() == timedelta(0)
+    assert source.task.updated.microsecond == 0
+    assert f"updated: {source.task.updated:%Y-%m-%dT%H:%M:%S}Z\n" in source.text
+
+
+def test_done_on_a_done_task_leaves_the_file_alone(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk", status=Status.DONE)
+    before = read(tasks, "6ACV1F0HMW")
+
+    assert cli.main(["done", "6"]) == 0
+
+    assert capsys.readouterr() == ("", "")
+    assert read(tasks, "6ACV1F0HMW") == before
+
+
+def test_done_keeps_unknown_keys_and_comments(tasks: Path) -> None:
+    tasks.mkdir()
+    path = tasks / "6ACV1F0HMW.md"
+    path.write_text(
+        "---\n"
+        "title: Buy milk  # from the fridge list\n"
+        "status: todo\n"
+        "estimate: 10min\n"
+        "---\n"
+        "\n"
+        "Notes.\n",
+        encoding="utf-8",
+    )
+
+    assert cli.main(["done", "6"]) == 0
+
+    text = path.read_text(encoding="utf-8")
+    assert "title: Buy milk  # from the fridge list\n" in text
+    assert "status: done\n" in text
+    assert "estimate: 10min\n" in text
+    assert text.endswith("---\n\nNotes.\n")
+
+
+def test_done_reports_a_conflict_and_keeps_the_other_change(
+    tasks: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The file is edited by hand between loading and saving.
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    path = tasks / "6ACV1F0HMW.md"
+    original_save = cli.save_task
+
+    def save_after_edit(*args: object) -> object:
+        path.write_text("---\ntitle: Edited\n---\n", encoding="utf-8")
+        return original_save(*args)
+
+    monkeypatch.setattr(cli, "save_task", save_after_edit)
+
+    assert cli.main(["done", "6"]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: can't save the task: {path}: "
+        "changed on disk since it was loaded\n"
+    )
+    assert path.read_text(encoding="utf-8") == "---\ntitle: Edited\n---\n"
+
+
+def test_edit_changes_only_the_given_fields(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Buy milk",
+        due=date(2026, 11, 1),
+        tags=("errands",),
+        notes="Oat milk.",
+    )
+
+    assert cli.main(["edit", "6", "--title", "Buy oat milk", "-p", "high"]) == 0
+
+    assert capsys.readouterr() == ("", "")
+    [source] = load_all(tasks)
+    task = source.task
+    assert task.title == "Buy oat milk"
+    assert task.priority is Priority.HIGH
+    assert task.status is Status.TODO
+    assert task.due == date(2026, 11, 1)
+    assert task.tags == ("errands",)
+    assert task.notes == "Oat milk."
+    assert task.created == CREATED
+    assert task.updated > CREATED
+
+
+def test_edit_status_and_due_date(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+
+    assert cli.main(["edit", "6", "-s", "doing", "-d", "2026-11-03"]) == 0
+
+    [source] = load_all(tasks)
+    assert source.task.status is Status.DOING
+    assert source.task.due == date(2026, 11, 3)
+
+
+def test_edit_removes_the_due_date(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk", due=date(2026, 11, 1))
+
+    assert cli.main(["edit", "6", "--no-due"]) == 0
+
+    [source] = load_all(tasks)
+    assert source.task.due is None
+    assert "due:" not in source.text
+
+
+def test_edit_due_and_no_due_are_exclusive(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    err = usage_error(["edit", "6", "-d", "2026-11-01", "--no-due"], capsys)
+
+    assert "not allowed with argument" in err
+
+
+def test_edit_rejects_a_due_date_not_in_iso_format(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    before = read(tasks, "6ACV1F0HMW")
+
+    assert "expected a date like 2026-11-01" in usage_error(
+        ["edit", "6", "-d", "1.11.2026"], capsys
+    )
+    assert read(tasks, "6ACV1F0HMW") == before
+
+
+def test_edit_adds_and_removes_tags(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk", tags=("errands", "home"))
+
+    argv = ["edit", "6", "-t", "Shop", "--tag", "urgent", "--untag", "HOME"]
+    assert cli.main(argv) == 0
+
+    [source] = load_all(tasks)
+    assert source.task.tags == ("errands", "shop", "urgent")
+
+
+def test_edit_adding_a_tag_the_task_has_changes_nothing(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk", tags=("errands",))
+    before = read(tasks, "6ACV1F0HMW")
+
+    assert cli.main(["edit", "6", "-t", "Errands", "-t", "errands"]) == 0
+
+    assert read(tasks, "6ACV1F0HMW") == before
+
+
+def test_edit_removing_a_missing_tag_is_an_error(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk", tags=("errands",))
+    before = read(tasks, "6ACV1F0HMW")
+
+    assert cli.main(["edit", "6", "--title", "New", "--untag", "Home"]) == 1
+
+    assert capsys.readouterr().err == (
+        "tskmngr: error: task 6ACV1F0HMW has no tag 'home'\n"
+    )
+    assert read(tasks, "6ACV1F0HMW") == before
+
+
+def test_edit_clear_tags_then_add(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk", tags=("errands", "home"))
+
+    assert cli.main(["edit", "6", "--clear-tags", "-t", "work"]) == 0
+
+    [source] = load_all(tasks)
+    assert source.task.tags == ("work",)
+
+
+def test_edit_clear_tags_and_untag_are_exclusive(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    err = usage_error(["edit", "6", "--clear-tags", "--untag", "home"], capsys)
+
+    assert "not allowed with argument" in err
+
+
+def test_edit_cant_add_and_remove_the_same_tag(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    err = usage_error(["edit", "6", "-t", "home", "--untag", "Home"], capsys)
+
+    assert "can't both add and remove tag 'home'" in err
+
+
+def test_edit_without_changes_is_a_usage_error(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    err = usage_error(["edit", "6"], capsys)
+
+    assert err.startswith("usage: tskmngr edit")
+    assert "nothing to change" in err
+
+
+def test_edit_to_the_same_values_leaves_the_file_alone(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk", priority=Priority.HIGH)
+    before = read(tasks, "6ACV1F0HMW")
+
+    assert cli.main(["edit", "6", "--title", "Buy milk", "-p", "high"]) == 0
+
+    assert read(tasks, "6ACV1F0HMW") == before
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["--title", " "], "title: must not be blank"),
+        (["-t", "two words"], "tags: tag 'two words' contains whitespace"),
+    ],
+)
+def test_edit_reports_invalid_fields_as_usage_errors(
+    argv: list[str], message: str, tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    before = read(tasks, "6ACV1F0HMW")
+
+    assert message in usage_error(["edit", "6", *argv], capsys)
+    assert read(tasks, "6ACV1F0HMW") == before
+
+
+def test_edit_reports_a_task_file_that_cant_be_saved(
+    tasks: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+
+    def unwritable(*args: object) -> object:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(cli, "save_task", unwritable)
+
+    assert cli.main(["edit", "6", "--title", "New"]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: can't save the task in {tasks}: Permission denied\n"
     )

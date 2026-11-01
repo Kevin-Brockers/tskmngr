@@ -11,6 +11,7 @@ from tskmngr.query import (
     TaskNotFoundError,
     filter_tasks,
     find_by_prefix,
+    match_id_prefix,
     sort_tasks,
 )
 from tskmngr.taskfile import TaskFile
@@ -305,6 +306,20 @@ def test_find_by_unknown_prefix() -> None:
 def test_find_by_blank_prefix_is_an_error(prefix: str) -> None:
     with pytest.raises(ValueError, match="blank"):
         find_by_prefix([make_task("A")], prefix)
+
+
+def test_match_id_prefix_looks_up_plain_ids() -> None:
+    assert match_id_prefix(IDS, "01jb3k") == "01JB3K7Q2X"
+    assert match_id_prefix(["todo", "todo-old"], "TODO") == "todo"
+
+
+def test_match_id_prefix_raises_the_same_errors() -> None:
+    with pytest.raises(AmbiguousIDError):
+        match_id_prefix(IDS, "01JB3")
+    with pytest.raises(TaskNotFoundError):
+        match_id_prefix(IDS, "XYZ")
+    with pytest.raises(ValueError, match="blank"):
+        match_id_prefix(IDS, "")
 
 
 # Task files
