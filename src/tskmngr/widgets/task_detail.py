@@ -1,7 +1,8 @@
 """The task detail screen: every field of one task, then its notes.
 
 The notes are rendered as Markdown. The header shows the task's file, so it's
-easy to find for editing by hand.
+easy to find for editing by hand. `e` edits the task in the form; afterwards it
+is reloaded from disk.
 """
 
 from pathlib import Path
@@ -19,7 +20,9 @@ from textual.widgets import Footer, Header, Markdown, Static
 
 from tskmngr.display import task_fields
 from tskmngr.models import Task
+from tskmngr.storage import load_tasks, task_path
 from tskmngr.taskfile import TaskFile
+from tskmngr.widgets.task_form import TaskFormScreen
 
 
 def fields_table(task: Task) -> Table:
@@ -37,6 +40,7 @@ class TaskDetailScreen(Screen):
 
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("escape", "close", "Back", id="task_detail.close"),
+        Binding("e", "edit", "Edit", id="task_detail.edit"),
     ]
 
     DEFAULT_CSS = """
@@ -55,13 +59,13 @@ class TaskDetailScreen(Screen):
     def __init__(self, directory: Path, source: TaskFile) -> None:
         super().__init__()
         self.directory = directory
-        # The loaded file; later steps edit the task through it.
+        # The loaded file; the task is edited through it.
         self.source = source
 
     @property
     def path(self) -> Path:
         """The task's file."""
-        return self.directory / f"{self.source.task.id}.md"
+        return task_path(self.directory, self.source.task.id)
 
     def compose(self) -> ComposeResult:
         task = self.source.task
@@ -84,4 +88,52 @@ class TaskDetailScreen(Screen):
         self.query_one("#detail-body").focus()
 
     def action_close(self) -> None:
+        self.dismiss()
+
+    def action_edit(self) -> None:
+        self.app.push_screen(
+            TaskFormScreen(self.directory, self.source), self._form_closed
+        )
+
+    async def _form_closed(self, task_id: str | None) -> None:
+        # None means cancelled: nothing was saved, so there's nothing to reload.
+        if task_id is not None:
+            await self.reload()
+
+    async def reload(self) -> None:
+        """Reload the task from disk and show it again.
+
+        If it can't be loaded anymore, that's reported and the screen closes,
+        back to the list, which reloads too.
+        """
+        name = self.path.name
+        try:
+            result = load_tasks(self.directory)
+        except OSError as error:
+            self._close_with_error(
+                f"Can't read the tasks in {self.directory}: {error.strerror or error}"
+            )
+            return
+        task_id = self.source.task.id
+        source = next((s for s in result.tasks if s.task.id == task_id), None)
+        if source is None:
+            bad = next((b for b in result.bad_files if b.path.stem == task_id), None)
+            self._close_with_error(
+                f"Can't load {name}: {bad.error}" if bad else f"{name} is gone."
+            )
+            return
+        self.source = source
+        await self._show()
+
+    async def _show(self) -> None:
+        task = self.source.task
+        has_notes = bool(task.notes.strip())
+        self.query_one("#fields", Static).update(fields_table(task))
+        notes = self.query_one("#notes", Markdown)
+        await notes.update(task.notes)
+        notes.display = has_notes
+        self.query_one("#no-notes").display = not has_notes
+
+    def _close_with_error(self, message: str) -> None:
+        self.notify(message, title="Task not shown", severity="error", markup=False)
         self.dismiss()

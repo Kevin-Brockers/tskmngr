@@ -1,5 +1,6 @@
 """The task data model: the `Task` dataclass, its enums and ID generation."""
 
+import re
 import secrets
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass
@@ -9,6 +10,8 @@ from enum import StrEnum
 # Crockford base32: digits and uppercase letters without I, L, O and U.
 CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 ID_LENGTH = 10
+
+ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
 
 class Status(StrEnum):
@@ -100,6 +103,20 @@ def new_task(
         updated=now,
         notes=notes,
     )
+
+
+def parse_due(text: str) -> date:
+    """Parse a due date written as YYYY-MM-DD, as typed by the user.
+
+    Raises `TaskValidationError` for anything else; `date.fromisoformat` alone
+    would also take forms like 20261101 or 2026-W44-7.
+    """
+    if ISO_DATE.fullmatch(text):
+        try:
+            return date.fromisoformat(text)
+        except ValueError:
+            pass
+    raise TaskValidationError("due", f"expected a date like 2026-11-01, got {text!r}")
 
 
 def _check_type(field: str, value: object, expected: type) -> None:

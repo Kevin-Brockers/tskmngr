@@ -2,7 +2,9 @@
 
 Task files that can't be loaded are named in a warning panel above the table,
 so they're never hidden. The tasks directory is shown in the header. Enter
-opens the task under the cursor in the detail screen.
+opens the task under the cursor in the detail screen, `n` creates a task and
+`e` edits the one under the cursor. The list is reloaded from disk when the
+detail screen or the form closes.
 """
 
 from collections.abc import Sequence
@@ -22,6 +24,7 @@ from tskmngr.query import SortKey, sort_tasks
 from tskmngr.storage import BadFile, load_tasks
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.task_detail import TaskDetailScreen
+from tskmngr.widgets.task_form import TaskFormScreen
 
 COLUMNS = ("ID", "Status", "Priority", "Due", "Title")
 
@@ -66,6 +69,8 @@ class TaskListScreen(Screen):
     BINDINGS: ClassVar[list[BindingType]] = [
         # Priority, so Enter reaches the screen before the focused table.
         Binding("enter", "open_task", "Open", id="task_list.open", priority=True),
+        Binding("n", "new_task", "New", id="task_list.new"),
+        Binding("e", "edit_task", "Edit", id="task_list.edit"),
     ]
 
     DEFAULT_CSS = """
@@ -139,14 +144,48 @@ class TaskListScreen(Screen):
             table.add_row(*task_row(source.task), key=source.task.id)
         self.query_one("#no-tasks").set_class(not self.tasks, "-shown")
 
+    def reload(self, task_id: str | None) -> None:
+        """Reload from disk, keeping the cursor on `task_id` if it's still there."""
+        self.load()
+        if task_id is None:
+            return
+        for row, source in enumerate(self.tasks):
+            if source.task.id == task_id:
+                self.query_one("#task-table", DataTable).move_cursor(row=row)
+                return
+
+    def _current(self) -> TaskFile | None:
+        """The task under the cursor, if there are any tasks."""
+        if not self.tasks:
+            return None
+        return self.tasks[self.query_one("#task-table", DataTable).cursor_row]
+
     def action_open_task(self) -> None:
         """Show the task under the cursor in the detail screen."""
-        if not self.tasks:
+        source = self._current()
+        if source is None:
             return
-        table = self.query_one("#task-table", DataTable)
+        task_id = source.task.id
         self.app.push_screen(
-            TaskDetailScreen(self.directory, self.tasks[table.cursor_row])
+            TaskDetailScreen(self.directory, source),
+            # It may have been edited from there.
+            lambda _: self.reload(task_id),
         )
+
+    def action_new_task(self) -> None:
+        self.app.push_screen(TaskFormScreen(self.directory), self._form_closed)
+
+    def action_edit_task(self) -> None:
+        """Edit the task under the cursor in the form."""
+        source = self._current()
+        if source is None:
+            return
+        self.app.push_screen(TaskFormScreen(self.directory, source), self._form_closed)
+
+    def _form_closed(self, task_id: str | None) -> None:
+        # None means cancelled: nothing was saved, so there's nothing to reload.
+        if task_id is not None:
+            self.reload(task_id)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # Clicking a row selects it; Enter is handled by the binding.

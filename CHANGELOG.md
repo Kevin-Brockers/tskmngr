@@ -69,6 +69,12 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#25](https://github.com/Kevin-Brockers/tskmngr/pull/25) - Enter on a task in the TUI list, or clicking its highlighted row,
   opens a detail view with all its fields and its notes rendered as Markdown;
   the header shows the task's file. Escape goes back to the list
+- [#26](https://github.com/Kevin-Brockers/tskmngr/pull/26) - A form in the TUI to create a task (`n` on the list) or edit
+  one (`e` on the list or the detail view): title, status, priority, due date
+  (YYYY-MM-DD) and tags (separated by spaces or commas). Problems are shown
+  under their field when saving with ctrl+s; Escape cancels. If the task's file
+  changed or was deleted on disk meanwhile, nothing is overwritten: the error
+  is shown and the task reloaded from disk
 - [#21](https://github.com/Kevin-Brockers/tskmngr/pull/21) - `init-work` Claude Code skill that reads `AGENTS.md` and `ROADMAP.md`
   and summarizes the next open roadmap step
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
