@@ -1,3 +1,4 @@
+import io
 from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -580,7 +581,7 @@ def test_show_blank_prefix_is_a_usage_error(
     assert "ID prefix must not be blank" in usage_error(["show", " "], capsys)
 
 
-@pytest.mark.parametrize("command", ["show", "edit", "done"])
+@pytest.mark.parametrize("command", ["show", "edit", "done", "delete"])
 def test_commands_require_an_id(
     command: str, tasks: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -588,7 +589,9 @@ def test_commands_require_an_id(
 
 
 @pytest.mark.parametrize(
-    "argv", [["show"], ["edit", "--title", "New"], ["done"]], ids=lambda a: a[0]
+    "argv",
+    [["show"], ["edit", "--title", "New"], ["done"], ["delete", "--yes"]],
+    ids=lambda a: a[0],
 )
 def test_commands_report_a_malformed_file_matching_the_prefix(
     argv: list[str], tasks: Path, capsys: pytest.CaptureFixture[str]
@@ -870,3 +873,221 @@ def test_edit_reports_a_task_file_that_cant_be_saved(
     assert capsys.readouterr().err == (
         f"tskmngr: error: can't save the task in {tasks}: Permission denied\n"
     )
+
+
+# delete
+
+
+class FakeTerminal(io.StringIO):
+    """Stdin attached to a terminal, with the user's typed input."""
+
+    def isatty(self) -> bool:
+        return True
+
+
+class InterruptedTerminal(FakeTerminal):
+    """A terminal where the user presses Ctrl-C at the prompt."""
+
+    def readline(self, size: int | None = -1) -> str:
+        raise KeyboardInterrupt
+
+
+def trash(directory: Path) -> list[Path]:
+    return sorted((directory / ".trash").iterdir())
+
+
+def test_delete_yes_moves_the_file_to_the_trash(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    before = read(tasks, "6ACV1F0HMW")
+
+    assert cli.main(["delete", "6ac", "--yes"]) == 0
+
+    [trashed] = trash(tasks)
+    assert capsys.readouterr() == (f"Moved 6ACV1F0HMW to {trashed}\n", "")
+    assert trashed.name.startswith("6ACV1F0HMW.")
+    assert trashed.read_text(encoding="utf-8") == before
+    assert load_all(tasks) == []
+
+
+def test_delete_short_yes_option(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+
+    assert cli.main(["delete", "6", "-y"]) == 0
+
+    assert load_all(tasks) == []
+
+
+def test_delete_keeps_the_other_tasks(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    add_task(tasks, "7BCD000000", "Write report")
+
+    assert cli.main(["delete", "6", "--yes"]) == 0
+
+    assert [source.task.id for source in load_all(tasks)] == ["7BCD000000"]
+
+
+def test_delete_refuses_without_yes_when_stdin_is_not_a_terminal(
+    tasks: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    # Even a "y" on stdin isn't read: a script can't confirm without --yes.
+    monkeypatch.setattr("sys.stdin", io.StringIO("y\n"))
+
+    assert cli.main(["delete", "6"]) == 1
+
+    assert capsys.readouterr() == (
+        "",
+        (
+            "tskmngr: error: not deleting task 6ACV1F0HMW without confirmation; "
+            "stdin isn't a terminal, so pass --yes\n"
+        ),
+    )
+    assert [source.task.id for source in load_all(tasks)] == ["6ACV1F0HMW"]
+    assert not (tasks / ".trash").exists()
+
+
+@pytest.mark.parametrize("answer", ["y\n", "Y\n", "yes\n", " YES \n"])
+def test_delete_asks_on_a_terminal_and_deletes_on_yes(
+    answer: str,
+    tasks: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    monkeypatch.setattr("sys.stdin", FakeTerminal(answer))
+
+    assert cli.main(["delete", "6"]) == 0
+
+    [trashed] = trash(tasks)
+    assert capsys.readouterr() == (
+        f"Moved 6ACV1F0HMW to {trashed}\n",
+        "Delete task 6ACV1F0HMW 'Buy milk'? [y/N] ",
+    )
+    assert load_all(tasks) == []
+
+
+@pytest.mark.parametrize("answer", ["\n", "n\n", "no\n", "yy\n", "sure\n"])
+def test_delete_on_a_terminal_keeps_the_task_unless_confirmed(
+    answer: str,
+    tasks: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    monkeypatch.setattr("sys.stdin", FakeTerminal(answer))
+
+    assert cli.main(["delete", "6"]) == 1
+
+    assert capsys.readouterr() == (
+        "",
+        "Delete task 6ACV1F0HMW 'Buy milk'? [y/N] Not deleted.\n",
+    )
+    assert [source.task.id for source in load_all(tasks)] == ["6ACV1F0HMW"]
+    assert not (tasks / ".trash").exists()
+
+
+@pytest.mark.parametrize(
+    "stdin",
+    [FakeTerminal(""), InterruptedTerminal()],
+    ids=["end of input", "ctrl-c"],
+)
+def test_delete_on_a_terminal_keeps_the_task_without_an_answer(
+    stdin: FakeTerminal,
+    tasks: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    monkeypatch.setattr("sys.stdin", stdin)
+
+    assert cli.main(["delete", "6"]) == 1
+
+    # A newline ends the prompt line, since the user didn't press Enter.
+    assert capsys.readouterr() == (
+        "",
+        "Delete task 6ACV1F0HMW 'Buy milk'? [y/N] \nNot deleted.\n",
+    )
+    assert [source.task.id for source in load_all(tasks)] == ["6ACV1F0HMW"]
+
+
+def test_delete_unknown_prefix_doesnt_ask(
+    tasks: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    monkeypatch.setattr("sys.stdin", FakeTerminal("y\n"))
+
+    assert cli.main(["delete", "XYZ"]) == 1
+
+    assert capsys.readouterr() == (
+        "",
+        "tskmngr: error: no task with ID prefix 'XYZ'\n",
+    )
+    assert [source.task.id for source in load_all(tasks)] == ["6ACV1F0HMW"]
+
+
+def test_delete_ambiguous_prefix_deletes_nothing(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    add_task(tasks, "6AQ0000000", "Write report")
+
+    assert cli.main(["delete", "6a", "--yes"]) == 1
+
+    assert capsys.readouterr().err == (
+        "tskmngr: error: ID prefix '6a' matches 2 tasks: 6ACV1F0HMW, 6AQ0000000\n"
+    )
+    assert len(load_all(tasks)) == 2
+
+
+def test_delete_keeps_earlier_deletes_of_the_same_id(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    assert cli.main(["delete", "6", "--yes"]) == 0
+    add_task(tasks, "6ACV1F0HMW", "Buy milk again")
+
+    assert cli.main(["delete", "6", "--yes"]) == 0
+
+    assert len(trash(tasks)) == 2
+
+
+def test_delete_reports_a_conflict_and_keeps_the_edited_file(
+    tasks: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The file is edited by hand while the user is asked to confirm.
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+    path = tasks / "6ACV1F0HMW.md"
+
+    class EditingTerminal(FakeTerminal):
+        def readline(self, size: int | None = -1) -> str:
+            path.write_text("---\ntitle: Edited\n---\n", encoding="utf-8")
+            return "y\n"
+
+    monkeypatch.setattr("sys.stdin", EditingTerminal())
+
+    assert cli.main(["delete", "6"]) == 1
+
+    assert capsys.readouterr().err.endswith(
+        f"tskmngr: error: can't delete the task: {path}: "
+        "changed on disk since it was loaded\n"
+    )
+    assert path.read_text(encoding="utf-8") == "---\ntitle: Edited\n---\n"
+    assert not (tasks / ".trash").exists()
+
+
+def test_delete_reports_a_trash_that_cant_be_written(
+    tasks: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Buy milk")
+
+    def unwritable(*args: object, **kwargs: object) -> object:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(cli, "delete_task", unwritable)
+
+    assert cli.main(["delete", "6", "--yes"]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: can't delete the task in {tasks}: Permission denied\n"
+    )
+    assert [source.task.id for source in load_all(tasks)] == ["6ACV1F0HMW"]

@@ -103,8 +103,8 @@ unique prefix of its ID.
   files reported on stderr · `feature/cli_list` · [#19](https://github.com/Kevin-Brockers/tskmngr/pull/19)
 - [x] **M2.3** `tskmngr show`, `edit` (fields) and `done` ·
   `feature/cli_show_edit` · [#20](https://github.com/Kevin-Brockers/tskmngr/pull/20)
-- [ ] **M2.4** `tskmngr delete` with a confirmation prompt (`--yes` to skip) ·
-  `feature/cli_delete` · depends on M2.1, M1.5
+- [x] **M2.4** `tskmngr delete` with a confirmation prompt (`--yes` to skip) ·
+  `feature/cli_delete` · [#22](https://github.com/Kevin-Brockers/tskmngr/pull/22)
 
 ### M3 · TUI
 
