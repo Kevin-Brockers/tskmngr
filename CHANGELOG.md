@@ -83,6 +83,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   the list reloaded from disk
 - [#21](https://github.com/Kevin-Brockers/tskmngr/pull/21) - `init-work` Claude Code skill that reads `AGENTS.md` and `ROADMAP.md`
   and summarizes the next open roadmap step
+- #TBD - `sync-dev` Claude Code skill that updates `dev` from GitHub and
+  deletes local branches fully merged into it, keeping `main` and `dev`;
+  branches on GitHub are left alone
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
