@@ -126,7 +126,7 @@ the user and the task reloaded, never overwritten.
 - [x] **M3.6** Open the task file in `$EDITOR` (TUI suspended) and reload it
   afterwards · `feature/tui_external_editor` · [#30](https://github.com/Kevin-Brockers/tskmngr/pull/30)
 - [x] **M3.7** Filter and search the task list · `feature/tui_filter_search` ·
-  #TBD
+  [#31](https://github.com/Kevin-Brockers/tskmngr/pull/31)
 - [ ] **M3.8** Sort the task list · `feature/tui_sorting` · depends on M3.1,
   M1.5
 - [ ] **M3.9** README: installation, CLI usage, TUI keys and the task file

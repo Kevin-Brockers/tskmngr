@@ -99,7 +99,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   writes the file afterwards; a file left malformed is reported and shown in
   the list's warning panel. If neither variable is set, the editor can't be
   started or the file is gone, that's shown instead
-- #TBD - `/` on the TUI task list opens a filter bar that narrows the list
+- [#31](https://github.com/Kevin-Brockers/tskmngr/pull/31) - `/` on the TUI task list opens a filter bar that narrows the list
   as you type: words are searched in titles and notes, `#tag` needs a tag, and
   `status:` and `priority:` restrict to a value (repeat for any of several).
   A word with an unknown or missing value is named below the bar and left out
