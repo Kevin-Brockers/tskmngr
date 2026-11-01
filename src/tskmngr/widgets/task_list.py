@@ -5,9 +5,9 @@ so they're never hidden. The tasks directory is shown in the header. Enter
 opens the task under the cursor in the detail screen, `n` creates a task and
 `e` edits the one under the cursor. `s` moves the task under the cursor to the
 next status (todo → doing → done → todo) and saves it right away; `d` asks
-whether to delete it and moves its file to `.trash/`. The list is reloaded from
-disk after each of these, and a save or delete that hits a conflict is shown
-instead of overwriting the file.
+whether to delete it and moves its file to `.trash/`; `o` opens its file in
+`$VISUAL` or `$EDITOR`. The list is reloaded from disk after each of these, and
+a save or delete that hits a conflict is shown instead of overwriting the file.
 """
 
 from collections.abc import Sequence
@@ -32,9 +32,11 @@ from tskmngr.storage import (
     delete_task,
     load_tasks,
     save_task,
+    task_path,
 )
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
+from tskmngr.widgets.external_editor import edit_in_editor
 from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_form import TaskFormScreen
 
@@ -85,6 +87,7 @@ class TaskListScreen(Screen):
         Binding("e", "edit_task", "Edit", id="task_list.edit"),
         Binding("s", "cycle_status", "Status", id="task_list.cycle_status"),
         Binding("d", "delete_task", "Delete", id="task_list.delete"),
+        Binding("o", "external_editor", "Editor", id="task_list.external_editor"),
     ]
 
     DEFAULT_CSS = """
@@ -265,6 +268,15 @@ class TaskListScreen(Screen):
             markup=False,
         )
         self.reload(neighbours[0] if neighbours else None)
+
+    def action_external_editor(self) -> None:
+        """Open the file of the task under the cursor in the user's editor."""
+        source = self._current()
+        if source is None:
+            return
+        task_id = source.task.id
+        edit_in_editor(self.app, task_path(self.directory, task_id))
+        self.reload(task_id)
 
     def _notify_error(self, message: str, title: str) -> None:
         self.notify(message, title=title, severity="error", markup=False)

@@ -1,8 +1,8 @@
 """The task detail screen: every field of one task, then its notes.
 
 The notes are rendered as Markdown. The header shows the task's file, so it's
-easy to find for editing by hand. `e` edits the task in the form; afterwards it
-is reloaded from disk.
+easy to find for editing by hand. `e` edits the task in the form and `o` opens
+its file in `$VISUAL` or `$EDITOR`; afterwards it is reloaded from disk.
 """
 
 from pathlib import Path
@@ -22,6 +22,7 @@ from tskmngr.display import task_fields
 from tskmngr.models import Task
 from tskmngr.storage import load_tasks, task_path
 from tskmngr.taskfile import TaskFile
+from tskmngr.widgets.external_editor import edit_in_editor
 from tskmngr.widgets.task_form import TaskFormScreen
 
 
@@ -41,6 +42,7 @@ class TaskDetailScreen(Screen):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("escape", "close", "Back", id="task_detail.close"),
         Binding("e", "edit", "Edit", id="task_detail.edit"),
+        Binding("o", "external_editor", "Editor", id="task_detail.external_editor"),
     ]
 
     DEFAULT_CSS = """
@@ -94,6 +96,11 @@ class TaskDetailScreen(Screen):
         self.app.push_screen(
             TaskFormScreen(self.directory, self.source), self._form_closed
         )
+
+    async def action_external_editor(self) -> None:
+        """Open the task's file in the user's editor, then reload it."""
+        edit_in_editor(self.app, self.path)
+        await self.reload()
 
     async def _form_closed(self, task_id: str | None) -> None:
         # None means cancelled: nothing was saved, so there's nothing to reload.

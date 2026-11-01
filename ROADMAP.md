@@ -123,8 +123,8 @@ the user and the task reloaded, never overwritten.
   `feature/tui_task_actions` · [#27](https://github.com/Kevin-Brockers/tskmngr/pull/27)
 - [x] **M3.5** Edit notes in a built-in text area ·
   `feature/tui_notes_editor` · [#29](https://github.com/Kevin-Brockers/tskmngr/pull/29)
-- [ ] **M3.6** Open the task file in `$EDITOR` (TUI suspended) and reload it
-  afterwards · `feature/tui_external_editor` · depends on M3.2
+- [x] **M3.6** Open the task file in `$EDITOR` (TUI suspended) and reload it
+  afterwards · `feature/tui_external_editor` · [#30](https://github.com/Kevin-Brockers/tskmngr/pull/30)
 - [ ] **M3.7** Filter and search the task list · `feature/tui_filter_search` ·
   depends on M3.1, M1.5
 - [ ] **M3.8** Sort the task list · `feature/tui_sorting` · depends on M3.1,
