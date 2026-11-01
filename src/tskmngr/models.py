@@ -20,6 +20,12 @@ class Status(StrEnum):
     DONE = "done"
 
 
+def next_status(status: Status) -> Status:
+    """The status after `status` in the cycle todo → doing → done → todo."""
+    statuses = list(Status)
+    return statuses[(statuses.index(status) + 1) % len(statuses)]
+
+
 class Priority(StrEnum):
     LOW = "low"
     NORMAL = "normal"

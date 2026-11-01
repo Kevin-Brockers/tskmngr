@@ -75,6 +75,12 @@ its commit for changes that reached `dev` or `main` without a pull request.
   under their field when saving with ctrl+s; Escape cancels. If the task's file
   changed or was deleted on disk meanwhile, nothing is overwritten: the error
   is shown and the task reloaded from disk
+- [#27](https://github.com/Kevin-Brockers/tskmngr/pull/27) - On the TUI task list, `s` moves the task under the cursor to the
+  next status (todo → doing → done → todo) and saves it right away, and `d`
+  asks whether to delete it (No has the focus; `y` or the Yes button deletes)
+  and moves its file into `.trash/`. If the file changed or was deleted on
+  disk meanwhile, nothing is overwritten or deleted: the error is shown and
+  the list reloaded from disk
 - [#21](https://github.com/Kevin-Brockers/tskmngr/pull/21) - `init-work` Claude Code skill that reads `AGENTS.md` and `ROADMAP.md`
   and summarizes the next open roadmap step
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license

@@ -3,12 +3,14 @@ from pathlib import Path
 
 import pytest
 from rich.text import Text
-from textual.widgets import DataTable, Static
+from textual.widgets import Button, DataTable, Static
 
 from tskmngr.app import TskmngrApp
 from tskmngr.models import Priority, Status, Task
-from tskmngr.storage import BadFile, save_task
+from tskmngr.storage import BadFile, load_tasks, save_task
 from tskmngr.taskfile import MalformedTaskError
+from tskmngr.widgets import task_list
+from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen, delete_question
 from tskmngr.widgets.task_list import TaskListScreen, bad_files_warning, task_row
 
 CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
@@ -204,3 +206,334 @@ async def test_load_reloads_from_disk(tmp_path: Path) -> None:
         await pilot.pause()
 
         assert warning_text(screen) is None
+
+
+# Quick status change and delete (M3.4)
+
+
+def record_notifications(app: TskmngrApp) -> list[str]:
+    """Collect the messages of the app's notifications."""
+    messages: list[str] = []
+
+    def notify(message: str, **_: object) -> None:
+        messages.append(message)
+
+    app.notify = notify  # type: ignore[method-assign]
+    return messages
+
+
+def loaded(directory: Path) -> dict[str, Task]:
+    return {source.task.id: source.task for source in load_tasks(directory).tasks}
+
+
+def cursor_task_id(app: TskmngrApp) -> str:
+    screen = app.screen
+    assert isinstance(screen, TaskListScreen)
+    table = screen.query_one("#task-table", DataTable)
+    return screen.tasks[table.cursor_row].task.id
+
+
+def trashed(directory: Path) -> list[str]:
+    trash = directory / ".trash"
+    return sorted(path.name for path in trash.iterdir()) if trash.is_dir() else []
+
+
+@pytest.mark.asyncio
+async def test_s_cycles_the_status_and_saves_it(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+    save_task(tmp_path, make_task("BBBB", "Second"), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("down", "s")
+        task = loaded(tmp_path)["BBBB"]
+        assert task.status == Status.DOING
+        assert task.updated > CREATED
+        assert table_rows(app.screen)[1][1] == "doing"
+        assert cursor_task_id(app) == "BBBB"
+
+        await pilot.press("s")
+        assert loaded(tmp_path)["BBBB"].status == Status.DONE
+
+        await pilot.press("s")
+        assert loaded(tmp_path)["BBBB"].status == Status.TODO
+        # The other task is untouched.
+        assert loaded(tmp_path)["AAAA"] == make_task("AAAA", "First")
+
+
+@pytest.mark.asyncio
+async def test_s_keeps_the_cursor_on_the_task_when_it_moves(tmp_path: Path) -> None:
+    # Statuses don't change the order, but a task saved meanwhile might.
+    save_task(tmp_path, make_task("AAAA", "First", due=date(2026, 11, 2)), None)
+    save_task(tmp_path, make_task("BBBB", "Second", due=date(2026, 11, 3)), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        save_task(tmp_path, make_task("CCCC", "Sooner", due=date(2026, 11, 1)), None)
+        await pilot.press("down", "s")
+
+        assert [row[0] for row in table_rows(app.screen)] == ["CCCC", "AAAA", "BBBB"]
+        assert cursor_task_id(app) == "BBBB"
+
+
+@pytest.mark.asyncio
+async def test_s_keeps_notes_and_unknown_keys(tmp_path: Path) -> None:
+    path = tmp_path / "AAAA.md"
+    path.write_text(
+        "---\n"
+        "title: First\n"
+        "status: todo   # keep me\n"
+        "custom: value\n"
+        "created: 2026-10-28T09:15:00Z\n"
+        "updated: 2026-10-28T09:15:00Z\n"
+        "---\n"
+        "\n"
+        "Some notes.\n",
+        encoding="utf-8",
+    )
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("s")
+
+    text = path.read_text(encoding="utf-8")
+    # The comment stays in its column.
+    assert "status: doing  # keep me\n" in text
+    assert "custom: value\n" in text
+    assert text.endswith("---\n\nSome notes.\n")
+
+
+@pytest.mark.asyncio
+async def test_s_and_d_do_nothing_without_tasks(tmp_path: Path) -> None:
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("s", "d")
+
+        assert isinstance(app.screen, TaskListScreen)
+        assert messages == []
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_s_conflict_is_shown_and_the_task_reloaded_not_overwritten(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        path = tmp_path / "AAAA.md"
+        hand_edited = path.read_text(encoding="utf-8").replace("First", "Theirs")
+        path.write_text(hand_edited, encoding="utf-8")
+        await pilot.press("s")
+
+        assert path.read_text(encoding="utf-8") == hand_edited
+        assert messages == [
+            (
+                "AAAA.md changed on disk since it was loaded. It was reloaded from "
+                "disk; the status wasn't changed."
+            )
+        ]
+        assert table_rows(app.screen)[0][1:] == ["todo", "normal", "", "Theirs"]
+
+
+@pytest.mark.asyncio
+async def test_s_on_a_task_deleted_meanwhile_reloads_without_it(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+    save_task(tmp_path, make_task("BBBB", "Second"), None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        (tmp_path / "AAAA.md").unlink()
+        await pilot.press("s")
+
+        assert not (tmp_path / "AAAA.md").exists()
+        assert messages == [
+            (
+                "AAAA.md deleted on disk since it was loaded. It was reloaded from "
+                "disk; the status wasn't changed."
+            )
+        ]
+        assert [row[0] for row in table_rows(app.screen)] == ["BBBB"]
+
+
+@pytest.mark.asyncio
+async def test_s_write_error_is_shown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    def fail(*_: object) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(task_list, "save_task", fail)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("s")
+
+        assert messages == [f"Can't save the task in {tmp_path}: Permission denied"]
+        assert table_rows(app.screen)[0][1] == "todo"
+    assert loaded(tmp_path)["AAAA"].status == Status.TODO
+
+
+def test_delete_question_names_the_task_as_written() -> None:
+    task = make_task("AAAA", "[b]Not bold[/b]")
+
+    assert delete_question(task).plain == (
+        "Delete task AAAA '[b]Not bold[/b]'?\n"
+        "Its file is moved to .trash/ in the tasks directory."
+    )
+
+
+def test_confirm_delete_bindings_have_stable_ids() -> None:
+    ids = {binding.id for binding in ConfirmDeleteScreen.BINDINGS}
+
+    assert ids == {"confirm_delete.yes", "confirm_delete.no"}
+
+
+@pytest.mark.asyncio
+async def test_d_asks_about_the_task_under_the_cursor_with_no_focused(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+    save_task(tmp_path, make_task("BBBB", "Second"), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("down", "d")
+
+        screen = app.screen
+        assert isinstance(screen, ConfirmDeleteScreen)
+        assert screen.task_to_delete.id == "BBBB"
+        assert app.focused is screen.query_one("#no", Button)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("keys", [("n",), ("escape",), ("enter",)])
+async def test_answering_no_deletes_nothing(
+    tmp_path: Path, keys: tuple[str, ...]
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("d", *keys)
+
+        assert isinstance(app.screen, TaskListScreen)
+        assert messages == []
+        assert [row[0] for row in table_rows(app.screen)] == ["AAAA"]
+    assert (tmp_path / "AAAA.md").exists()
+    assert trashed(tmp_path) == []
+
+
+@pytest.mark.asyncio
+async def test_y_moves_the_file_to_trash_and_selects_the_next_task(
+    tmp_path: Path,
+) -> None:
+    for task_id, day in (("AAAA", 1), ("BBBB", 2), ("CCCC", 3)):
+        save_task(tmp_path, make_task(task_id, task_id, due=date(2026, 11, day)), None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("down", "d", "y")
+
+        assert isinstance(app.screen, TaskListScreen)
+        assert [row[0] for row in table_rows(app.screen)] == ["AAAA", "CCCC"]
+        assert cursor_task_id(app) == "CCCC"
+        [name] = trashed(tmp_path)
+        assert name.startswith("BBBB.") and name.endswith("Z.md")
+        assert messages == [f"Moved BBBB to .trash/{name}"]
+    assert not (tmp_path / "BBBB.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_deleting_the_last_row_selects_the_one_before(tmp_path: Path) -> None:
+    for task_id, day in (("AAAA", 1), ("BBBB", 2), ("CCCC", 3)):
+        save_task(tmp_path, make_task(task_id, task_id, due=date(2026, 11, day)), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("down", "down", "d", "y")
+
+        assert [row[0] for row in table_rows(app.screen)] == ["AAAA", "BBBB"]
+        assert cursor_task_id(app) == "BBBB"
+
+
+@pytest.mark.asyncio
+async def test_deleting_the_only_task_shows_no_tasks(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("d", "y")
+
+        assert table_rows(app.screen) == []
+        assert app.screen.query_one("#no-tasks").has_class("-shown")
+
+
+@pytest.mark.asyncio
+async def test_clicking_yes_deletes(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("d")
+        await pilot.click("#yes")
+
+        assert isinstance(app.screen, TaskListScreen)
+        assert table_rows(app.screen) == []
+    assert len(trashed(tmp_path)) == 1
+
+
+@pytest.mark.asyncio
+async def test_delete_conflict_is_shown_and_nothing_deleted(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("d")
+        path = tmp_path / "AAAA.md"
+        hand_edited = path.read_text(encoding="utf-8").replace("First", "Theirs")
+        path.write_text(hand_edited, encoding="utf-8")
+        await pilot.press("y")
+
+        assert path.read_text(encoding="utf-8") == hand_edited
+        assert trashed(tmp_path) == []
+        assert messages == [
+            (
+                "AAAA.md changed on disk since it was loaded. It was reloaded from "
+                "disk; nothing was deleted."
+            )
+        ]
+        assert table_rows(app.screen)[0][4] == "Theirs"
+
+
+@pytest.mark.asyncio
+async def test_delete_error_is_shown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    def fail(*_: object, **__: object) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(task_list, "delete_task", fail)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("d", "y")
+
+        assert messages == [f"Can't delete the task in {tmp_path}: Permission denied"]
+        assert [row[0] for row in table_rows(app.screen)] == ["AAAA"]
+    assert (tmp_path / "AAAA.md").exists()

@@ -124,5 +124,11 @@ def test_bindings_have_stable_ids() -> None:
     list_ids = {binding.id for binding in TaskListScreen.BINDINGS}
     detail_ids = {binding.id for binding in TaskDetailScreen.BINDINGS}
 
-    assert list_ids == {"task_list.open", "task_list.new", "task_list.edit"}
+    assert list_ids == {
+        "task_list.open",
+        "task_list.new",
+        "task_list.edit",
+        "task_list.cycle_status",
+        "task_list.delete",
+    }
     assert detail_ids == {"task_detail.close", "task_detail.edit"}
