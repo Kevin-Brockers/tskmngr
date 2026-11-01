@@ -6,6 +6,7 @@ need for saving.
 """
 
 from collections.abc import Collection, Iterable
+from dataclasses import dataclass
 from enum import StrEnum
 
 from tskmngr.models import Priority, Status, Task
@@ -38,6 +39,78 @@ class AmbiguousIDError(LookupError):
         )
         self.prefix = prefix
         self.ids = ids
+
+
+@dataclass(frozen=True)
+class TaskFilter:
+    """The criteria of `filter_tasks`, as parsed from a filter string."""
+
+    statuses: tuple[Status, ...] = ()
+    priorities: tuple[Priority, ...] = ()
+    tags: tuple[str, ...] = ()
+    text: str = ""
+
+    def apply[T: (Task, TaskFile)](self, items: Iterable[T]) -> list[T]:
+        """`filter_tasks` with these criteria."""
+        return filter_tasks(
+            items,
+            statuses=self.statuses,
+            priorities=self.priorities,
+            tags=self.tags,
+            text=self.text,
+        )
+
+
+def parse_filter(text: str) -> tuple[TaskFilter, list[str]]:
+    """Parse a filter string such as `milk #errands status:todo priority:high`.
+
+    Words are split on whitespace. `#tag` requires a tag, `status:<status>`
+    and `priority:<priority>` restrict to that value (repeat for any of
+    several), ignoring case. Every other word, including other `key:value`
+    words, is searched for in the title and notes.
+
+    Returns the filter and a message for each word that was left out of it:
+    an unknown or missing status or priority, or a bare `#`. The rest of the
+    filter still applies, so a half-typed word doesn't empty the list.
+    """
+    statuses: list[Status] = []
+    priorities: list[Priority] = []
+    tags: list[str] = []
+    words: list[str] = []
+    errors: list[str] = []
+    for word in text.split():
+        key, colon, value = word.partition(":")
+        if word.startswith("#"):
+            if word == "#":
+                errors.append("'#' needs a tag after it, as in #errands")
+            else:
+                tags.append(word[1:].lower())
+        elif colon and key.lower() == "status":
+            _parse_value(Status, "status", value, statuses, errors)
+        elif colon and key.lower() == "priority":
+            _parse_value(Priority, "priority", value, priorities, errors)
+        else:
+            words.append(word)
+    task_filter = TaskFilter(
+        statuses=tuple(dict.fromkeys(statuses)),
+        priorities=tuple(dict.fromkeys(priorities)),
+        tags=tuple(dict.fromkeys(tags)),
+        text=" ".join(words),
+    )
+    return task_filter, errors
+
+
+def _parse_value[E: (Status, Priority)](
+    enum: type[E], name: str, value: str, values: list[E], errors: list[str]
+) -> None:
+    """Append `value` as an `enum` member to `values`, or a message to `errors`."""
+    try:
+        values.append(enum(value.lower()))
+    except ValueError:
+        choices = [member.value for member in enum]
+        options = f"{', '.join(choices[:-1])} or {choices[-1]}"
+        given = f"unknown {name} {value!r}" if value else f"{name}: needs a value"
+        errors.append(f"{given}; use {options}")
 
 
 def filter_tasks[T: (Task, TaskFile)](

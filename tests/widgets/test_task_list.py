@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from rich.text import Text
-from textual.widgets import Button, DataTable, Static
+from textual.widgets import Button, DataTable, Input, Static
 
 from tskmngr.app import TskmngrApp
 from tskmngr.models import Priority, Status, Task
@@ -11,6 +11,7 @@ from tskmngr.storage import BadFile, load_tasks, save_task
 from tskmngr.taskfile import MalformedTaskError
 from tskmngr.widgets import task_list
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen, delete_question
+from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_list import TaskListScreen, bad_files_warning, task_row
 
 CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
@@ -537,3 +538,321 @@ async def test_delete_error_is_shown(
         assert messages == [f"Can't delete the task in {tmp_path}: Permission denied"]
         assert [row[0] for row in table_rows(app.screen)] == ["AAAA"]
     assert (tmp_path / "AAAA.md").exists()
+
+
+# Filter and search (M3.7)
+
+
+def filter_bar(app: TskmngrApp) -> Input:
+    return app.screen.query_one("#filter-input", Input)
+
+
+def filter_error(app: TskmngrApp) -> str | None:
+    """The filter bar's error message, or None while it's hidden."""
+    error = app.screen.query_one("#filter-error", Static)
+    if not error.has_class("-shown"):
+        return None
+    content = error.content
+    return content.plain if isinstance(content, Text) else str(content)
+
+
+def shown_ids(app: TskmngrApp) -> list[str]:
+    screen = app.screen
+    assert isinstance(screen, TaskListScreen)
+    return [row[0] for row in table_rows(screen)]
+
+
+def save_filter_tasks(directory: Path) -> None:
+    save_task(
+        directory,
+        make_task("AAAA", "Buy milk", due=date(2026, 11, 1), tags=("errands",)),
+        None,
+    )
+    save_task(
+        directory,
+        make_task(
+            "BBBB",
+            "Pay rent",
+            due=date(2026, 11, 2),
+            priority=Priority.HIGH,
+            notes="Transfer the milk money too.\n",
+        ),
+        None,
+    )
+    save_task(
+        directory,
+        make_task(
+            "CCCC",
+            "Buy bread",
+            due=date(2026, 11, 3),
+            status=Status.DONE,
+            tags=("errands",),
+        ),
+        None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_filter_bar_is_hidden_until_slash_and_the_table_has_focus(
+    tmp_path: Path,
+) -> None:
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        assert not filter_bar(app).display
+        assert app.focused is app.screen.query_one("#task-table")
+
+        await pilot.press("slash")
+
+        assert filter_bar(app).display
+        assert app.focused is filter_bar(app)
+
+
+@pytest.mark.asyncio
+async def test_typing_in_the_filter_bar_filters_as_you_type(tmp_path: Path) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"milk")
+        # The title of AAAA and the notes of BBBB.
+        assert shown_ids(app) == ["AAAA", "BBBB"]
+
+        await pilot.press(*" #errands")
+        assert shown_ids(app) == ["AAAA"]
+
+        await pilot.press("ctrl+u", *"status:todo status:done #errands")
+        assert shown_ids(app) == ["AAAA", "CCCC"]
+
+        await pilot.press("ctrl+u", *"priority:high")
+        assert shown_ids(app) == ["BBBB"]
+        assert [source.task.id for source in app.screen.tasks] == ["BBBB"]
+
+
+@pytest.mark.asyncio
+async def test_action_keys_are_typed_into_the_filter_bar(tmp_path: Path) -> None:
+    save_filter_tasks(tmp_path)
+    before = loaded(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"sdneo")
+
+        assert isinstance(app.screen, TaskListScreen)
+        assert filter_bar(app).value == "sdneo"
+    assert loaded(tmp_path) == before
+
+
+@pytest.mark.asyncio
+async def test_no_matches_shows_a_filter_message(tmp_path: Path) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"nothing")
+
+        no_tasks = app.screen.query_one("#no-tasks", Static)
+        assert shown_ids(app) == []
+        assert no_tasks.has_class("-shown")
+        assert str(no_tasks.content) == "No tasks match the filter."
+
+
+@pytest.mark.asyncio
+async def test_invalid_words_are_named_and_the_rest_still_filters(
+    tmp_path: Path,
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"#errands status:l")
+
+        assert filter_error(app) == "unknown status 'l'; use todo, doing or done"
+        assert filter_bar(app).has_class("-invalid")
+        assert shown_ids(app) == ["AAAA", "CCCC"]
+
+        await pilot.press(*" priority:")
+        assert filter_error(app) == (
+            "unknown status 'l'; use todo, doing or done\n"
+            "priority: needs a value; use low, normal or high"
+        )
+
+        await pilot.press("ctrl+u", *"#errands status:done")
+
+        assert filter_error(app) is None
+        assert not filter_bar(app).has_class("-invalid")
+        assert shown_ids(app) == ["CCCC"]
+
+
+@pytest.mark.asyncio
+async def test_enter_goes_back_to_the_table_and_keeps_the_filter(
+    tmp_path: Path,
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"#errands", "enter")
+
+        assert isinstance(app.screen, TaskListScreen)
+        assert app.focused is app.screen.query_one("#task-table")
+        assert filter_bar(app).display
+        assert shown_ids(app) == ["AAAA", "CCCC"]
+
+        # Now Enter opens the task under the cursor, out of the filtered rows.
+        await pilot.press("down", "enter")
+        assert isinstance(app.screen, TaskDetailScreen)
+        assert app.screen.source.task.id == "CCCC"
+
+
+@pytest.mark.asyncio
+async def test_enter_in_a_blank_filter_bar_hides_it(tmp_path: Path) -> None:
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", "space", "enter")
+
+        assert isinstance(app.screen, TaskListScreen)
+        assert not filter_bar(app).display
+        assert app.focused is app.screen.query_one("#task-table")
+
+
+@pytest.mark.asyncio
+async def test_slash_edits_the_current_filter(tmp_path: Path) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"buy", "enter", "slash", *" #errands")
+
+        assert filter_bar(app).value == "buy #errands"
+        assert shown_ids(app) == ["AAAA", "CCCC"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("from_table", [False, True])
+async def test_escape_clears_the_filter_and_hides_the_bar(
+    tmp_path: Path, from_table: bool
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"#errands status:x")
+        if from_table:
+            await pilot.press("enter")
+        await pilot.press("escape")
+
+        assert not filter_bar(app).display
+        assert filter_bar(app).value == ""
+        assert filter_error(app) is None
+        assert app.focused is app.screen.query_one("#task-table")
+        assert shown_ids(app) == ["AAAA", "BBBB", "CCCC"]
+
+
+@pytest.mark.asyncio
+async def test_escape_without_a_filter_does_nothing(tmp_path: Path) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("down", "escape")
+
+        assert isinstance(app.screen, TaskListScreen)
+        assert shown_ids(app) == ["AAAA", "BBBB", "CCCC"]
+        assert cursor_task_id(app) == "BBBB"
+
+
+@pytest.mark.asyncio
+async def test_clear_filter_is_in_the_footer_only_while_the_bar_is_shown(
+    tmp_path: Path,
+) -> None:
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        assert not screen.check_action("clear_filter", ())
+
+        await pilot.press("slash")
+        assert screen.check_action("clear_filter", ())
+
+        await pilot.press("escape")
+        assert not screen.check_action("clear_filter", ())
+
+
+@pytest.mark.asyncio
+async def test_filter_keeps_the_cursor_on_a_task_that_still_matches(
+    tmp_path: Path,
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("down", "down", "slash", *"buy")
+        assert shown_ids(app) == ["AAAA", "CCCC"]
+        assert cursor_task_id(app) == "CCCC"
+
+        # CCCC doesn't match any more, so the cursor goes to the top.
+        await pilot.press(*" milk")
+        assert cursor_task_id(app) == "AAAA"
+
+
+@pytest.mark.asyncio
+async def test_filter_stays_applied_when_the_list_is_reloaded(
+    tmp_path: Path,
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"#errands", "enter")
+        save_task(tmp_path, make_task("DDDD", "New errand", tags=("errands",)), None)
+        app.screen.load()
+        await pilot.pause()
+
+        assert shown_ids(app) == ["AAAA", "CCCC", "DDDD"]
+
+
+@pytest.mark.asyncio
+async def test_task_that_stops_matching_leaves_the_cursor_on_its_row(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "One", due=date(2026, 11, 1)), None)
+    save_task(tmp_path, make_task("BBBB", "Two", due=date(2026, 11, 2)), None)
+    save_task(tmp_path, make_task("CCCC", "Three", due=date(2026, 11, 3)), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"status:todo", "enter", "down", "s")
+
+        # BBBB is doing now, so it's hidden and CCCC takes its row.
+        assert loaded(tmp_path)["BBBB"].status == Status.DOING
+        assert shown_ids(app) == ["AAAA", "CCCC"]
+        assert cursor_task_id(app) == "CCCC"
+
+        # On the last row, the cursor moves up to the new last row.
+        await pilot.press("s")
+        assert shown_ids(app) == ["AAAA"]
+        assert cursor_task_id(app) == "AAAA"
+
+
+@pytest.mark.asyncio
+async def test_saving_a_task_the_filter_hides_says_so(tmp_path: Path) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"#errands", "enter")
+        screen = app.screen
+        assert isinstance(screen, TaskListScreen)
+
+        # As if saved from the form: one task the filter hides, one it shows.
+        save_task(tmp_path, make_task("DDDD", "Untagged"), None)
+        screen._form_closed("DDDD")
+        save_task(tmp_path, make_task("EEEE", "Tagged", tags=("errands",)), None)
+        screen._form_closed("EEEE")
+        # A task deleted meanwhile isn't hidden by the filter.
+        screen._form_closed("GONE")
+
+        assert messages == [
+            "Saved DDDD, but the filter hides it. Press Escape to clear the filter."
+        ]
+        assert cursor_task_id(app) == "EEEE"

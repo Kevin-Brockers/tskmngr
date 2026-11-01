@@ -8,6 +8,11 @@ next status (todo → doing → done → todo) and saves it right away; `d` asks
 whether to delete it and moves its file to `.trash/`; `o` opens its file in
 `$VISUAL` or `$EDITOR`. The list is reloaded from disk after each of these, and
 a save or delete that hits a conflict is shown instead of overwriting the file.
+
+`/` opens a filter bar above the table that narrows the list as you type (see
+`query.parse_filter`): words are searched in titles and notes, `#tag` needs a
+tag, `status:` and `priority:` restrict to a value. Enter goes back to the
+table and keeps the filter; Escape clears it.
 """
 
 from collections.abc import Sequence
@@ -22,10 +27,10 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, Static
+from textual.widgets import DataTable, Footer, Header, Input, Static
 
 from tskmngr.models import Task, next_status
-from tskmngr.query import SortKey, sort_tasks
+from tskmngr.query import SortKey, TaskFilter, parse_filter, sort_tasks
 from tskmngr.storage import (
     BadFile,
     ConflictError,
@@ -88,7 +93,14 @@ class TaskListScreen(Screen):
         Binding("s", "cycle_status", "Status", id="task_list.cycle_status"),
         Binding("d", "delete_task", "Delete", id="task_list.delete"),
         Binding("o", "external_editor", "Editor", id="task_list.external_editor"),
+        Binding("slash", "filter", "Filter", id="task_list.filter"),
+        Binding("escape", "clear_filter", "Clear", id="task_list.clear_filter"),
     ]
+
+    # Not the first focusable widget, the filter bar, which starts hidden.
+    AUTO_FOCUS = "#task-table"
+
+    FILTER_PLACEHOLDER = "Filter: words, #tag, status:todo, priority:high"
 
     DEFAULT_CSS = """
     TaskListScreen #load-warning {
@@ -100,6 +112,23 @@ class TaskListScreen(Screen):
         overflow-y: auto;
     }
     TaskListScreen #load-warning.-shown {
+        display: block;
+    }
+    TaskListScreen #filter-input {
+        display: none;
+    }
+    TaskListScreen #filter-input.-shown {
+        display: block;
+    }
+    TaskListScreen #filter-input.-invalid {
+        border: tall $error;
+    }
+    TaskListScreen #filter-error {
+        display: none;
+        color: $text-error;
+        padding: 0 1;
+    }
+    TaskListScreen #filter-error.-shown {
         display: block;
     }
     TaskListScreen #task-table {
@@ -118,13 +147,24 @@ class TaskListScreen(Screen):
     def __init__(self, directory: Path) -> None:
         super().__init__()
         self.directory = directory
-        # The loaded files, in table order; later steps save edits through them.
+        # The files shown, in table order; edits are saved through them.
         self.tasks: list[TaskFile] = []
+        # Every loaded file, sorted, before the filter is applied.
+        self.loaded: list[TaskFile] = []
         self.bad_files: list[BadFile] = []
+        # The filter in the bar, leaving out words with an error.
+        self.task_filter = TaskFilter()
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield Static(id="load-warning")
+        # Not select_on_focus: `/` goes back to the filter to add to it.
+        yield Input(
+            placeholder=self.FILTER_PLACEHOLDER,
+            select_on_focus=False,
+            id="filter-input",
+        )
+        yield Static(id="filter-error")
         table: DataTable[Text] = DataTable(id="task-table", cursor_type="row")
         table.add_columns(*COLUMNS)
         yield table
@@ -141,13 +181,13 @@ class TaskListScreen(Screen):
         try:
             result = load_tasks(self.directory)
         except OSError as error:
-            self.tasks, self.bad_files = [], []
+            self.loaded, self.bad_files = [], []
             reason = error.strerror or str(error)
             warning.update(Text(f"Can't read the tasks in {self.directory}: {reason}"))
             warning.set_class(True, "-shown")
             self._show_tasks()
             return
-        self.tasks = sort_tasks(result.tasks, SortKey.DUE)
+        self.loaded = sort_tasks(result.tasks, SortKey.DUE)
         self.bad_files = result.bad_files
         if self.bad_files:
             warning.update(bad_files_warning(self.directory, self.bad_files))
@@ -155,21 +195,78 @@ class TaskListScreen(Screen):
         self._show_tasks()
 
     def _show_tasks(self) -> None:
+        """Show the loaded tasks that match the filter."""
+        self.tasks = self.task_filter.apply(self.loaded)
         table = self.query_one("#task-table", DataTable)
         table.clear()
         for source in self.tasks:
             table.add_row(*task_row(source.task), key=source.task.id)
-        self.query_one("#no-tasks").set_class(not self.tasks, "-shown")
+        no_tasks = self.query_one("#no-tasks", Static)
+        hidden = bool(self.loaded) and not self.tasks
+        no_tasks.update(Text("No tasks match the filter." if hidden else "No tasks."))
+        no_tasks.set_class(not self.tasks, "-shown")
 
     def reload(self, task_id: str | None) -> None:
-        """Reload from disk, keeping the cursor on `task_id` if it's still there."""
+        """Reload from disk, keeping the cursor on `task_id` if it's still shown.
+
+        If the task is gone or no longer matches the filter, the cursor stays
+        on the same row, so it lands on the task that took its place.
+        """
+        row = self.query_one("#task-table", DataTable).cursor_row
         self.load()
-        if task_id is None:
+        if task_id is not None:
+            self._move_cursor(task_id, row)
+
+    def _move_cursor(self, task_id: str | None, fallback_row: int) -> None:
+        table = self.query_one("#task-table", DataTable)
+        ids = [source.task.id for source in self.tasks]
+        if task_id in ids:
+            table.move_cursor(row=ids.index(task_id))
+        elif ids:
+            table.move_cursor(row=min(fallback_row, len(ids) - 1))
+
+    def action_filter(self) -> None:
+        """Show the filter bar and focus it."""
+        bar = self.query_one("#filter-input", Input)
+        bar.add_class("-shown")
+        bar.cursor_position = len(bar.value)
+        bar.focus()
+        self.refresh_bindings()
+
+    def action_clear_filter(self) -> None:
+        """Clear the filter, hide the bar and go back to the table."""
+        bar = self.query_one("#filter-input", Input)
+        bar.value = ""
+        self._apply_filter("")
+        bar.remove_class("-shown")
+        self.query_one("#task-table", DataTable).focus()
+        self.refresh_bindings()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "filter-input":
+            event.stop()
+            self._apply_filter(event.value)
+
+    def _apply_filter(self, text: str) -> None:
+        """Filter by `text`; words that can't be parsed are named and left out."""
+        task_filter, errors = parse_filter(text)
+        self.query_one("#filter-input", Input).set_class(bool(errors), "-invalid")
+        error = self.query_one("#filter-error", Static)
+        error.update(Text("\n".join(errors)))
+        error.set_class(bool(errors), "-shown")
+        if task_filter == self.task_filter:
             return
-        for row, source in enumerate(self.tasks):
-            if source.task.id == task_id:
-                self.query_one("#task-table", DataTable).move_cursor(row=row)
-                return
+        current = self._current()
+        self.task_filter = task_filter
+        self._show_tasks()
+        # Stay on the task under the cursor if it still matches, else the top.
+        self._move_cursor(current.task.id if current else None, 0)
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool:
+        if action == "clear_filter":
+            # Hidden from the footer, and Escape does nothing, without a bar.
+            return self.query_one("#filter-input").has_class("-shown")
+        return True
 
     def _current(self) -> TaskFile | None:
         """The task under the cursor, if there are any tasks."""
@@ -178,7 +275,18 @@ class TaskListScreen(Screen):
         return self.tasks[self.query_one("#task-table", DataTable).cursor_row]
 
     def action_open_task(self) -> None:
-        """Show the task under the cursor in the detail screen."""
+        """Show the task under the cursor in the detail screen.
+
+        In the filter bar, Enter instead goes back to the table, keeping the
+        filter; a blank bar is hidden.
+        """
+        bar = self.query_one("#filter-input", Input)
+        if self.focused is bar:
+            if not bar.value.strip():
+                self.action_clear_filter()
+            else:
+                self.query_one("#task-table", DataTable).focus()
+            return
         source = self._current()
         if source is None:
             return
@@ -201,8 +309,17 @@ class TaskListScreen(Screen):
 
     def _form_closed(self, task_id: str | None) -> None:
         # None means cancelled: nothing was saved, so there's nothing to reload.
-        if task_id is not None:
-            self.reload(task_id)
+        if task_id is None:
+            return
+        self.reload(task_id)
+        loaded = any(source.task.id == task_id for source in self.loaded)
+        if loaded and all(source.task.id != task_id for source in self.tasks):
+            self.notify(
+                f"Saved {task_id}, but the filter hides it. Press Escape to clear "
+                "the filter.",
+                title="Hidden by the filter",
+                markup=False,
+            )
 
     def action_cycle_status(self) -> None:
         """Save the task under the cursor with the next status."""
