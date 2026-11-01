@@ -15,6 +15,7 @@ from tskmngr.models import (
     TaskValidationError,
     new_id,
     new_task,
+    parse_due,
 )
 
 CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
@@ -291,6 +292,21 @@ def test_new_task_avoids_existing_ids(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_new_task_validates_the_title() -> None:
     with pytest.raises(TaskValidationError):
         new_task("", existing_ids=())
+
+
+def test_parse_due_reads_an_iso_date() -> None:
+    assert parse_due("2026-11-01") == date(2026, 11, 1)
+
+
+@pytest.mark.parametrize(
+    "text", ["", "20261101", "2026-W44-7", "2026-13-01", "2026-11-1", " 2026-11-01"]
+)
+def test_parse_due_rejects_anything_but_yyyy_mm_dd(text: str) -> None:
+    with pytest.raises(TaskValidationError) as raised:
+        parse_due(text)
+
+    assert raised.value.field == "due"
+    assert raised.value.message == f"expected a date like 2026-11-01, got {text!r}"
 
 
 def test_models_does_not_import_textual() -> None:

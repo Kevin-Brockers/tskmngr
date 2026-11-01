@@ -1,7 +1,6 @@
 """The `tskmngr` entry point. With no arguments it launches the TUI."""
 
 import argparse
-import re
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
@@ -10,7 +9,14 @@ from pathlib import Path
 
 from tskmngr.app import TskmngrApp
 from tskmngr.display import task_fields
-from tskmngr.models import Priority, Status, Task, TaskValidationError, new_task
+from tskmngr.models import (
+    Priority,
+    Status,
+    Task,
+    TaskValidationError,
+    new_task,
+    parse_due,
+)
 from tskmngr.query import SortKey, filter_tasks, match_id_prefix, sort_tasks
 from tskmngr.storage import (
     ConflictError,
@@ -21,8 +27,6 @@ from tskmngr.storage import (
     tasks_dir,
 )
 from tskmngr.taskfile import TaskFile
-
-ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
 # Statuses `tskmngr list` shows unless told otherwise.
 OPEN_STATUSES = (Status.TODO, Status.DOING)
@@ -441,10 +445,7 @@ def _reason(error: OSError) -> str:
 
 def _due_date(value: str) -> date:
     """Parse a due date given as YYYY-MM-DD, for argparse."""
-    # date.fromisoformat also takes forms like 20261101 or 2026-W44-7.
-    if ISO_DATE.fullmatch(value):
-        try:
-            return date.fromisoformat(value)
-        except ValueError:
-            pass
-    raise argparse.ArgumentTypeError(f"expected a date like 2026-11-01, got {value!r}")
+    try:
+        return parse_due(value)
+    except TaskValidationError as error:
+        raise argparse.ArgumentTypeError(error.message) from None
