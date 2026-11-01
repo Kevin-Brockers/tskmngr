@@ -8,10 +8,12 @@ from tskmngr.models import Priority, Status, Task
 from tskmngr.query import (
     AmbiguousIDError,
     SortKey,
+    TaskFilter,
     TaskNotFoundError,
     filter_tasks,
     find_by_prefix,
     match_id_prefix,
+    parse_filter,
     sort_tasks,
 )
 from tskmngr.taskfile import TaskFile
@@ -149,6 +151,99 @@ def test_blank_search_matches_all_tasks() -> None:
     tasks = [make_task("A"), make_task("B")]
 
     assert filter_tasks(tasks, text="   ") == tasks
+
+
+# Filter strings
+
+
+def test_parse_filter_of_a_blank_string_matches_everything() -> None:
+    assert parse_filter("") == (TaskFilter(), [])
+    assert parse_filter("  \t ") == (TaskFilter(), [])
+
+
+def test_parse_filter_reads_words_tags_statuses_and_priorities() -> None:
+    task_filter = TaskFilter(
+        statuses=(Status.TODO,),
+        priorities=(Priority.HIGH,),
+        tags=("errands",),
+        text="buy milk",
+    )
+
+    assert parse_filter("buy #errands status:todo milk priority:high") == (
+        task_filter,
+        [],
+    )
+
+
+def test_parse_filter_collects_repeated_criteria_without_duplicates() -> None:
+    task_filter, errors = parse_filter(
+        "status:todo status:doing status:todo priority:low priority:high #a #b #a"
+    )
+
+    assert task_filter == TaskFilter(
+        statuses=(Status.TODO, Status.DOING),
+        priorities=(Priority.LOW, Priority.HIGH),
+        tags=("a", "b"),
+    )
+    assert errors == []
+
+
+def test_parse_filter_ignores_case_of_keys_values_and_tags() -> None:
+    assert parse_filter("Status:DOING PRIORITY:Low #Errands #errands")[0] == (
+        TaskFilter(
+            statuses=(Status.DOING,), priorities=(Priority.LOW,), tags=("errands",)
+        )
+    )
+
+
+def test_parse_filter_searches_other_key_value_words_as_text() -> None:
+    # Titles like "Re: invoice" or "10:30 call" are searched as written.
+    assert parse_filter("re:invoice 10:30") == (TaskFilter(text="re:invoice 10:30"), [])
+
+
+def test_parse_filter_takes_everything_after_hash_as_the_tag() -> None:
+    assert parse_filter("#status:todo ##x")[0] == TaskFilter(tags=("status:todo", "#x"))
+
+
+@pytest.mark.parametrize(
+    ("word", "message"),
+    [
+        ("status:later", "unknown status 'later'; use todo, doing or done"),
+        ("priority:urgent", "unknown priority 'urgent'; use low, normal or high"),
+        ("status:", "status: needs a value; use todo, doing or done"),
+        ("priority:", "priority: needs a value; use low, normal or high"),
+        ("#", "'#' needs a tag after it, as in #errands"),
+    ],
+)
+def test_parse_filter_leaves_out_invalid_words_and_says_why(
+    word: str, message: str
+) -> None:
+    task_filter, errors = parse_filter(f"milk {word} #errands status:todo")
+
+    assert task_filter == TaskFilter(
+        statuses=(Status.TODO,), tags=("errands",), text="milk"
+    )
+    assert errors == [message]
+
+
+def test_parse_filter_reports_every_invalid_word_in_order() -> None:
+    assert parse_filter("priority:x # status:y")[1] == [
+        "unknown priority 'x'; use low, normal or high",
+        "'#' needs a tag after it, as in #errands",
+        "unknown status 'y'; use todo, doing or done",
+    ]
+
+
+def test_task_filter_applies_its_criteria() -> None:
+    tasks = [
+        make_task("A", title="Buy milk", tags=("errands",)),
+        make_task("B", title="Buy milk", status=Status.DONE, tags=("errands",)),
+        make_task("C", title="Buy milk"),
+        make_task("D", title="Buy bread", tags=("errands",)),
+    ]
+
+    assert ids(parse_filter("milk #errands status:todo")[0].apply(tasks)) == ["A"]
+    assert TaskFilter().apply(tasks) == tasks
 
 
 # Sorting

@@ -99,6 +99,12 @@ its commit for changes that reached `dev` or `main` without a pull request.
   writes the file afterwards; a file left malformed is reported and shown in
   the list's warning panel. If neither variable is set, the editor can't be
   started or the file is gone, that's shown instead
+- #TBD - `/` on the TUI task list opens a filter bar that narrows the list
+  as you type: words are searched in titles and notes, `#tag` needs a tag, and
+  `status:` and `priority:` restrict to a value (repeat for any of several).
+  A word with an unknown or missing value is named below the bar and left out
+  of the filter. Enter goes back to the list and keeps the filter, Escape
+  clears it, and the filter stays applied when the list reloads
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
