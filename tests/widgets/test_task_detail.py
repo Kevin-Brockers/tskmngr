@@ -131,6 +131,8 @@ def test_bindings_have_stable_ids() -> None:
         "task_list.cycle_status",
         "task_list.delete",
         "task_list.external_editor",
+        "task_list.sort",
+        "task_list.reverse_sort",
         "task_list.filter",
         "task_list.clear_filter",
     }

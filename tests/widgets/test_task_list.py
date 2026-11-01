@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -7,12 +8,18 @@ from textual.widgets import Button, DataTable, Input, Static
 
 from tskmngr.app import TskmngrApp
 from tskmngr.models import Priority, Status, Task
+from tskmngr.query import SortKey
 from tskmngr.storage import BadFile, load_tasks, save_task
 from tskmngr.taskfile import MalformedTaskError
 from tskmngr.widgets import task_list
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen, delete_question
 from tskmngr.widgets.task_detail import TaskDetailScreen
-from tskmngr.widgets.task_list import TaskListScreen, bad_files_warning, task_row
+from tskmngr.widgets.task_list import (
+    TaskListScreen,
+    bad_files_warning,
+    column_labels,
+    task_row,
+)
 
 CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
 
@@ -635,10 +642,12 @@ async def test_action_keys_are_typed_into_the_filter_bar(tmp_path: Path) -> None
 
     app = TskmngrApp(tmp_path)
     async with app.run_test() as pilot:
-        await pilot.press("slash", *"sdneo")
+        await pilot.press("slash", *"sdneoSR")
 
         assert isinstance(app.screen, TaskListScreen)
-        assert filter_bar(app).value == "sdneo"
+        assert filter_bar(app).value == "sdneoSR"
+        assert app.screen.sort_key == SortKey.DUE
+        assert not app.screen.sort_reverse
     assert loaded(tmp_path) == before
 
 
@@ -856,3 +865,183 @@ async def test_saving_a_task_the_filter_hides_says_so(tmp_path: Path) -> None:
             "Saved DDDD, but the filter hides it. Press Escape to clear the filter."
         ]
         assert cursor_task_id(app) == "EEEE"
+
+
+# Sorting (M3.8)
+
+
+def save_sort_tasks(directory: Path) -> None:
+    """Three tasks in a different order for every sort key.
+
+    Due: BBBB, AAAA, CCCC (no due date). Priority: BBBB, CCCC, AAAA.
+    Created: AAAA, CCCC, BBBB. Updated: CCCC, AAAA, BBBB.
+    """
+    for task_id, due, priority, created, updated in [
+        ("AAAA", date(2026, 11, 3), Priority.LOW, (10, 1), (10, 10)),
+        ("BBBB", date(2026, 11, 1), Priority.HIGH, (10, 3), (10, 20)),
+        ("CCCC", None, Priority.NORMAL, (10, 2), (10, 5)),
+    ]:
+        task = Task(
+            id=task_id,
+            title=f"Task {task_id}",
+            due=due,
+            priority=priority,
+            created=datetime(2026, *created, 9, 0, tzinfo=UTC),
+            updated=datetime(2026, *updated, 9, 0, tzinfo=UTC),
+        )
+        save_task(directory, task, None)
+
+
+def header_labels(app: TskmngrApp) -> list[str]:
+    table = app.screen.query_one("#task-table", DataTable)
+    return [column.label.plain for column in table.columns.values()]
+
+
+@pytest.mark.parametrize(
+    ("sort_key", "reverse", "labels"),
+    [
+        (SortKey.DUE, False, ["ID", "Status", "Priority", "Due ▲", "Title"]),
+        (SortKey.DUE, True, ["ID", "Status", "Priority", "Due ▼", "Title"]),
+        (SortKey.PRIORITY, False, ["ID", "Status", "Priority ▼", "Due", "Title"]),
+        (SortKey.PRIORITY, True, ["ID", "Status", "Priority ▲", "Due", "Title"]),
+        (
+            SortKey.CREATED,
+            False,
+            ["ID", "Status", "Priority", "Due", "Created ▲", "Title"],
+        ),
+        (
+            SortKey.UPDATED,
+            True,
+            ["ID", "Status", "Priority", "Due", "Updated ▼", "Title"],
+        ),
+    ],
+)
+def test_column_labels_mark_the_sorted_column(
+    sort_key: SortKey, reverse: bool, labels: list[str]
+) -> None:
+    assert list(column_labels(sort_key, reverse)) == labels
+
+
+def test_task_row_adds_the_sorted_time_before_the_title() -> None:
+    task = replace(
+        make_task("A", "Read"), updated=datetime(2026, 10, 30, 12, 0, 5, tzinfo=UTC)
+    )
+
+    assert [cell.plain for cell in task_row(task, SortKey.CREATED)] == [
+        "A",
+        "todo",
+        "normal",
+        "",
+        "2026-10-28T09:15:00Z",
+        "Read",
+    ]
+    assert task_row(task, SortKey.UPDATED)[4].plain == "2026-10-30T12:00:05Z"
+    assert len(task_row(task, SortKey.PRIORITY)) == 5
+
+
+@pytest.mark.asyncio
+async def test_capital_s_steps_through_the_sort_keys(tmp_path: Path) -> None:
+    save_sort_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        assert shown_ids(app) == ["BBBB", "AAAA", "CCCC"]
+        assert header_labels(app) == ["ID", "Status", "Priority", "Due ▲", "Title"]
+
+        await pilot.press("S")
+        assert shown_ids(app) == ["BBBB", "CCCC", "AAAA"]
+        assert header_labels(app) == ["ID", "Status", "Priority ▼", "Due", "Title"]
+
+        await pilot.press("S")
+        assert shown_ids(app) == ["AAAA", "CCCC", "BBBB"]
+        assert header_labels(app)[4] == "Created ▲"
+        assert table_rows(app.screen)[0][4] == "2026-10-01T09:00:00Z"
+
+        await pilot.press("S")
+        assert shown_ids(app) == ["CCCC", "AAAA", "BBBB"]
+        assert header_labels(app)[4] == "Updated ▲"
+        assert table_rows(app.screen)[0][4] == "2026-10-05T09:00:00Z"
+
+        await pilot.press("S")
+        assert shown_ids(app) == ["BBBB", "AAAA", "CCCC"]
+        assert header_labels(app) == ["ID", "Status", "Priority", "Due ▲", "Title"]
+        assert len(table_rows(app.screen)[0]) == 5
+
+
+@pytest.mark.asyncio
+async def test_capital_r_reverses_and_undated_tasks_stay_last(
+    tmp_path: Path,
+) -> None:
+    save_sort_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("R")
+        assert shown_ids(app) == ["AAAA", "BBBB", "CCCC"]
+        assert header_labels(app)[3] == "Due ▼"
+
+        await pilot.press("R")
+        assert shown_ids(app) == ["BBBB", "AAAA", "CCCC"]
+        assert header_labels(app)[3] == "Due ▲"
+
+        await pilot.press("S", "R")
+        assert shown_ids(app) == ["AAAA", "CCCC", "BBBB"]
+        assert header_labels(app)[2] == "Priority ▲"
+
+        # The next key starts in its default direction again.
+        await pilot.press("S")
+        assert shown_ids(app) == ["AAAA", "CCCC", "BBBB"]
+        assert header_labels(app)[4] == "Created ▲"
+        assert not app.screen.sort_reverse
+
+
+@pytest.mark.asyncio
+async def test_sorting_keeps_the_cursor_on_the_same_task(tmp_path: Path) -> None:
+    save_sort_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("down")
+        assert cursor_task_id(app) == "AAAA"
+
+        await pilot.press("S")
+        assert shown_ids(app) == ["BBBB", "CCCC", "AAAA"]
+        assert cursor_task_id(app) == "AAAA"
+
+        await pilot.press("R")
+        assert cursor_task_id(app) == "AAAA"
+        assert app.screen.query_one("#task-table", DataTable).cursor_row == 0
+
+
+@pytest.mark.asyncio
+async def test_sort_is_kept_on_reload_and_applies_to_the_filtered_list(
+    tmp_path: Path,
+) -> None:
+    save_sort_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("S", "slash", *"status:todo", "enter")
+        save_task(
+            tmp_path,
+            make_task("DDDD", "Urgent", priority=Priority.HIGH, status=Status.DONE),
+            None,
+        )
+        save_task(tmp_path, make_task("EEEE", "Low", priority=Priority.LOW), None)
+        app.screen.load()
+        await pilot.pause()
+
+        # DDDD is done, so the filter hides it; EEEE ties with AAAA on priority
+        # and was created later.
+        assert shown_ids(app) == ["BBBB", "CCCC", "AAAA", "EEEE"]
+        assert header_labels(app)[2] == "Priority ▼"
+
+
+@pytest.mark.asyncio
+async def test_sorting_an_empty_list_changes_the_headers(tmp_path: Path) -> None:
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("S", "S", "R")
+
+        assert header_labels(app)[4] == "Created ▼"
+        assert app.screen.query_one("#no-tasks").has_class("-shown")

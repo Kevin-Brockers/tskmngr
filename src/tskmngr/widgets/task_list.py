@@ -1,4 +1,4 @@
-"""The task list screen: every task in a table, soonest due first.
+"""The task list screen: every task in a table, soonest due first by default.
 
 Task files that can't be loaded are named in a warning panel above the table,
 so they're never hidden. The tasks directory is shown in the header. Enter
@@ -13,6 +13,12 @@ a save or delete that hits a conflict is shown instead of overwriting the file.
 `query.parse_filter`): words are searched in titles and notes, `#tag` needs a
 tag, `status:` and `priority:` restrict to a value. Enter goes back to the
 table and keeps the filter; Escape clears it.
+
+`S` sorts by the next key (due → priority → created → updated → due), each in
+its default direction (see `query.sort_tasks`), and `R` reverses the order. The
+header of the sorted column gets ▲ when the smallest value is at the top
+(earliest date, lowest priority) and ▼ when it's at the bottom. Created and
+updated have a column only while the list is sorted by them.
 """
 
 from collections.abc import Sequence
@@ -29,6 +35,7 @@ from textual.binding import Binding, BindingType
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
+from tskmngr.display import format_timestamp
 from tskmngr.models import Task, next_status
 from tskmngr.query import SortKey, TaskFilter, parse_filter, sort_tasks
 from tskmngr.storage import (
@@ -45,22 +52,56 @@ from tskmngr.widgets.external_editor import edit_in_editor
 from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_form import TaskFormScreen
 
-COLUMNS = ("ID", "Status", "Priority", "Due", "Title")
+# The order `S` steps through.
+SORT_KEYS = (SortKey.DUE, SortKey.PRIORITY, SortKey.CREATED, SortKey.UPDATED)
+
+# The header of each sort key's column.
+SORT_COLUMNS = {
+    SortKey.DUE: "Due",
+    SortKey.PRIORITY: "Priority",
+    SortKey.CREATED: "Created",
+    SortKey.UPDATED: "Updated",
+}
+
+# Shown only while sorting by them, before the title.
+TIME_SORT_KEYS = (SortKey.CREATED, SortKey.UPDATED)
 
 
-def task_row(task: Task) -> tuple[Text, ...]:
-    """The table cells for a task; tags follow the title as `#tag`."""
-    title = " ".join([task.title, *(f"#{tag}" for tag in task.tags)])
+def column_labels(sort_key: SortKey, reverse: bool) -> tuple[str, ...]:
+    """The column headers, with ▲ or ▼ on the one the list is sorted by.
+
+    ▲ means the smallest value is at the top: the earliest date or the lowest
+    priority. Sorting by created or updated adds that column before Title.
+    """
+    labels = ["ID", "Status", "Priority", "Due"]
+    if sort_key in TIME_SORT_KEYS:
+        labels.append(SORT_COLUMNS[sort_key])
+    labels.append("Title")
+    # Priority sorts highest first by default, the others smallest first.
+    descending = (sort_key is SortKey.PRIORITY) != reverse
+    arrow = "▼" if descending else "▲"
+    sorted_label = SORT_COLUMNS[sort_key]
     return tuple(
-        Text(cell)
-        for cell in (
-            task.id,
-            task.status.value,
-            task.priority.value,
-            task.due.isoformat() if task.due else "",
-            title,
-        )
+        f"{label} {arrow}" if label == sorted_label else label for label in labels
     )
+
+
+def task_row(task: Task, sort_key: SortKey = SortKey.DUE) -> tuple[Text, ...]:
+    """The table cells for a task; tags follow the title as `#tag`.
+
+    Matches `column_labels(sort_key, ...)`: sorting by created or updated adds
+    that time before the title.
+    """
+    cells = [
+        task.id,
+        task.status.value,
+        task.priority.value,
+        task.due.isoformat() if task.due else "",
+    ]
+    if sort_key in TIME_SORT_KEYS:
+        cells.append(format_timestamp(getattr(task, sort_key.value)))
+    cells.append(" ".join([task.title, *(f"#{tag}" for tag in task.tags)]))
+    return tuple(Text(cell) for cell in cells)
 
 
 def bad_files_warning(directory: Path, bad_files: Sequence[BadFile]) -> Text:
@@ -83,7 +124,10 @@ def _display_path(directory: Path, path: Path) -> Path:
 
 
 class TaskListScreen(Screen):
-    """All tasks in `directory`, done ones included, soonest due first."""
+    """All tasks in `directory`, done ones included, soonest due first.
+
+    The sort can be changed with `S` and `R`; it lasts until the app exits.
+    """
 
     BINDINGS: ClassVar[list[BindingType]] = [
         # Priority, so Enter reaches the screen before the focused table.
@@ -93,6 +137,8 @@ class TaskListScreen(Screen):
         Binding("s", "cycle_status", "Status", id="task_list.cycle_status"),
         Binding("d", "delete_task", "Delete", id="task_list.delete"),
         Binding("o", "external_editor", "Editor", id="task_list.external_editor"),
+        Binding("S", "cycle_sort", "Sort", id="task_list.sort"),
+        Binding("R", "reverse_sort", "Reverse", id="task_list.reverse_sort"),
         Binding("slash", "filter", "Filter", id="task_list.filter"),
         Binding("escape", "clear_filter", "Clear", id="task_list.clear_filter"),
     ]
@@ -154,6 +200,8 @@ class TaskListScreen(Screen):
         self.bad_files: list[BadFile] = []
         # The filter in the bar, leaving out words with an error.
         self.task_filter = TaskFilter()
+        self.sort_key = SortKey.DUE
+        self.sort_reverse = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -166,7 +214,7 @@ class TaskListScreen(Screen):
         )
         yield Static(id="filter-error")
         table: DataTable[Text] = DataTable(id="task-table", cursor_type="row")
-        table.add_columns(*COLUMNS)
+        table.add_columns(*column_labels(self.sort_key, self.sort_reverse))
         yield table
         yield Static(Text("No tasks."), id="no-tasks")
         yield Footer()
@@ -187,7 +235,7 @@ class TaskListScreen(Screen):
             warning.set_class(True, "-shown")
             self._show_tasks()
             return
-        self.loaded = sort_tasks(result.tasks, SortKey.DUE)
+        self.loaded = sort_tasks(result.tasks, self.sort_key, reverse=self.sort_reverse)
         self.bad_files = result.bad_files
         if self.bad_files:
             warning.update(bad_files_warning(self.directory, self.bad_files))
@@ -198,9 +246,14 @@ class TaskListScreen(Screen):
         """Show the loaded tasks that match the filter."""
         self.tasks = self.task_filter.apply(self.loaded)
         table = self.query_one("#task-table", DataTable)
+        labels = column_labels(self.sort_key, self.sort_reverse)
+        # Rebuilt only when the sort changes, so reloads keep the scroll position.
+        if [column.label.plain for column in table.columns.values()] != list(labels):
+            table.clear(columns=True)
+            table.add_columns(*labels)
         table.clear()
         for source in self.tasks:
-            table.add_row(*task_row(source.task), key=source.task.id)
+            table.add_row(*task_row(source.task, self.sort_key), key=source.task.id)
         no_tasks = self.query_one("#no-tasks", Static)
         hidden = bool(self.loaded) and not self.tasks
         no_tasks.update(Text("No tasks match the filter." if hidden else "No tasks."))
@@ -260,6 +313,23 @@ class TaskListScreen(Screen):
         self.task_filter = task_filter
         self._show_tasks()
         # Stay on the task under the cursor if it still matches, else the top.
+        self._move_cursor(current.task.id if current else None, 0)
+
+    def action_cycle_sort(self) -> None:
+        """Sort by the next key in `SORT_KEYS`, in its default direction."""
+        index = SORT_KEYS.index(self.sort_key)
+        self._sort(SORT_KEYS[(index + 1) % len(SORT_KEYS)], reverse=False)
+
+    def action_reverse_sort(self) -> None:
+        """Reverse the sort order; tasks without a due date stay last."""
+        self._sort(self.sort_key, reverse=not self.sort_reverse)
+
+    def _sort(self, key: SortKey, *, reverse: bool) -> None:
+        """Sort the list by `key`, keeping the cursor on the same task."""
+        current = self._current()
+        self.sort_key, self.sort_reverse = key, reverse
+        self.loaded = sort_tasks(self.loaded, key, reverse=reverse)
+        self._show_tasks()
         self._move_cursor(current.task.id if current else None, 0)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool:
