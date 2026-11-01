@@ -120,7 +120,7 @@ the user and the task reloaded, never overwritten.
 - [x] **M3.3** Form to create and edit a task (title, status, priority, due
   date, tags) with validation · `feature/tui_task_form` · [#26](https://github.com/Kevin-Brockers/tskmngr/pull/26)
 - [x] **M3.4** Quick status change and delete with confirmation from the list ·
-  `feature/tui_task_actions` · #TBD
+  `feature/tui_task_actions` · [#27](https://github.com/Kevin-Brockers/tskmngr/pull/27)
 - [ ] **M3.5** Edit notes in a built-in text area ·
   `feature/tui_notes_editor` · depends on M3.3
 - [ ] **M3.6** Open the task file in `$EDITOR` (TUI suspended) and reload it

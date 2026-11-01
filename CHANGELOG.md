@@ -75,7 +75,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   under their field when saving with ctrl+s; Escape cancels. If the task's file
   changed or was deleted on disk meanwhile, nothing is overwritten: the error
   is shown and the task reloaded from disk
-- #TBD - On the TUI task list, `s` moves the task under the cursor to the
+- [#27](https://github.com/Kevin-Brockers/tskmngr/pull/27) - On the TUI task list, `s` moves the task under the cursor to the
   next status (todo → doing → done → todo) and saves it right away, and `d`
   asks whether to delete it (No has the focus; `y` or the Yes button deletes)
   and moves its file into `.trash/`. If the file changed or was deleted on
