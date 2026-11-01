@@ -29,7 +29,7 @@ Python 3.12 or newer and [uv](https://docs.astral.sh/uv/):
 git clone --branch dev https://github.com/Kevin-Brockers/tskmngr
 cd tskmngr
 uv sync
-uv run tskmngr    # opens the TUI, still empty for now; quit with Ctrl+Q
+uv run tskmngr    # opens the TUI, only a task list so far; quit with Ctrl+Q
 ```
 
 ## Task files
