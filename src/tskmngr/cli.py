@@ -4,12 +4,13 @@ import argparse
 import re
 import sys
 from collections.abc import Sequence
-from datetime import date
+from dataclasses import replace
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from tskmngr.app import TskmngrApp
 from tskmngr.models import Priority, Status, Task, TaskValidationError, new_task
-from tskmngr.query import SortKey, filter_tasks, sort_tasks
+from tskmngr.query import SortKey, filter_tasks, match_id_prefix, sort_tasks
 from tskmngr.storage import (
     ConflictError,
     LoadResult,
@@ -17,6 +18,7 @@ from tskmngr.storage import (
     save_task,
     tasks_dir,
 )
+from tskmngr.taskfile import TaskFile
 
 ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
@@ -137,7 +139,66 @@ def _parser() -> argparse.ArgumentParser:
         "-r", "--reverse", action="store_true", help="reverse the sort order"
     )
     list_.set_defaults(handler=_list, parser=list_)
+
+    show = commands.add_parser(
+        "show",
+        help="show a task",
+        description="Show all fields of a task, then its notes.",
+    )
+    _add_id_argument(show)
+    show.set_defaults(handler=_show, parser=show)
+
+    edit = commands.add_parser(
+        "edit",
+        help="change a task's fields",
+        description="Change the given fields of a task; the rest stay as they are.",
+    )
+    _add_id_argument(edit)
+    edit.add_argument("--title", help="new title (quote it if it has spaces)")
+    edit.add_argument("-s", "--status", choices=[status.value for status in Status])
+    edit.add_argument(
+        "-p", "--priority", choices=[priority.value for priority in Priority]
+    )
+    due = edit.add_mutually_exclusive_group()
+    due.add_argument(
+        "-d", "--due", type=_due_date, metavar="YYYY-MM-DD", help="new due date"
+    )
+    due.add_argument("--no-due", action="store_true", help="remove the due date")
+    edit.add_argument(
+        "-t",
+        "--tag",
+        action="append",
+        default=[],
+        dest="tags",
+        metavar="TAG",
+        help="add a tag; repeat for more tags",
+    )
+    untag = edit.add_mutually_exclusive_group()
+    untag.add_argument(
+        "--untag",
+        action="append",
+        default=[],
+        dest="untags",
+        metavar="TAG",
+        help="remove a tag; repeat for more tags",
+    )
+    untag.add_argument(
+        "--clear-tags", action="store_true", help="remove all tags before adding any"
+    )
+    edit.set_defaults(handler=_edit, parser=edit)
+
+    done = commands.add_parser(
+        "done", help="mark a task as done", description="Mark a task as done."
+    )
+    _add_id_argument(done)
+    done.set_defaults(handler=_done, parser=done)
     return parser
+
+
+def _add_id_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "id", metavar="ID", help="the task's ID or a unique prefix of it"
+    )
 
 
 def _add(args: argparse.Namespace) -> int:
@@ -183,6 +244,123 @@ def _list(args: argparse.Namespace) -> int:
     tasks = sort_tasks(tasks, SortKey(args.sort), reverse=args.reverse)
     print("\n".join(format_table(tasks)) if tasks else "No tasks.")
     return 0
+
+
+def _show(args: argparse.Namespace) -> int:
+    source = _find(args, _load(tasks_dir()))
+    print("\n".join(format_details(source.task)))
+    return 0
+
+
+def _edit(args: argparse.Namespace) -> int:
+    changes: dict[str, object] = {}
+    if args.title is not None:
+        changes["title"] = args.title
+    if args.status is not None:
+        changes["status"] = Status(args.status)
+    if args.priority is not None:
+        changes["priority"] = Priority(args.priority)
+    if args.due is not None or args.no_due:
+        changes["due"] = args.due
+    tag_changes = args.tags or args.untags or args.clear_tags
+    if not changes and not tag_changes:
+        args.parser.error("nothing to change; give at least one option")
+    added = [tag.lower() for tag in args.tags]
+    both = sorted(set(added) & {tag.lower() for tag in args.untags})
+    if both:
+        args.parser.error(f"can't both add and remove tag {both[0]!r}")
+
+    directory = tasks_dir()
+    source = _find(args, _load(directory))
+    task = source.task
+    if tag_changes:
+        tags = [] if args.clear_tags else list(task.tags)
+        for tag in args.untags:
+            if tag.lower() not in tags:
+                raise CommandError(f"task {task.id} has no tag {tag.lower()!r}")
+            tags.remove(tag.lower())
+        # Adding a tag the task already has changes nothing, like `done` twice.
+        changes["tags"] = tags + [
+            tag for tag in dict.fromkeys(added) if tag not in tags
+        ]
+    try:
+        edited = replace(task, **changes)
+    except TaskValidationError as error:
+        args.parser.error(str(error))
+    _save_changed(directory, source, edited)
+    return 0
+
+
+def _done(args: argparse.Namespace) -> int:
+    directory = tasks_dir()
+    source = _find(args, _load(directory))
+    _save_changed(directory, source, replace(source.task, status=Status.DONE))
+    return 0
+
+
+def _find(args: argparse.Namespace, result: LoadResult) -> TaskFile:
+    """The task whose ID starts with `args.id`, among files that failed to load too.
+
+    A malformed file can be picked or make a prefix ambiguous, so its error is
+    reported instead of a misleading "no task".
+    """
+    bad_files = {bad.path.stem: bad for bad in result.bad_files}
+    ids = [source.task.id for source in result.tasks] + list(bad_files)
+    try:
+        task_id = match_id_prefix(ids, args.id)
+    except ValueError as error:
+        args.parser.error(str(error))
+    except LookupError as error:
+        raise CommandError(str(error)) from error
+    if task_id in bad_files:
+        bad = bad_files[task_id]
+        raise CommandError(f"can't load {bad.path}: {bad.error}")
+    return next(source for source in result.tasks if source.task.id == task_id)
+
+
+def _save_changed(directory: Path, source: TaskFile, task: Task) -> None:
+    """Save `task` with `updated` set to now, unless it's the same as `source`'s."""
+    if task == source.task:
+        return
+    task = replace(task, updated=datetime.now(UTC).replace(microsecond=0))
+    try:
+        save_task(directory, task, source)
+    except ConflictError as error:
+        raise CommandError(f"can't save the task: {error}") from error
+    except OSError as error:
+        raise CommandError(
+            f"can't save the task in {directory}: {_reason(error)}"
+        ) from error
+
+
+def format_details(task: Task) -> list[str]:
+    """Format every field of a task as `Label: value` lines, then its notes.
+
+    Missing values are shown as `-`. The notes follow after a blank line, as
+    written in the file.
+    """
+    fields = (
+        ("ID", task.id),
+        ("Title", task.title),
+        ("Status", task.status.value),
+        ("Priority", task.priority.value),
+        ("Due", task.due.isoformat() if task.due else "-"),
+        ("Tags", ", ".join(task.tags) or "-"),
+        ("Created", _timestamp(task.created)),
+        ("Updated", _timestamp(task.updated)),
+    )
+    width = max(len(label) for label, _ in fields) + 1
+    lines = [f"{label + ':':<{width}}  {value}" for label, value in fields]
+    notes = task.notes.rstrip("\r\n")
+    return [*lines, "", notes] if notes else lines
+
+
+def _timestamp(value: datetime) -> str:
+    """ISO 8601 like in the task files, with UTC written as `Z`."""
+    text = value.isoformat()
+    if value.utcoffset() == timedelta(0):
+        text = text.removesuffix("+00:00") + "Z"
+    return text
 
 
 def format_table(tasks: Sequence[Task]) -> list[str]:
