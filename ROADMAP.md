@@ -115,8 +115,8 @@ the user and the task reloaded, never overwritten.
 
 - [x] **M3.1** Task list screen loaded from storage; malformed files shown as a
   warning, not hidden · `feature/tui_task_list` · [#23](https://github.com/Kevin-Brockers/tskmngr/pull/23)
-- [ ] **M3.2** Task detail view with all fields and rendered notes ·
-  `feature/tui_task_detail` · depends on M3.1
+- [x] **M3.2** Task detail view with all fields and rendered notes ·
+  `feature/tui_task_detail` · #TBD
 - [ ] **M3.3** Form to create and edit a task (title, status, priority, due
   date, tags) with validation · `feature/tui_task_form` · depends on M3.2
 - [ ] **M3.4** Quick status change and delete with confirmation from the list ·

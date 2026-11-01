@@ -79,6 +79,7 @@ src/tskmngr/
   app.py        # Textual App (the TUI)
   cli.py        # `tskmngr` entry point; no arguments launches the TUI
   config.py     # config file (TOML)
+  display.py    # format task fields for display; shared by CLI and TUI
   models.py     # Task dataclass and enums (status, priority)
   query.py      # filter, search, sort, ID-prefix lookup; shared by CLI and TUI
   storage.py    # read/write task files in the tasks directory
@@ -87,8 +88,8 @@ src/tskmngr/
 tests/          # mirrors src/ layout; test_<module>.py
 ```
 
-Keep the layers separate: `models`, `taskfile`, `storage` and `query` must not
-import Textual, so they can be tested without a UI.
+Keep the layers separate: `models`, `taskfile`, `storage`, `query` and
+`display` must not import Textual, so they can be tested without a UI.
 
 ## Task storage format
 

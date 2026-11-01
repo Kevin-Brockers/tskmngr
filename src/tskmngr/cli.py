@@ -5,10 +5,11 @@ import re
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from tskmngr.app import TskmngrApp
+from tskmngr.display import task_fields
 from tskmngr.models import Priority, Status, Task, TaskValidationError, new_task
 from tskmngr.query import SortKey, filter_tasks, match_id_prefix, sort_tasks
 from tskmngr.storage import (
@@ -396,28 +397,11 @@ def format_details(task: Task) -> list[str]:
     Missing values are shown as `-`. The notes follow after a blank line, as
     written in the file.
     """
-    fields = (
-        ("ID", task.id),
-        ("Title", task.title),
-        ("Status", task.status.value),
-        ("Priority", task.priority.value),
-        ("Due", task.due.isoformat() if task.due else "-"),
-        ("Tags", ", ".join(task.tags) or "-"),
-        ("Created", _timestamp(task.created)),
-        ("Updated", _timestamp(task.updated)),
-    )
+    fields = task_fields(task)
     width = max(len(label) for label, _ in fields) + 1
     lines = [f"{label + ':':<{width}}  {value}" for label, value in fields]
     notes = task.notes.rstrip("\r\n")
     return [*lines, "", notes] if notes else lines
-
-
-def _timestamp(value: datetime) -> str:
-    """ISO 8601 like in the task files, with UTC written as `Z`."""
-    text = value.isoformat()
-    if value.utcoffset() == timedelta(0):
-        text = text.removesuffix("+00:00") + "Z"
-    return text
 
 
 def format_table(tasks: Sequence[Task]) -> list[str]:

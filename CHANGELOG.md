@@ -66,6 +66,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   due first, with their ID, status, priority, due date, title and tags. Task
   files that can't be loaded are named with their error in a warning panel
   above the list instead of being hidden. The header shows the tasks directory
+- #TBD - Enter on a task in the TUI list, or clicking its highlighted row,
+  opens a detail view with all its fields and its notes rendered as Markdown;
+  the header shows the task's file. Escape goes back to the list
 - [#21](https://github.com/Kevin-Brockers/tskmngr/pull/21) - `init-work` Claude Code skill that reads `AGENTS.md` and `ROADMAP.md`
   and summarizes the next open roadmap step
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
