@@ -58,7 +58,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   removes it) and tags (`--tag`, `--untag`, `--clear-tags`), and
   `tskmngr done` to mark it done. Each takes any unique prefix of the task's
   ID; a prefix that picks a malformed file reports that file's error
-- #TBD - `tskmngr delete` to move a task's file into `.trash/`, taking any
+- [#22](https://github.com/Kevin-Brockers/tskmngr/pull/22) - `tskmngr delete` to move a task's file into `.trash/`, taking any
   unique prefix of its ID. It asks for confirmation first; `--yes` skips the
   question, and without a terminal to ask on (piped input, scripts) it refuses
   unless `--yes` is given

@@ -104,7 +104,7 @@ unique prefix of its ID.
 - [x] **M2.3** `tskmngr show`, `edit` (fields) and `done` ·
   `feature/cli_show_edit` · [#20](https://github.com/Kevin-Brockers/tskmngr/pull/20)
 - [x] **M2.4** `tskmngr delete` with a confirmation prompt (`--yes` to skip) ·
-  `feature/cli_delete` · #TBD
+  `feature/cli_delete` · [#22](https://github.com/Kevin-Brockers/tskmngr/pull/22)
 
 ### M3 · TUI
 
