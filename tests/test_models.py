@@ -15,6 +15,7 @@ from tskmngr.models import (
     TaskValidationError,
     new_id,
     new_task,
+    next_status,
     parse_due,
 )
 
@@ -44,6 +45,18 @@ def assert_invalid(field: str, **overrides: object) -> TaskValidationError:
 
 def test_status_values_match_the_file_format() -> None:
     assert [s.value for s in Status] == ["todo", "doing", "done"]
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        (Status.TODO, Status.DOING),
+        (Status.DOING, Status.DONE),
+        (Status.DONE, Status.TODO),
+    ],
+)
+def test_next_status_cycles_todo_doing_done(status: Status, expected: Status) -> None:
+    assert next_status(status) is expected
 
 
 def test_priority_values_match_the_file_format() -> None:
