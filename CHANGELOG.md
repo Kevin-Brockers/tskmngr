@@ -105,6 +105,11 @@ its commit for changes that reached `dev` or `main` without a pull request.
   A word with an unknown or missing value is named below the bar and left out
   of the filter. Enter goes back to the list and keeps the filter, Escape
   clears it, and the filter stays applied when the list reloads
+- [#32](https://github.com/Kevin-Brockers/tskmngr/pull/32) - `S` on the TUI task list sorts it by the next key (due date,
+  priority, created, updated), each in its default direction, and `R` reverses
+  the order; tasks without a due date stay last. The sorted column's header
+  shows ▲ or ▼, a Created or Updated column is shown while sorting by it, and
+  the cursor stays on the same task. The sort lasts until the app exits
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
