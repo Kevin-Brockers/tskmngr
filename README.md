@@ -5,32 +5,137 @@ plain Markdown files, so they stay readable and editable outside the app.
 
 ## Status
 
-Early development, not usable yet. [`ROADMAP.md`](ROADMAP.md) has the full
-plan; in short:
+Usable, but not released yet. [`ROADMAP.md`](ROADMAP.md) has the full plan;
+in short:
 
 - **Core** (done): task model, Markdown file format, storage, filtering,
   search and sorting
-- **Command-line interface** (next): add, list, show, edit, complete and
+- **Command-line interface** (done): add, list, show, edit, complete and
   delete tasks from the shell
-- **TUI**: the full app, with a task list, detail view, forms, a notes editor
-  and editing in `$EDITOR`
-- **Later**: picking up changes made to the files while the app runs, a
+- **TUI** (done): the full app, with a task list, detail view, forms, a notes
+  editor, editing in `$EDITOR`, filtering and sorting
+- **Next**: picking up changes made to the files while the app runs, a
   config file with custom keybindings, subtasks and recurring tasks
 
 The core, the command-line interface and the TUI together make the first
 usable release. [`CHANGELOG.md`](CHANGELOG.md) lists what has changed so far.
 
-## Running it from source
+## Installation
 
-There's no release yet, and the code lives on the `dev` branch. You need
-Python 3.12 or newer and [uv](https://docs.astral.sh/uv/):
+There's no release yet; the code lives on the `dev` branch. You need
+[uv](https://docs.astral.sh/uv/), which also fetches Python 3.12 or newer if
+you don't have it.
+
+To install the `tskmngr` command:
+
+```bash
+uv tool install git+https://github.com/Kevin-Brockers/tskmngr@dev
+tskmngr           # opens the TUI; quit with Ctrl+Q
+```
+
+Or run it from a clone of the repository:
 
 ```bash
 git clone --branch dev https://github.com/Kevin-Brockers/tskmngr
 cd tskmngr
 uv sync
-uv run tskmngr    # opens the TUI: a task list, Enter shows a task; quit with Ctrl+Q
+uv run tskmngr
 ```
+
+## Command-line usage
+
+`tskmngr` without a command opens the TUI. The commands manage tasks from the
+shell; `tskmngr <command> --help` lists all options of a command.
+
+```console
+$ tskmngr add "Write report" --priority high --due 2026-11-03 --tag work
+K4H1V07PDV
+$ tskmngr add "Buy milk" -d 2026-11-05 -t errands
+M2PT707MDG
+$ tskmngr list
+ID          STATUS  PRIORITY  DUE         TITLE
+K4H1V07PDV  todo    high      2026-11-03  Write report #work
+M2PT707MDG  todo    normal    2026-11-05  Buy milk #errands
+$ tskmngr show m2p
+ID:        M2PT707MDG
+Title:     Buy milk
+Status:    todo
+Priority:  normal
+Due:       2026-11-05
+Tags:      errands
+Created:   2026-11-02T06:45:49Z
+Updated:   2026-11-02T06:45:49Z
+$ tskmngr done m2p
+```
+
+| Command | What it does |
+| ------- | ------------ |
+| `add TITLE` | Add a task and print its ID. Options: `-p/--priority low\|normal\|high` (default `normal`), `-d/--due YYYY-MM-DD`, `-t/--tag TAG` (repeat for more tags) |
+| `list [WORD ...]` | List tasks, by default the ones not done yet, soonest due first. Words are searched in titles and notes; a task needs all of them. Options: `-s/--status` (repeat for more), `-a/--all` to include done tasks, `-p/--priority` (repeat for more), `-t/--tag` (repeat to require more tags), `--sort due\|priority\|created\|updated`, `-r/--reverse` |
+| `show ID` | Show all fields of a task, then its notes |
+| `edit ID` | Change the given fields: `--title`, `-s/--status`, `-p/--priority`, `-d/--due` or `--no-due`, `-t/--tag` to add a tag, `--untag` to remove one or `--clear-tags` to remove all (each tag option can be repeated) |
+| `done ID` | Mark a task as done |
+| `delete ID` | Move a task's file into `.trash/` (see [Deleted tasks](#deleted-tasks)) after asking; `-y/--yes` skips the question, and is required when there's no terminal to ask on |
+
+`ID` can be any unique prefix of a task's ID, in any case: `m2p` above is
+`M2PT707MDG`. Sorting by priority puts the highest first, by created or updated
+the oldest first, and tasks without a due date always come last. `list`
+reports task files it can't load on stderr and lists the rest.
+
+Commands exit with 0 on success, 2 for invalid arguments and 1 for any other
+error: no task or several tasks match the ID, a task file can't be loaded,
+saved or deleted, or a delete isn't confirmed.
+
+## TUI keys
+
+The TUI opens on a list of all tasks, done ones included, soonest due first.
+The footer shows the keys of the current screen; `Ctrl+Q` quits from anywhere.
+Task files that can't be loaded are named, with their error, in a warning
+panel above the list.
+
+**Task list**
+
+| Key | Action |
+| --- | ------ |
+| `Enter` | Open the task under the cursor in the detail view |
+| `n` | New task |
+| `e` | Edit the task under the cursor |
+| `s` | Move the task to the next status (todo → doing → done → todo) and save it |
+| `d` | Delete the task, after asking (`y` deletes, `n` or `Escape` doesn't) |
+| `o` | Open the task's file in `$VISUAL` or `$EDITOR`; the task is reloaded when the editor exits |
+| `/` | Filter the list (see below) |
+| `Escape` | Clear the filter |
+| `S` | Sort by the next key: due date, priority, created, updated |
+| `R` | Reverse the sort order |
+
+The filter narrows the list as you type. Words are searched in titles and
+notes, `#tag` needs a tag, and `status:` and `priority:` restrict to a value;
+repeat them for any of several, as in `status:todo status:doing`. `Enter`
+goes back to the list and keeps the filter. Filter and sort last until the app
+exits.
+
+**Detail view**
+
+| Key | Action |
+| --- | ------ |
+| `e` | Edit the task |
+| `o` | Open the task's file in `$VISUAL` or `$EDITOR` |
+| `Escape` | Back to the list |
+
+**Task form** (title, status, priority, due date, tags and notes)
+
+| Key | Action |
+| --- | ------ |
+| `Tab`, `Shift+Tab` | Next or previous field; `Enter` also moves to the next field, except in the notes |
+| `Ctrl+S` | Save; problems are shown under their field |
+| `Escape` | Cancel, after asking if there are unsaved changes |
+
+Tags are separated by spaces or commas. In the notes, `Enter` starts a new
+line.
+
+If a task's file changed or was deleted on disk since the app loaded it, a
+save, status change or delete doesn't overwrite it: the error is shown and the
+task is reloaded from disk.
 
 ## Task files
 
