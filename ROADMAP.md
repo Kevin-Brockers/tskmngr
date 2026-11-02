@@ -127,7 +127,7 @@ the user and the task reloaded, never overwritten.
   afterwards · `feature/tui_external_editor` · [#30](https://github.com/Kevin-Brockers/tskmngr/pull/30)
 - [x] **M3.7** Filter and search the task list · `feature/tui_filter_search` ·
   [#31](https://github.com/Kevin-Brockers/tskmngr/pull/31)
-- [x] **M3.8** Sort the task list · `feature/tui_sorting` · #TBD
+- [x] **M3.8** Sort the task list · `feature/tui_sorting` · [#32](https://github.com/Kevin-Brockers/tskmngr/pull/32)
 - [ ] **M3.9** README: installation, CLI usage, TUI keys and the task file
   format · `docs/readme_usage` · depends on all of M2, M3.1–M3.8
 

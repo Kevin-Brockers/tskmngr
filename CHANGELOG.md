@@ -105,7 +105,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   A word with an unknown or missing value is named below the bar and left out
   of the filter. Enter goes back to the list and keeps the filter, Escape
   clears it, and the filter stays applied when the list reloads
-- #TBD - `S` on the TUI task list sorts it by the next key (due date,
+- [#32](https://github.com/Kevin-Brockers/tskmngr/pull/32) - `S` on the TUI task list sorts it by the next key (due date,
   priority, created, updated), each in its default direction, and `R` reverses
   the order; tasks without a due date stay last. The sorted column's header
   shows ▲ or ▼, a Created or Updated column is shown while sorting by it, and
