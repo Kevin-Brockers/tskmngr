@@ -110,7 +110,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   the order; tasks without a due date stay last. The sorted column's header
   shows ▲ or ▼, a Created or Updated column is shown while sorting by it, and
   the cursor stays on the same task. The sort lasts until the app exits
-- #TBD - README: installing with `uv tool install`, command-line usage with
+- [#33](https://github.com/Kevin-Brockers/tskmngr/pull/33) - README: installing with `uv tool install`, command-line usage with
   every command and its options, the TUI keys of each screen, and an updated
   project status
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license

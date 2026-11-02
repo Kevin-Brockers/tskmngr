@@ -129,7 +129,7 @@ the user and the task reloaded, never overwritten.
   [#31](https://github.com/Kevin-Brockers/tskmngr/pull/31)
 - [x] **M3.8** Sort the task list · `feature/tui_sorting` · [#32](https://github.com/Kevin-Brockers/tskmngr/pull/32)
 - [x] **M3.9** README: installation, CLI usage, TUI keys and the task file
-  format · `docs/readme_usage` · #TBD
+  format · `docs/readme_usage` · [#33](https://github.com/Kevin-Brockers/tskmngr/pull/33)
 
 ### M4 · External edits and configuration
 
