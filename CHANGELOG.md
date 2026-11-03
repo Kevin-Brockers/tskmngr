@@ -120,7 +120,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   open form isn't reloaded and keeps what was typed: if its task's file
   changed or was deleted, the conflict is shown right away, and saving is
   refused as before
-- #TBD - Config file `~/.config/tskmngr/config.json` (`TSKMNGR_CONFIG`
+- [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36) - Config file `~/.config/tskmngr/config.json` (`TSKMNGR_CONFIG`
   points to another file), a JSON object with optional `tasks_dir` (a relative
   path is read from the config file's folder; `TSKMNGR_DIR` still comes
   first), `sort` and `reverse` for the TUI list and `tskmngr list`, the TUI's
@@ -145,7 +145,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `~/.config/tskmngr/config.toml` (`TSKMNGR_CONFIG` overrides the path) and
   sets how often the TUI polls the tasks directory for changes; the path is
   also in `AGENTS.md`
-- #TBD - The config file is JSON (`config.json`, read with the standard
+- [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36) - The config file is JSON (`config.json`, read with the standard
   library's `json`) instead of the planned TOML, in `ROADMAP.md` and
   `AGENTS.md`; `config` joins the modules that don't import Textual
 

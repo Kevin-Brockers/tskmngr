@@ -142,7 +142,7 @@ Goal: the app stays in sync with hand-edited files and can be configured.
   `~/.config/tskmngr/config.json` (`TSKMNGR_CONFIG` overrides the path): tasks
   directory (`TSKMNGR_DIR` first, then the config file, then the default),
   default sort, theme, and how often M4.1 polls the tasks directory (a fixed
-  interval until then) · `feature/config_file` · #TBD
+  interval until then) · `feature/config_file` · [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36)
 - [ ] **M4.3** Custom keybindings from the config file, applied through
   Textual's keymap · `feature/custom_keybindings` · depends on M4.2, all of M3
 
