@@ -18,6 +18,9 @@ PATH = Path("/home/me/.config/tskmngr/config.json")
 
 SORT = "sort: expected one of due, priority, created, updated, got "
 POLL = "poll_interval: expected a number of seconds, 0 or more, got "
+KEYS = (
+    "keybindings: task_list.new: expected one or more keys, separated by commas, got "
+)
 
 
 def error_message(text: str) -> str:
@@ -84,7 +87,8 @@ def test_every_setting_is_read() -> None:
           "sort": "priority",
           "reverse": true,
           "theme": "nord",
-          "poll_interval": 0.5
+          "poll_interval": 0.5,
+          "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
         }""",
         PATH,
     )
@@ -96,11 +100,21 @@ def test_every_setting_is_read() -> None:
         reverse=True,
         theme="nord",
         poll_interval=0.5,
+        keybindings={"task_list.new": "a", "task_form.save": "ctrl+s,f2"},
     )
 
 
 def test_an_empty_object_gives_the_defaults() -> None:
     assert parse_config("{}", PATH) == Config(path=PATH)
+
+
+def test_no_keybindings_by_default() -> None:
+    assert Config().keybindings == {}
+
+
+def test_spaces_around_keybinding_keys_are_dropped() -> None:
+    config = parse_config('{"keybindings": {"task_list.new": " a , f2 "}}', PATH)
+    assert config.keybindings == {"task_list.new": "a,f2"}
 
 
 def test_tasks_dir_expands_home() -> None:
@@ -142,7 +156,7 @@ def test_the_file_must_hold_an_object(text: str, got: str) -> None:
 def test_unknown_keys_are_refused() -> None:
     assert error_message('{"sort": "due", "colour": "red"}') == (
         "unknown key 'colour'; the known keys are tasks_dir, sort, reverse, "
-        "theme, poll_interval"
+        "theme, poll_interval, keybindings"
     )
 
 
@@ -163,6 +177,16 @@ def test_unknown_keys_are_refused() -> None:
         ('{"poll_interval": NaN}', POLL + "the number nan"),
         ('{"poll_interval": Infinity}', POLL + "the number inf"),
         ('{"poll_interval": null}', POLL + "null"),
+        (
+            '{"keybindings": ["task_list.new"]}',
+            "keybindings: expected an object of binding ids and keys, got a list",
+        ),
+        ('{"keybindings": {"task_list.new": ""}}', KEYS + "the text ''"),
+        ('{"keybindings": {"task_list.new": " "}}', KEYS + "the text ' '"),
+        ('{"keybindings": {"task_list.new": "a,,b"}}', KEYS + "the text 'a,,b'"),
+        ('{"keybindings": {"task_list.new": "a,"}}', KEYS + "the text 'a,'"),
+        ('{"keybindings": {"task_list.new": ["a"]}}', KEYS + "a list"),
+        ('{"keybindings": {"task_list.new": null}}', KEYS + "null"),
     ],
 )
 def test_values_of_the_wrong_kind_are_refused(text: str, message: str) -> None:

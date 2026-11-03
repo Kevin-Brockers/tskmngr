@@ -1209,6 +1209,22 @@ def test_an_unknown_theme_stops_the_tui(
     assert "textual-dark" in err
 
 
+def test_an_unknown_keybinding_stops_the_tui(
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(TskmngrApp, "run", lambda self: pytest.fail("TUI started"))
+    write_config(config_file, '{"keybindings": {"task_list.nwe": "a"}}')
+
+    assert cli.main([]) == 1
+
+    assert capsys.readouterr().err.startswith(
+        f"tskmngr: error: config file {config_file}: keybindings: unknown binding "
+        "'task_list.nwe'; the bindings are task_list.open, "
+    )
+
+
 def test_the_tui_gets_the_config(
     tmp_path: Path, config_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -10,19 +10,22 @@ wrong type) is a `ConfigError`, so nothing runs with a half-read config.
       "sort": "priority",
       "reverse": false,
       "theme": "nord",
-      "poll_interval": 2
+      "poll_interval": 2,
+      "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
     }
 
 `tasks_dir` may start with `~`; a relative path is read from the config
 file's folder. `TSKMNGR_DIR` still comes first (see `storage.tasks_dir`).
-The theme is checked by the TUI, which knows the theme names.
+`keybindings` maps binding ids to keys, as Textual's keymap does. The theme
+and the binding ids are checked by the TUI, which knows the theme names and
+the bindings.
 """
 
 import json
 import math
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from tskmngr.query import SortKey
@@ -56,6 +59,8 @@ class Config:
     # None means Textual's default theme.
     theme: str | None = None
     poll_interval: float = DEFAULT_POLL_INTERVAL
+    # Binding id to its keys, comma-separated, like Textual's keymap.
+    keybindings: dict[str, str] = field(default_factory=dict)
 
 
 def config_path() -> Path:
@@ -156,6 +161,25 @@ def _poll_interval(value: object, path: Path) -> float:
     return float(value)  # type: ignore[arg-type]
 
 
+def _keybindings(value: object, path: Path) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise _BadValue(
+            f"expected an object of binding ids and keys, got {_describe(value)}"
+        )
+    keymap: dict[str, str] = {}
+    for binding_id, keys in value.items():
+        names = (
+            [name.strip() for name in keys.split(",")] if isinstance(keys, str) else []
+        )
+        if not names or not all(names):
+            raise _BadValue(
+                f"{binding_id}: expected one or more keys, separated by commas, "
+                f"got {_describe(keys)}"
+            )
+        keymap[binding_id] = ",".join(names)
+    return keymap
+
+
 # Each known key and how its value is read, in the order the docs list them.
 _READERS: dict[str, Callable[[object, Path], object]] = {
     "tasks_dir": _tasks_dir,
@@ -163,6 +187,7 @@ _READERS: dict[str, Callable[[object, Path], object]] = {
     "reverse": _reverse,
     "theme": _theme,
     "poll_interval": _poll_interval,
+    "keybindings": _keybindings,
 }
 
 
