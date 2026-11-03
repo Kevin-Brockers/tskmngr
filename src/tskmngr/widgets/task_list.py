@@ -129,7 +129,8 @@ def _display_path(directory: Path, path: Path) -> Path:
 class TaskListScreen(Screen):
     """All tasks in `directory`, done ones included, soonest due first.
 
-    The sort can be changed with `S` and `R`; it lasts until the app exits.
+    `sort_key` and `reverse` set the starting sort (the config file's). It can
+    be changed with `S` and `R`; that lasts until the app exits.
     """
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -193,7 +194,13 @@ class TaskListScreen(Screen):
     }
     """
 
-    def __init__(self, directory: Path) -> None:
+    def __init__(
+        self,
+        directory: Path,
+        *,
+        sort_key: SortKey = SortKey.DUE,
+        reverse: bool = False,
+    ) -> None:
         super().__init__()
         self.directory = directory
         # The files shown, in table order; edits are saved through them.
@@ -203,8 +210,8 @@ class TaskListScreen(Screen):
         self.bad_files: list[BadFile] = []
         # The filter in the bar, leaving out words with an error.
         self.task_filter = TaskFilter()
-        self.sort_key = SortKey.DUE
-        self.sort_reverse = False
+        self.sort_key = sort_key
+        self.sort_reverse = reverse
 
     def compose(self) -> ComposeResult:
         yield Header()

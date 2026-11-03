@@ -4,13 +4,10 @@ from pathlib import Path
 
 from textual.app import App
 
+from tskmngr.config import Config, ConfigError
 from tskmngr.storage import FileStamp, scan_tasks_dir, tasks_dir
 from tskmngr.widgets.task_list import TaskListScreen
 from tskmngr.widgets.tasks_changed import TasksChanged
-
-# Seconds between two looks at the tasks directory for changes made outside
-# the app. Fixed until the config file (M4.2) makes it configurable.
-POLL_INTERVAL = 2.0
 
 
 class TskmngrApp(App):
@@ -23,21 +20,48 @@ class TskmngrApp(App):
     TITLE = "tskmngr"
 
     def __init__(
-        self, directory: Path | None = None, *, poll_interval: float = POLL_INTERVAL
+        self,
+        directory: Path | None = None,
+        *,
+        config: Config | None = None,
+        poll_interval: float | None = None,
     ) -> None:
-        """`directory` is the tasks directory; by default `storage.tasks_dir()`.
+        """Settings come from `config`, the defaults if None.
 
-        A `poll_interval` of 0 turns polling off.
+        `directory` is the tasks directory; by default `storage.tasks_dir()`
+        with the config's `tasks_dir`. `poll_interval` overrides the config's;
+        0 turns polling off. Raises `ConfigError` for a theme Textual doesn't
+        have.
         """
         super().__init__()
-        self.directory = directory if directory is not None else tasks_dir()
-        self.poll_interval = poll_interval
+        self.config = config if config is not None else Config()
+        self.directory = (
+            directory if directory is not None else tasks_dir(self.config.tasks_dir)
+        )
+        self.poll_interval = (
+            poll_interval if poll_interval is not None else self.config.poll_interval
+        )
+        if self.config.theme is not None:
+            if self.config.theme not in self.available_themes:
+                names = ", ".join(sorted(self.available_themes))
+                raise ConfigError(
+                    self.config.path or Path("config"),
+                    f"theme: unknown theme {self.config.theme!r}; the themes are "
+                    f"{names}",
+                )
+            self.theme = self.config.theme
         # The task files as last seen; None if the directory couldn't be read.
         self._stamps: dict[str, FileStamp] | None = None
 
     def on_mount(self) -> None:
         self._stamps = self._scan()
-        self.push_screen(TaskListScreen(self.directory))
+        self.push_screen(
+            TaskListScreen(
+                self.directory,
+                sort_key=self.config.sort,
+                reverse=self.config.reverse,
+            )
+        )
         if self.poll_interval > 0:
             self.set_interval(self.poll_interval, self.check_tasks_dir)
 
