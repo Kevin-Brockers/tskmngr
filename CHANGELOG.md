@@ -128,7 +128,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   changed task files (0 turns them off). Invalid JSON, unknown keys and
   unusable values stop the CLI and the TUI with an error naming the file and
   the key
-- #TBD - `keybindings` in the config file changes the TUI's keys: an object of
+- [#37](https://github.com/Kevin-Brockers/tskmngr/pull/37) - `keybindings` in the config file changes the TUI's keys: an object of
   binding ids (like `task_list.new`) and their keys, applied through Textual's
   keymap and shown in the footer. An unknown binding id, or two bindings on
   one screen sharing a key (or taking `Ctrl+Q` or `Ctrl+C`), stops the TUI with
