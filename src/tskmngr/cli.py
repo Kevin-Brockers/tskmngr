@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from tskmngr.app import TskmngrApp
+from tskmngr.config import Config, ConfigError, load_config
 from tskmngr.display import task_fields
 from tskmngr.models import (
     Priority,
@@ -40,7 +41,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the `tskmngr` command and return its exit code.
 
     `argv` defaults to the command-line arguments. Usage errors exit with 2
-    (through argparse), errors while reading or saving tasks return 1.
+    (through argparse); a config file that can't be used and errors while
+    reading or saving tasks return 1.
     """
     parser = _parser()
     args, extra = parser.parse_known_args(argv)
@@ -54,9 +56,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         getattr(args, "parser", parser).error(
             f"unrecognized arguments: {' '.join(extra)}"
         )
+    try:
+        config = load_config()
+        if args.command is None:
+            app = TskmngrApp(config=config)
+    except ConfigError as error:
+        print(f"tskmngr: error: config file {error}", file=sys.stderr)
+        return 1
     if args.command is None:
-        TskmngrApp().run()
+        app.run()
         return 0
+    args.config = config
+    args.directory = tasks_dir(config.tasks_dir)
     try:
         return args.handler(args)
     except CommandError as error:
@@ -138,8 +149,7 @@ def _parser() -> argparse.ArgumentParser:
     list_.add_argument(
         "--sort",
         choices=[key.value for key in SortKey],
-        default=SortKey.DUE.value,
-        help="default: %(default)s",
+        help="default: the config file's sort, else due",
     )
     list_.add_argument(
         "-r", "--reverse", action="store_true", help="reverse the sort order"
@@ -222,7 +232,7 @@ def _add_id_argument(parser: argparse.ArgumentParser) -> None:
 
 
 def _add(args: argparse.Namespace) -> int:
-    directory = tasks_dir()
+    directory = args.directory
     existing_ids = _load(directory).ids
     try:
         task = new_task(
@@ -247,7 +257,7 @@ def _add(args: argparse.Namespace) -> int:
 
 
 def _list(args: argparse.Namespace) -> int:
-    result = _load(tasks_dir())
+    result = _load(args.directory)
     for bad in result.bad_files:
         print(f"tskmngr: warning: can't load {bad.path}: {bad.error}", file=sys.stderr)
     if args.statuses:
@@ -261,13 +271,24 @@ def _list(args: argparse.Namespace) -> int:
         tags=args.tags,
         text=" ".join(args.words),
     )
-    tasks = sort_tasks(tasks, SortKey(args.sort), reverse=args.reverse)
+    key, reverse = _list_sort(args.sort, args.reverse, args.config)
+    tasks = sort_tasks(tasks, key, reverse=reverse)
     print("\n".join(format_table(tasks)) if tasks else "No tasks.")
     return 0
 
 
+def _list_sort(sort: str | None, reverse: bool, config: Config) -> tuple[SortKey, bool]:
+    """The sort for `list`: `--sort`, else the config's; `--reverse` flips it.
+
+    The config's `reverse` belongs to its `sort`, so `--sort` drops it.
+    """
+    if sort is not None:
+        return SortKey(sort), reverse
+    return config.sort, config.reverse != reverse
+
+
 def _show(args: argparse.Namespace) -> int:
-    source = _find(args, _load(tasks_dir()))
+    source = _find(args, _load(args.directory))
     print("\n".join(format_details(source.task)))
     return 0
 
@@ -290,7 +311,7 @@ def _edit(args: argparse.Namespace) -> int:
     if both:
         args.parser.error(f"can't both add and remove tag {both[0]!r}")
 
-    directory = tasks_dir()
+    directory = args.directory
     source = _find(args, _load(directory))
     task = source.task
     if tag_changes:
@@ -312,14 +333,14 @@ def _edit(args: argparse.Namespace) -> int:
 
 
 def _done(args: argparse.Namespace) -> int:
-    directory = tasks_dir()
+    directory = args.directory
     source = _find(args, _load(directory))
     _save_changed(directory, source, replace(source.task, status=Status.DONE))
     return 0
 
 
 def _delete(args: argparse.Namespace) -> int:
-    directory = tasks_dir()
+    directory = args.directory
     source = _find(args, _load(directory))
     task = source.task
     if not args.yes:

@@ -1091,3 +1091,147 @@ def test_delete_reports_a_trash_that_cant_be_written(
         f"tskmngr: error: can't delete the task in {tasks}: Permission denied\n"
     )
     assert [source.task.id for source in load_all(tasks)] == ["6ACV1F0HMW"]
+
+
+# The config file
+
+
+@pytest.fixture
+def config_file(no_user_config: Path) -> Path:
+    """Where the CLI looks for its config file in tests; it doesn't exist yet."""
+    return no_user_config
+
+
+def write_config(path: Path, text: str) -> None:
+    path.write_text(text, encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("config", "argv", "expected"),
+    [
+        ('{"sort": "priority"}', [], ["DOING00002", "TODO000001", "TODO000004"]),
+        (
+            '{"sort": "priority", "reverse": true}',
+            [],
+            ["TODO000004", "TODO000001", "DOING00002"],
+        ),
+        # --reverse flips the configured order.
+        (
+            '{"sort": "priority", "reverse": true}',
+            ["-r"],
+            ["DOING00002", "TODO000001", "TODO000004"],
+        ),
+        # --sort replaces the configured sort, its reverse included.
+        (
+            '{"sort": "priority", "reverse": true}',
+            ["--sort", "created"],
+            ["TODO000001", "DOING00002", "TODO000004"],
+        ),
+        ('{"reverse": true}', [], ["DOING00002", "TODO000004", "TODO000001"]),
+    ],
+)
+def test_list_sorts_as_the_config_file_says(
+    mixed: Path,
+    config_file: Path,
+    config: str,
+    argv: list[str],
+    expected: list[str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    write_config(config_file, config)
+
+    assert list_ids(argv, capsys) == expected
+
+
+def test_commands_use_the_tasks_dir_from_the_config_file(
+    tmp_path: Path,
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("TSKMNGR_DIR", raising=False)
+    write_config(config_file, '{"tasks_dir": "my-tasks"}')
+
+    assert cli.main(["add", "Buy milk"]) == 0
+
+    [source] = load_all(config_file.parent / "my-tasks")
+    assert capsys.readouterr().out == f"{source.task.id}\n"
+
+
+def test_tskmngr_dir_comes_before_the_config_file(
+    tasks: Path, tmp_path: Path, config_file: Path
+) -> None:
+    write_config(config_file, f'{{"tasks_dir": "{tmp_path / "unused"}"}}')
+
+    assert cli.main(["add", "Buy milk"]) == 0
+
+    assert len(load_all(tasks)) == 1
+    assert not (tmp_path / "unused").exists()
+
+
+@pytest.mark.parametrize("argv", [["list"], ["add", "Buy milk"], []])
+def test_a_broken_config_file_stops_every_command(
+    tasks: Path,
+    config_file: Path,
+    argv: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(TskmngrApp, "run", lambda self: pytest.fail("TUI started"))
+    write_config(config_file, '{"sort": "size"}')
+
+    assert cli.main(argv) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        f"tskmngr: error: config file {config_file}: sort: expected one of due, "
+        "priority, created, updated, got the text 'size'\n"
+    )
+    assert not tasks.exists()
+
+
+def test_an_unknown_theme_stops_the_tui(
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(TskmngrApp, "run", lambda self: pytest.fail("TUI started"))
+    write_config(config_file, '{"theme": "neon"}')
+
+    assert cli.main([]) == 1
+
+    err = capsys.readouterr().err
+    assert err.startswith(
+        f"tskmngr: error: config file {config_file}: theme: unknown theme 'neon'; "
+        "the themes are "
+    )
+    assert "textual-dark" in err
+
+
+def test_the_tui_gets_the_config(
+    tmp_path: Path, config_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started: list[TskmngrApp] = []
+    monkeypatch.setattr(TskmngrApp, "run", lambda self: started.append(self))
+    monkeypatch.delenv("TSKMNGR_DIR", raising=False)
+    write_config(config_file, f'{{"tasks_dir": "{tmp_path}", "theme": "nord"}}')
+
+    assert cli.main([]) == 0
+
+    [app] = started
+    assert app.directory == tmp_path
+    assert app.theme == "nord"
+    assert app.config.path == config_file
+
+
+def test_help_works_with_a_broken_config_file(
+    config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_config(config_file, "not json")
+
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["--help"])
+
+    assert exit_info.value.code == 0
+    assert "usage: tskmngr" in capsys.readouterr().out

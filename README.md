@@ -14,10 +14,11 @@ in short:
   delete tasks from the shell
 - **TUI** (done): the full app, with a task list, detail view, forms, a notes
   editor, editing in `$EDITOR`, filtering and sorting
-- **External edits** (in progress): the TUI picks up changes made to the
-  files while it runs
-- **Next**: a config file with custom keybindings, subtasks and recurring
-  tasks
+- **External edits and configuration** (in progress): the TUI picks up
+  changes made to the files while it runs, and a config file sets the tasks
+  directory, the default sort, the theme and how often the TUI checks the
+  files
+- **Next**: custom keybindings, subtasks and recurring tasks
 
 The core, the command-line interface and the TUI together make the first
 usable release. [`CHANGELOG.md`](CHANGELOG.md) lists what has changed so far.
@@ -73,7 +74,7 @@ $ tskmngr done m2p
 | Command | What it does |
 | ------- | ------------ |
 | `add TITLE` | Add a task and print its ID. Options: `-p/--priority low\|normal\|high` (default `normal`), `-d/--due YYYY-MM-DD`, `-t/--tag TAG` (repeat for more tags) |
-| `list [WORD ...]` | List tasks, by default the ones not done yet, soonest due first. Words are searched in titles and notes; a task needs all of them. Options: `-s/--status` (repeat for more), `-a/--all` to include done tasks, `-p/--priority` (repeat for more), `-t/--tag` (repeat to require more tags), `--sort due\|priority\|created\|updated`, `-r/--reverse` |
+| `list [WORD ...]` | List tasks, by default the ones not done yet, soonest due first. Words are searched in titles and notes; a task needs all of them. Options: `-s/--status` (repeat for more), `-a/--all` to include done tasks, `-p/--priority` (repeat for more), `-t/--tag` (repeat to require more tags), `--sort due\|priority\|created\|updated` (default: the config file's `sort`, else `due`), `-r/--reverse` to reverse that order |
 | `show ID` | Show all fields of a task, then its notes |
 | `edit ID` | Change the given fields: `--title`, `-s/--status`, `-p/--priority`, `-d/--due` or `--no-due`, `-t/--tag` to add a tag, `--untag` to remove one or `--clear-tags` to remove all (each tag option can be repeated) |
 | `done ID` | Mark a task as done |
@@ -114,7 +115,7 @@ The filter narrows the list as you type. Words are searched in titles and
 notes, `#tag` needs a tag, and `status:` and `priority:` restrict to a value;
 repeat them for any of several, as in `status:todo status:doing`. `Enter`
 goes back to the list and keeps the filter. Filter and sort last until the app
-exits.
+exits; the list starts with the config file's sort.
 
 **Detail view**
 
@@ -140,7 +141,8 @@ save, status change or delete doesn't overwrite it: the error is shown and the
 task is reloaded from disk.
 
 The TUI looks for task files changed, added or removed on disk every two
-seconds, for example by another `tskmngr` command or a text editor, and
+seconds (see `poll_interval` in the [config file](#config-file)), for example
+by another `tskmngr` command or a text editor, and
 reloads the list and the task shown in the detail view. A form is never
 reloaded, so nothing typed is lost: if the task being edited changed or was
 deleted on disk, that's shown right away, and saving the form is refused like
@@ -195,7 +197,8 @@ The files are meant to be edited by hand too:
 ### Where the files live
 
 Tasks are stored in `~/.local/share/tskmngr/tasks/`. To use another directory,
-set `TSKMNGR_DIR`:
+set `tasks_dir` in the [config file](#config-file), or set `TSKMNGR_DIR`,
+which comes first:
 
 ```bash
 export TSKMNGR_DIR=~/tasks
@@ -209,6 +212,35 @@ Deleting a task moves its file into `.trash/` inside the tasks directory,
 renamed to `<id>.<delete time>.md` in UTC, for example
 `01JB3K7Q2X.2026-10-30T12-00-05Z.md`. To restore the task, move the file back
 as `<id>.md`. tskmngr never empties `.trash/`.
+
+## Config file
+
+Settings go in `~/.config/tskmngr/config.json`, a JSON object; set
+`TSKMNGR_CONFIG` to use another file. Every setting is optional, and without
+the file tskmngr uses the defaults. tskmngr never creates or changes it.
+
+```json
+{
+  "tasks_dir": "~/tasks",
+  "sort": "priority",
+  "reverse": false,
+  "theme": "nord",
+  "poll_interval": 2
+}
+```
+
+| Setting | Value | Default |
+| ------- | ----- | ------- |
+| `tasks_dir` | The tasks directory; `~` is your home, and a relative path is read from the config file's folder. `TSKMNGR_DIR` comes first | `~/.local/share/tskmngr/tasks` |
+| `sort` | How the TUI list and `tskmngr list` are sorted: `due`, `priority`, `created` or `updated` | `due` |
+| `reverse` | `true` reverses that order | `false` |
+| `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |
+| `poll_interval` | Seconds between the TUI's checks for task files changed on disk; `0` turns them off | `2` |
+
+`tskmngr list --sort` replaces `sort` and `reverse`; `--reverse` reverses the
+configured order. If the file isn't valid JSON, has a key tskmngr doesn't know
+or a value it can't use, tskmngr says what's wrong and exits instead of
+guessing. A theme name that doesn't exist only stops the TUI.
 
 ## Development
 

@@ -78,7 +78,7 @@ or `dev`.
 src/tskmngr/
   app.py        # Textual App (the TUI)
   cli.py        # `tskmngr` entry point; no arguments launches the TUI
-  config.py     # config file (TOML)
+  config.py     # config file (JSON)
   display.py    # format task fields for display; shared by CLI and TUI
   editor.py     # find $VISUAL/$EDITOR and run it on a file
   models.py     # Task dataclass and enums (status, priority)
@@ -89,8 +89,9 @@ src/tskmngr/
 tests/          # mirrors src/ layout; test_<module>.py
 ```
 
-Keep the layers separate: `models`, `taskfile`, `storage`, `query`, `display`
-and `editor` must not import Textual, so they can be tested without a UI.
+Keep the layers separate: `models`, `taskfile`, `storage`, `query`, `display`,
+`editor` and `config` must not import Textual, so they can be tested without a
+UI.
 
 ## Task storage format
 
@@ -133,9 +134,13 @@ Notes go here, in **Markdown**.
 
 ## Config file
 
-A TOML file (read with `tomllib`) at `~/.config/tskmngr/config.toml`,
-overridable via `TSKMNGR_CONFIG`. What it holds is planned in `ROADMAP.md`
-(M4.2).
+A JSON object (read with `json`) at `~/.config/tskmngr/config.json`,
+overridable via `TSKMNGR_CONFIG`, with flat keys: `tasks_dir`, `sort`,
+`reverse`, `theme`, `poll_interval`. All are optional; a missing file means
+the defaults, and the app never creates or writes it. A relative `tasks_dir` is
+read from the config file's folder, and `TSKMNGR_DIR` comes before it. Invalid
+JSON, an unknown key or a value that can't be used stops the CLI and the TUI
+with an error naming the file and the key.
 
 ## Working conventions
 

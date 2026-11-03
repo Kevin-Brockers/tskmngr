@@ -120,6 +120,14 @@ its commit for changes that reached `dev` or `main` without a pull request.
   open form isn't reloaded and keeps what was typed: if its task's file
   changed or was deleted, the conflict is shown right away, and saving is
   refused as before
+- [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36) - Config file `~/.config/tskmngr/config.json` (`TSKMNGR_CONFIG`
+  points to another file), a JSON object with optional `tasks_dir` (a relative
+  path is read from the config file's folder; `TSKMNGR_DIR` still comes
+  first), `sort` and `reverse` for the TUI list and `tskmngr list`, the TUI's
+  `theme`, and `poll_interval`, the seconds between the TUI's checks for
+  changed task files (0 turns them off). Invalid JSON, unknown keys and
+  unusable values stop the CLI and the TUI with an error naming the file and
+  the key
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
@@ -137,6 +145,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `~/.config/tskmngr/config.toml` (`TSKMNGR_CONFIG` overrides the path) and
   sets how often the TUI polls the tasks directory for changes; the path is
   also in `AGENTS.md`
+- [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36) - The config file is JSON (`config.json`, read with the standard
+  library's `json`) instead of the planned TOML, in `ROADMAP.md` and
+  `AGENTS.md`; `config` joins the modules that don't import Textual
 
 ### Fixed
 
