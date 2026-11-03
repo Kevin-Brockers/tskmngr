@@ -113,7 +113,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#33](https://github.com/Kevin-Brockers/tskmngr/pull/33) - README: installing with `uv tool install`, command-line usage with
   every command and its options, the TUI keys of each screen, and an updated
   project status
-- #TBD - The TUI notices task files changed, added or removed on disk
+- [#35](https://github.com/Kevin-Brockers/tskmngr/pull/35) - The TUI notices task files changed, added or removed on disk
   while it runs, by checking their modification times and sizes every two
   seconds, and reloads the list (the cursor stays on the same task) and the
   task in the detail view; a task deleted on disk closes the detail view. An
