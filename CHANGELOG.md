@@ -113,6 +113,13 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#33](https://github.com/Kevin-Brockers/tskmngr/pull/33) - README: installing with `uv tool install`, command-line usage with
   every command and its options, the TUI keys of each screen, and an updated
   project status
+- [#35](https://github.com/Kevin-Brockers/tskmngr/pull/35) - The TUI notices task files changed, added or removed on disk
+  while it runs, by checking their modification times and sizes every two
+  seconds, and reloads the list (the cursor stays on the same task) and the
+  task in the detail view; a task deleted on disk closes the detail view. An
+  open form isn't reloaded and keeps what was typed: if its task's file
+  changed or was deleted, the conflict is shown right away, and saving is
+  refused as before
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
@@ -126,7 +133,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#23](https://github.com/Kevin-Brockers/tskmngr/pull/23) - `rich` is a pinned direct dependency and part of the approved
   dependency baseline, since the TUI imports it; it was already installed
   with Textual, at the same version
-- #TBD - Roadmap M4.2: the config file lives at
+- [#34](https://github.com/Kevin-Brockers/tskmngr/pull/34) - Roadmap M4.2: the config file lives at
   `~/.config/tskmngr/config.toml` (`TSKMNGR_CONFIG` overrides the path) and
   sets how often the TUI polls the tasks directory for changes; the path is
   also in `AGENTS.md`

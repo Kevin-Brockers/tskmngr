@@ -2,7 +2,8 @@
 
 The notes are rendered as Markdown. The header shows the task's file, so it's
 easy to find for editing by hand. `e` edits the task in the form and `o` opens
-its file in `$VISUAL` or `$EDITOR`; afterwards it is reloaded from disk.
+its file in `$VISUAL` or `$EDITOR`; afterwards it is reloaded from disk. It's
+also reloaded when the app notices task files changed on disk.
 """
 
 from pathlib import Path
@@ -24,6 +25,7 @@ from tskmngr.storage import load_tasks, task_path
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.external_editor import edit_in_editor
 from tskmngr.widgets.task_form import TaskFormScreen
+from tskmngr.widgets.tasks_changed import TasksChanged
 
 
 def fields_table(task: Task) -> Table:
@@ -63,6 +65,8 @@ class TaskDetailScreen(Screen):
         self.directory = directory
         # The loaded file; the task is edited through it.
         self.source = source
+        # Task files changed on disk while another screen was on top.
+        self._stale = False
 
     @property
     def path(self) -> Path:
@@ -102,6 +106,22 @@ class TaskDetailScreen(Screen):
         edit_in_editor(self.app, self.path)
         await self.reload()
 
+    async def on_tasks_changed(self, message: TasksChanged) -> None:
+        """Task files changed on disk: reload the task, if it's on top.
+
+        Under another screen (the form), it reloads once it's back on top,
+        since a task that's gone closes this screen.
+        """
+        # Not `is_current`, which is also true for a screen drawn behind another.
+        if self.app.screen is self:
+            await self.reload()
+        else:
+            self._stale = True
+
+    async def on_screen_resume(self) -> None:
+        if self._stale:
+            await self.reload()
+
     async def _form_closed(self, task_id: str | None) -> None:
         # None means cancelled: nothing was saved, so there's nothing to reload.
         if task_id is not None:
@@ -113,6 +133,7 @@ class TaskDetailScreen(Screen):
         If it can't be loaded anymore, that's reported and the screen closes,
         back to the list, which reloads too.
         """
+        self._stale = False
         name = self.path.name
         try:
             result = load_tasks(self.directory)
@@ -128,6 +149,9 @@ class TaskDetailScreen(Screen):
             self._close_with_error(
                 f"Can't load {name}: {bad.error}" if bad else f"{name} is gone."
             )
+            return
+        if source == self.source:
+            # Unchanged: showing it again would only reset the notes.
             return
         self.source = source
         await self._show()

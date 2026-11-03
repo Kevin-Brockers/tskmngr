@@ -6,6 +6,10 @@ under its field. A save that hits a conflict (the file changed or was deleted
 on disk) is shown as an error and the form closes without saving, so the
 caller reloads from disk. Cancelling a form with changes asks before
 discarding them.
+
+When the app notices task files changed on disk while a task is being edited,
+the form isn't reloaded: what was typed stays. If the task's own file changed
+or was deleted, the conflict is shown right away, before saving runs into it.
 """
 
 import re
@@ -31,9 +35,16 @@ from tskmngr.models import (
     new_task,
     parse_due,
 )
-from tskmngr.storage import ConflictError, load_tasks, save_task, task_path
+from tskmngr.storage import (
+    ConflictError,
+    check_unchanged,
+    load_tasks,
+    save_task,
+    task_path,
+)
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.confirm_discard import ConfirmDiscardScreen
+from tskmngr.widgets.tasks_changed import TasksChanged
 
 FIELDS = ("title", "status", "priority", "due", "tags", "notes")
 
@@ -105,6 +116,8 @@ class TaskFormScreen(Screen[str | None]):
         self.source = source
         # The fields as first shown, to tell whether anything was changed.
         self._initial_values: tuple[object, ...] = ()
+        # Whether a conflict with the file on disk was already shown.
+        self._conflict_shown = False
 
     def compose(self) -> ComposeResult:
         task = self.source.task if self.source else None
@@ -160,6 +173,29 @@ class TaskFormScreen(Screen[str | None]):
             self.query_one("#tags", Input).value,
             self.query_one("#notes", TextArea).text,
         )
+
+    def on_tasks_changed(self, message: TasksChanged) -> None:
+        """Task files changed on disk: show a conflict with the edited task's.
+
+        The fields are left as they are, and the conflict is shown once. Other
+        files changing doesn't matter here.
+        """
+        if self.source is None or self._conflict_shown:
+            return
+        try:
+            check_unchanged(self.directory, self.source)
+        except ConflictError as error:
+            self._conflict_shown = True
+            self.notify(
+                f"{error.path.name} {error.reason}. Your changes are kept here, "
+                "but saving them will be refused so the file isn't overwritten.",
+                title="Conflict",
+                severity="warning",
+                markup=False,
+            )
+        except OSError:
+            # Can't tell now; saving checks again.
+            pass
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         # Enter moves to the next field; in the notes it starts a new line.

@@ -135,9 +135,9 @@ the user and the task reloaded, never overwritten.
 
 Goal: the app stays in sync with hand-edited files and can be configured.
 
-- [ ] **M4.1** Detect task files changed, added or removed on disk while the
+- [x] **M4.1** Detect task files changed, added or removed on disk while the
   app runs, by polling the tasks directory's file times and sizes on a timer,
-  and reload them · `feature/watch_tasks_dir` · depends on M3.1
+  and reload them · `feature/watch_tasks_dir` · [#35](https://github.com/Kevin-Brockers/tskmngr/pull/35)
 - [ ] **M4.2** Config file (TOML via `tomllib`) at
   `~/.config/tskmngr/config.toml` (`TSKMNGR_CONFIG` overrides the path): tasks
   directory (`TSKMNGR_DIR` first, then the config file, then the default),

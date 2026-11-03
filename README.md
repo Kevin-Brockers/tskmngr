@@ -14,8 +14,10 @@ in short:
   delete tasks from the shell
 - **TUI** (done): the full app, with a task list, detail view, forms, a notes
   editor, editing in `$EDITOR`, filtering and sorting
-- **Next**: picking up changes made to the files while the app runs, a
-  config file with custom keybindings, subtasks and recurring tasks
+- **External edits** (in progress): the TUI picks up changes made to the
+  files while it runs
+- **Next**: a config file with custom keybindings, subtasks and recurring
+  tasks
 
 The core, the command-line interface and the TUI together make the first
 usable release. [`CHANGELOG.md`](CHANGELOG.md) lists what has changed so far.
@@ -136,6 +138,13 @@ line.
 If a task's file changed or was deleted on disk since the app loaded it, a
 save, status change or delete doesn't overwrite it: the error is shown and the
 task is reloaded from disk.
+
+The TUI looks for task files changed, added or removed on disk every two
+seconds, for example by another `tskmngr` command or a text editor, and
+reloads the list and the task shown in the detail view. A form is never
+reloaded, so nothing typed is lost: if the task being edited changed or was
+deleted on disk, that's shown right away, and saving the form is refused like
+any other conflict.
 
 ## Task files
 
