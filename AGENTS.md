@@ -131,6 +131,12 @@ Notes go here, in **Markdown**.
   overwritten. A value of the wrong type counts as malformed (YAML reads
   `title: 1.10` as a number); the report suggests quoting it.
 
+## Config file
+
+A TOML file (read with `tomllib`) at `~/.config/tskmngr/config.toml`,
+overridable via `TSKMNGR_CONFIG`. What it holds is planned in `ROADMAP.md`
+(M4.2).
+
 ## Working conventions
 
 ### Tests with every change

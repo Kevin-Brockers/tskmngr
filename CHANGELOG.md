@@ -126,6 +126,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#23](https://github.com/Kevin-Brockers/tskmngr/pull/23) - `rich` is a pinned direct dependency and part of the approved
   dependency baseline, since the TUI imports it; it was already installed
   with Textual, at the same version
+- #TBD - Roadmap M4.2: the config file lives at
+  `~/.config/tskmngr/config.toml` (`TSKMNGR_CONFIG` overrides the path) and
+  sets how often the TUI polls the tasks directory for changes; the path is
+  also in `AGENTS.md`
 
 ### Fixed
 
