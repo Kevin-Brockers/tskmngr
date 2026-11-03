@@ -8,6 +8,8 @@ next status (todo → doing → done → todo) and saves it right away; `d` asks
 whether to delete it and moves its file to `.trash/`; `o` opens its file in
 `$VISUAL` or `$EDITOR`. The list is reloaded from disk after each of these, and
 a save or delete that hits a conflict is shown instead of overwriting the file.
+It's also reloaded when the app notices task files changed on disk, keeping the
+cursor on the same task.
 
 `/` opens a filter bar above the table that narrows the list as you type (see
 `query.parse_filter`): words are searched in titles and notes, `#tag` needs a
@@ -51,6 +53,7 @@ from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
 from tskmngr.widgets.external_editor import edit_in_editor
 from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_form import TaskFormScreen
+from tskmngr.widgets.tasks_changed import TasksChanged
 
 # The order `S` steps through.
 SORT_KEYS = (SortKey.DUE, SortKey.PRIORITY, SortKey.CREATED, SortKey.UPDATED)
@@ -269,6 +272,14 @@ class TaskListScreen(Screen):
         self.load()
         if task_id is not None:
             self._move_cursor(task_id, row)
+
+    def on_tasks_changed(self, message: TasksChanged) -> None:
+        """Task files changed on disk: reload, staying on the same task.
+
+        Done even under another screen, so the list is current when it's back.
+        """
+        current = self._current()
+        self.reload(current.task.id if current else None)
 
     def _move_cursor(self, task_id: str | None, fallback_row: int) -> None:
         table = self.query_one("#task-table", DataTable)

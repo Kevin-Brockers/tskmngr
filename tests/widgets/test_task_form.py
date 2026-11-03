@@ -692,3 +692,147 @@ async def test_a_write_error_keeps_the_form_open(
         assert isinstance(app.screen, TaskFormScreen)
         assert app.screen.query_one("#title", Input).value == "Task"
         assert messages == [f"Can't save the task in {tmp_path}: Permission denied"]
+
+
+# Task files changed on disk while the form is open
+
+KEPT = (
+    "Your changes are kept here, but saving them will be refused so the file "
+    "isn't overwritten."
+)
+
+
+@pytest.mark.asyncio
+async def test_a_task_changed_on_disk_keeps_the_input_and_shows_the_conflict(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+    path = tmp_path / "AAAA.md"
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        fill(screen, title="Mine")
+
+        path.write_text(path.read_text(encoding="utf-8").replace("First", "Theirs"))
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert app.screen is screen
+        assert screen.query_one("#title", Input).value == "Mine"
+        assert messages == [f"AAAA.md changed on disk since it was loaded. {KEPT}"]
+
+        # Shown once, however often the file changes after that.
+        hand_edited = path.read_text(encoding="utf-8").replace("Theirs", "Again")
+        path.write_text(hand_edited, encoding="utf-8")
+        assert app.check_tasks_dir()
+        await pilot.pause()
+        assert len(messages) == 1
+
+        # Saving runs into the conflict and leaves the file alone.
+        await pilot.press("ctrl+s")
+
+        assert path.read_text(encoding="utf-8") == hand_edited
+        assert messages[1] == (
+            "AAAA.md changed on disk since it was loaded. It was reloaded "
+            "from disk; your changes weren't saved."
+        )
+        assert isinstance(app.screen, TaskListScreen)
+        assert app.screen.tasks[0].task.title == "Again"
+
+
+@pytest.mark.asyncio
+async def test_a_task_deleted_on_disk_shows_the_conflict(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        fill(screen, title="Mine")
+
+        (tmp_path / "AAAA.md").unlink()
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert app.screen is screen
+        assert screen.query_one("#title", Input).value == "Mine"
+        assert messages == [f"AAAA.md deleted on disk since it was loaded. {KEPT}"]
+
+
+@pytest.mark.asyncio
+async def test_other_files_changing_on_disk_leave_the_form_alone(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        fill(screen, title="Mine")
+
+        save_task(tmp_path, make_task("BBBB", "Second"), None)
+        assert app.check_tasks_dir()
+        await pilot.pause()
+        assert messages == []
+
+        await pilot.press("ctrl+s")
+
+        assert messages == []
+        assert loaded(tmp_path)["AAAA"].title == "Mine"
+
+
+@pytest.mark.asyncio
+async def test_a_new_task_form_ignores_changes_on_disk(tmp_path: Path) -> None:
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("n")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        fill(screen, title="New")
+
+        save_task(tmp_path, make_task("AAAA", "First"), None)
+        assert app.check_tasks_dir()
+        await pilot.pause()
+        assert messages == []
+
+        await pilot.press("ctrl+s")
+
+        assert sorted(task.title for task in loaded(tmp_path).values()) == [
+            "First",
+            "New",
+        ]
+
+
+@pytest.mark.asyncio
+async def test_a_file_that_cant_be_checked_shows_nothing_yet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(directory: Path, source: object) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        monkeypatch.setattr(task_form, "check_unchanged", fail)
+
+        save_task(tmp_path, make_task("BBBB", "Second"), None)
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert app.screen is screen
+        assert messages == []

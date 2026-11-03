@@ -1,10 +1,18 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
-from tskmngr.app import TskmngrApp
-from tskmngr.storage import tasks_dir
+from tskmngr.app import POLL_INTERVAL, TskmngrApp
+from tskmngr.models import Task
+from tskmngr.storage import save_task, tasks_dir
 from tskmngr.widgets.task_list import TaskListScreen
+
+CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
+
+
+def make_task(task_id: str, title: str) -> Task:
+    return Task(id=task_id, title=title, created=CREATED, updated=CREATED)
 
 
 @pytest.mark.asyncio
@@ -30,3 +38,80 @@ def test_app_uses_the_tasks_directory_by_default(
     monkeypatch.setenv("TSKMNGR_DIR", str(tmp_path / "tasks"))
 
     assert TskmngrApp().directory == tasks_dir() == tmp_path / "tasks"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("interval", "expected"), [(None, POLL_INTERVAL), (0.5, 0.5), (0, None)]
+)
+async def test_app_polls_the_tasks_directory_on_a_timer(
+    tmp_path: Path, interval: float | None, expected: float | None
+) -> None:
+    app = (
+        TskmngrApp(tmp_path)
+        if interval is None
+        else TskmngrApp(tmp_path, poll_interval=interval)
+    )
+    intervals: list[float] = []
+    set_interval = app.set_interval
+
+    def record(seconds: float, callback: object, **kwargs: object) -> object:
+        if callback == app.check_tasks_dir:
+            intervals.append(seconds)
+        return set_interval(seconds, callback, **kwargs)  # type: ignore[arg-type]
+
+    app.set_interval = record  # type: ignore[method-assign]
+    async with app.run_test():
+        assert intervals == ([] if expected is None else [expected])
+
+
+def test_default_poll_interval_is_two_seconds() -> None:
+    assert POLL_INTERVAL == 2.0
+
+
+@pytest.mark.asyncio
+async def test_check_tasks_dir_reports_each_change_once(tmp_path: Path) -> None:
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test():
+        assert not app.check_tasks_dir()
+
+        save_task(tmp_path, make_task("AAAA", "First"), None)
+
+        assert app.check_tasks_dir()
+        assert not app.check_tasks_dir()
+
+
+@pytest.mark.asyncio
+async def test_a_directory_that_cant_be_read_is_a_change_both_ways(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(directory: Path) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test():
+        monkeypatch.setattr("tskmngr.app.scan_tasks_dir", fail)
+        assert app.check_tasks_dir()
+        assert not app.check_tasks_dir()
+
+        monkeypatch.undo()
+        assert app.check_tasks_dir()
+
+
+@pytest.mark.asyncio
+async def test_a_task_added_on_disk_shows_up_in_the_list_by_itself(
+    tmp_path: Path,
+) -> None:
+    app = TskmngrApp(tmp_path, poll_interval=0.05)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        assert isinstance(screen, TaskListScreen)
+
+        save_task(tmp_path, make_task("AAAA", "First"), None)
+        # Generous, so a slow machine doesn't fail it; usually one interval.
+        for _ in range(100):
+            await pilot.pause(0.05)
+            if screen.tasks:
+                break
+
+        assert [source.task.id for source in screen.tasks] == ["AAAA"]

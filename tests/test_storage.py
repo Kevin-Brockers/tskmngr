@@ -13,9 +13,11 @@ from tskmngr.models import Status, Task, new_task
 from tskmngr.storage import (
     ConflictError,
     ConflictReason,
+    check_unchanged,
     delete_task,
     load_tasks,
     save_task,
+    scan_tasks_dir,
     tasks_dir,
 )
 from tskmngr.taskfile import TaskFile
@@ -345,6 +347,107 @@ def test_delete_refuses_file_deleted_on_disk(tmp_path: Path) -> None:
     path.unlink()
     with pytest.raises(ConflictError) as excinfo:
         delete_task(tmp_path, source, now=DELETED)
+    assert excinfo.value.reason is ConflictReason.DELETED
+
+
+# Polling for changes
+
+
+def test_scan_has_time_and_size_of_each_task_file(tmp_path: Path) -> None:
+    path = write(tmp_path, "a.md")
+    os.utime(path, ns=(1_000_000_000, 2_000_000_123))
+
+    assert scan_tasks_dir(tmp_path) == {"a.md": (2_000_000_123, len(TASK_TEXT))}
+
+
+def test_scan_skips_what_load_skips(tmp_path: Path) -> None:
+    write(tmp_path, "a.md")
+    write(tmp_path, ".hidden.md")
+    write(tmp_path, "notes.txt")
+    (tmp_path / "dir.md").mkdir()
+    (tmp_path / ".trash").mkdir()
+    write(tmp_path / ".trash", "b.2026-10-30T12-00-05Z.md")
+
+    assert list(scan_tasks_dir(tmp_path)) == ["a.md"]
+
+
+def test_scan_of_missing_directory_is_empty(tmp_path: Path) -> None:
+    assert scan_tasks_dir(tmp_path / "missing") == {}
+
+
+def test_scan_changes_when_a_file_is_changed_added_or_removed(
+    tmp_path: Path,
+) -> None:
+    path = write(tmp_path, "a.md")
+    before = scan_tasks_dir(tmp_path)
+    assert scan_tasks_dir(tmp_path) == before
+
+    path.write_text(TASK_TEXT + "More notes.\n")
+    changed = scan_tasks_dir(tmp_path)
+    assert changed != before
+
+    write(tmp_path, "b.md")
+    added = scan_tasks_dir(tmp_path)
+    assert set(added) == {"a.md", "b.md"}
+
+    path.unlink()
+    assert list(scan_tasks_dir(tmp_path)) == ["b.md"]
+
+
+def test_scan_does_not_see_a_save_in_progress(tmp_path: Path) -> None:
+    # The temp file of an atomic save is hidden, so only the result counts.
+    write(tmp_path, ".a.md.0123abcd.tmp")
+
+    assert scan_tasks_dir(tmp_path) == {}
+
+
+def test_scan_skips_a_file_removed_while_scanning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write(tmp_path, "a.md")
+    gone = write(tmp_path, "b.md")
+    listed = storage._task_paths(tmp_path)
+    gone.unlink()
+    monkeypatch.setattr(storage, "_task_paths", lambda directory: listed)
+
+    assert list(scan_tasks_dir(tmp_path)) == ["a.md"]
+
+
+def test_scan_raises_if_the_directory_cannot_be_listed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(directory: Path) -> list[Path]:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(storage, "_task_paths", fail)
+
+    with pytest.raises(PermissionError):
+        scan_tasks_dir(tmp_path)
+
+
+def test_check_unchanged_passes_for_the_file_as_loaded(tmp_path: Path) -> None:
+    write(tmp_path, "a.md")
+
+    check_unchanged(tmp_path, load_one(tmp_path))
+
+
+def test_check_unchanged_refuses_file_changed_on_disk(tmp_path: Path) -> None:
+    path = write(tmp_path, "a.md")
+    source = load_one(tmp_path)
+    path.write_text(TASK_TEXT.replace("Buy milk", "Buy oat milk"))
+
+    with pytest.raises(ConflictError) as excinfo:
+        check_unchanged(tmp_path, source)
+    assert excinfo.value.reason is ConflictReason.CHANGED
+
+
+def test_check_unchanged_refuses_file_deleted_on_disk(tmp_path: Path) -> None:
+    path = write(tmp_path, "a.md")
+    source = load_one(tmp_path)
+    path.unlink()
+
+    with pytest.raises(ConflictError) as excinfo:
+        check_unchanged(tmp_path, source)
     assert excinfo.value.reason is ConflictReason.DELETED
 
 

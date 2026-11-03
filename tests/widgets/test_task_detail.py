@@ -3,13 +3,14 @@ from pathlib import Path
 
 import pytest
 from rich.console import Console
-from textual.widgets import DataTable, Markdown
+from textual.widgets import DataTable, Input, Markdown
 
 from tskmngr.app import TskmngrApp
 from tskmngr.models import Task
 from tskmngr.storage import save_task
 from tskmngr.taskfile import TaskFile, render
 from tskmngr.widgets.task_detail import TaskDetailScreen, fields_table
+from tskmngr.widgets.task_form import TaskFormScreen
 from tskmngr.widgets.task_list import TaskListScreen
 
 CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
@@ -141,3 +142,144 @@ def test_bindings_have_stable_ids() -> None:
         "task_detail.edit",
         "task_detail.external_editor",
     }
+
+
+def record_notifications(app: TskmngrApp) -> list[str]:
+    """Collect the messages of the app's notifications."""
+    messages: list[str] = []
+
+    def notify(message: str, **_: object) -> None:
+        messages.append(message)
+
+    app.notify = notify  # type: ignore[method-assign]
+    return messages
+
+
+def rename_on_disk(directory: Path, task_id: str, old: str, new: str) -> None:
+    path = directory / f"{task_id}.md"
+    path.write_text(path.read_text(encoding="utf-8").replace(old, new))
+
+
+@pytest.mark.asyncio
+async def test_a_task_changed_on_disk_is_shown_again(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+
+        path = tmp_path / "AAAA.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("First", "Renamed")
+            + "\nNew *notes*.\n"
+        )
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert app.screen is screen
+        assert screen.source.task.title == "Renamed"
+        assert "Renamed" in rendered(screen.query_one("#fields").content)
+        assert screen.query_one("#notes", Markdown).display
+
+
+@pytest.mark.asyncio
+async def test_other_files_changing_on_disk_leave_the_task_as_shown(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+        source = screen.source
+
+        save_task(tmp_path, make_task("BBBB", "Second"), None)
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert app.screen is screen
+        assert screen.source is source
+
+
+@pytest.mark.asyncio
+async def test_a_task_deleted_on_disk_closes_the_detail_screen(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+    save_task(tmp_path, make_task("BBBB", "Second"), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        assert isinstance(app.screen, TaskDetailScreen)
+
+        (tmp_path / "AAAA.md").unlink()
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert messages == ["AAAA.md is gone."]
+        assert isinstance(app.screen, TaskListScreen)
+        assert [source.task.id for source in app.screen.tasks] == ["BBBB"]
+
+
+@pytest.mark.asyncio
+async def test_under_the_form_the_task_is_reloaded_once_back_on_top(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        detail = app.screen
+        assert isinstance(detail, TaskDetailScreen)
+        await pilot.press("e")
+        form = app.screen
+        assert isinstance(form, TaskFormScreen)
+
+        rename_on_disk(tmp_path, "AAAA", "First", "Theirs")
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        # The form stays, as typed; the detail screen waits underneath.
+        assert app.screen is form
+        assert form.query_one("#title", Input).value == "First"
+        assert detail.source.task.title == "First"
+
+        await pilot.press("escape")
+
+        assert app.screen is detail
+        assert detail.source.task.title == "Theirs"
+        assert "Theirs" in rendered(detail.query_one("#fields").content)
+
+
+@pytest.mark.asyncio
+async def test_a_task_deleted_under_the_form_closes_the_detail_screen_after(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+    save_task(tmp_path, make_task("BBBB", "Second"), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("enter", "e")
+        form = app.screen
+        assert isinstance(form, TaskFormScreen)
+
+        (tmp_path / "AAAA.md").unlink()
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert app.screen is form
+        await pilot.press("escape")
+
+        assert isinstance(app.screen, TaskListScreen)
+        assert [source.task.id for source in app.screen.tasks] == ["BBBB"]
+        assert messages[-1] == "AAAA.md is gone."

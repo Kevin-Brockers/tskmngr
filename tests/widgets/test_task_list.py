@@ -1045,3 +1045,81 @@ async def test_sorting_an_empty_list_changes_the_headers(tmp_path: Path) -> None
 
         assert header_labels(app)[4] == "Created ▼"
         assert app.screen.query_one("#no-tasks").has_class("-shown")
+
+
+# Task files changed on disk
+
+
+@pytest.mark.asyncio
+async def test_files_changed_or_added_on_disk_are_reloaded_keeping_the_cursor(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First", due=date(2026, 11, 2)), None)
+    save_task(tmp_path, make_task("BBBB", "Second", due=date(2026, 11, 3)), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        assert isinstance(screen, TaskListScreen)
+        await pilot.press("down")
+
+        path = tmp_path / "AAAA.md"
+        path.write_text(path.read_text(encoding="utf-8").replace("First", "Renamed"))
+        save_task(tmp_path, make_task("CCCC", "Third", due=date(2026, 11, 1)), None)
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        rows = table_rows(screen)
+        assert [row[0] for row in rows] == ["CCCC", "AAAA", "BBBB"]
+        assert rows[1][4] == "Renamed"
+        table = screen.query_one("#task-table", DataTable)
+        assert screen.tasks[table.cursor_row].task.id == "BBBB"
+
+
+@pytest.mark.asyncio
+async def test_files_removed_on_disk_leave_the_list(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First", due=date(2026, 11, 2)), None)
+    save_task(tmp_path, make_task("BBBB", "Second", due=date(2026, 11, 3)), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        assert isinstance(screen, TaskListScreen)
+        await pilot.press("down")
+
+        (tmp_path / "BBBB.md").unlink()
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert [row[0] for row in table_rows(screen)] == ["AAAA"]
+        assert screen.query_one("#task-table", DataTable).cursor_row == 0
+
+
+@pytest.mark.asyncio
+async def test_a_file_broken_and_fixed_on_disk_comes_and_goes_in_the_warning(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+    path = tmp_path / "AAAA.md"
+    good = path.read_text(encoding="utf-8")
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test() as pilot:
+        screen = app.screen
+        assert isinstance(screen, TaskListScreen)
+
+        path.write_text("no frontmatter\n", encoding="utf-8")
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        text = warning_text(screen)
+        assert text is not None
+        assert text.splitlines()[0] == "1 task file couldn't be loaded:"
+        assert table_rows(screen) == []
+
+        path.write_text(good, encoding="utf-8")
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert warning_text(screen) is None
+        assert [row[0] for row in table_rows(screen)] == ["AAAA"]

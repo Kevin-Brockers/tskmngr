@@ -2,7 +2,8 @@
 
 One `<id>.md` file per task. Saves are atomic and refuse to overwrite a file
 that changed on disk since it was loaded. Deleting moves the file into
-`.trash/`, which is never loaded or emptied.
+`.trash/`, which is never loaded or emptied. `scan_tasks_dir` gives the time and
+size of each task file, so a caller can poll for changes made outside the app.
 """
 
 import os
@@ -72,6 +73,32 @@ def task_path(directory: Path, task_id: str) -> Path:
     return directory / f"{task_id}{SUFFIX}"
 
 
+# A task file's modification time in nanoseconds and its size in bytes.
+type FileStamp = tuple[int, int]
+
+
+def scan_tasks_dir(directory: Path) -> dict[str, FileStamp]:
+    """The modification time and size of each file `load_tasks` would load.
+
+    Keyed by filename. Files are only looked up, never read, so this is cheap
+    enough to call on a timer: if the result differs from an earlier one, task
+    files were changed, added or removed since. A missing directory has no
+    files; `OSError` is raised if the directory can't be listed.
+    """
+    stamps: dict[str, FileStamp] = {}
+    if not directory.is_dir():
+        return stamps
+    for path in _task_paths(directory):
+        try:
+            stat = path.stat()
+        except OSError:
+            # Gone since it was listed, or unreadable: `load_tasks` reports
+            # the latter, and its stamp shows up once it can be looked up.
+            continue
+        stamps[path.name] = (stat.st_mtime_ns, stat.st_size)
+    return stamps
+
+
 def load_tasks(directory: Path) -> LoadResult:
     """Load every task file in `directory`, sorted by filename.
 
@@ -83,9 +110,7 @@ def load_tasks(directory: Path) -> LoadResult:
     bad_files: list[BadFile] = []
     if not directory.is_dir():
         return LoadResult(tasks, bad_files)
-    for path in sorted(directory.iterdir()):
-        if path.name.startswith(".") or path.suffix != SUFFIX or not path.is_file():
-            continue
+    for path in _task_paths(directory):
         try:
             tasks.append(_load(path))
         except MalformedTaskError as error:
@@ -134,6 +159,27 @@ def delete_task(
         target = trash / f"{source.task.id}.{stamp}-{counter}{SUFFIX}"
     path.rename(target)
     return target
+
+
+def check_unchanged(directory: Path, source: TaskFile) -> None:
+    """Raise `ConflictError` if `source`'s file changed or was deleted on disk.
+
+    The same check a save or delete of `source` makes before writing.
+    """
+    _check_unchanged(task_path(directory, source.task.id), source)
+
+
+def _task_paths(directory: Path) -> list[Path]:
+    """The task files in `directory`, sorted by name.
+
+    Hidden files, subdirectories (including `.trash/`) and files not ending in
+    `.md` aren't task files.
+    """
+    return [
+        path
+        for path in sorted(directory.iterdir())
+        if not path.name.startswith(".") and path.suffix == SUFFIX and path.is_file()
+    ]
 
 
 def _load(path: Path) -> TaskFile:
