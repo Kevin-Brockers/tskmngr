@@ -197,9 +197,10 @@ Textual's keymap. All are optional.
 - `columns` sets the TUI task list's columns in display order, from `id`,
   `status`, `priority`, `due`, `created`, `updated`, `title` and `tags`; the
   ones left out are hidden. `tags` lists a task's tags separated by commas;
-  while a table has no tags column, its title ends in the `#tags` instead. Sorting by `created` or `updated` still shows that
-  column, last (at the far right), while that sort lasts. An empty list, an
-  unknown name or a name listed twice stops the CLI and the TUI.
+  while a table has no tags column, its title ends in the `#tags` instead.
+  Sorting by `created` or `updated` still shows that column, last (at the
+  far right), while that sort lasts. An empty list, an unknown name or a name
+  listed twice stops the CLI and the TUI.
 - `trash_columns` sets the TUI's deleted tasks view's columns in display
   order, from the `columns` names plus `deleted` (the delete time), checked
   like `columns`; the view always lists the newest delete first. `show_trash`
