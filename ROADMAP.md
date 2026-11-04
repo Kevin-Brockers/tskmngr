@@ -180,7 +180,7 @@ Goal: the TUI's task list columns can be arranged, and the config file can be vi
   `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`, then checks it
   the way loading does and reports any error naming the key; document the
   command in the README and update `AGENTS.md` to match ·
-  `feature/cli_config` · #TBD
+  `feature/cli_config` · [#52](https://github.com/Kevin-Brockers/tskmngr/pull/52)
 
 ### M7 · Config home and synced tasks
 

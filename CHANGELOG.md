@@ -160,7 +160,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   their order, from `id`, `status`, `priority`, `due`, `created`, `updated`
   and `title`; the ones left out are hidden, and the default config file
   lists the default columns
-- #TBD - `tskmngr config` prints the config file's path and every setting in
+- [#52](https://github.com/Kevin-Brockers/tskmngr/pull/52) - `tskmngr config` prints the config file's path and every setting in
   use, marking the ones the file leaves out; `tskmngr config get KEY` prints
   one setting; `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`,
   even if it can't be used, and then checks it like the TUI does, naming the
