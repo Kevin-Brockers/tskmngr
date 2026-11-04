@@ -189,11 +189,11 @@ the task list that can be hidden. Listed before M7 and built first; the step
 IDs keep their numbers. The view only lists them: restoring a task stays
 moving its file back by hand.
 
-- [ ] **M8.1** Core: list the deleted tasks in `.trash/`, with the delete
+- [x] **M8.1** Core: list the deleted tasks in `.trash/`, with the delete
   time taken from each file's name (`<id>.<delete time>.md`, including the
   `-N` that tells deletes in the same second apart), newest delete first;
   each delete of a task is its own entry, and files that can't be read are
-  reported, never hidden; no Textual · `feature/trash_listing`
+  reported, never hidden; no Textual · `feature/trash_listing` · #TBD
 - [ ] **M8.2** TUI: a read-only view of the deleted tasks in the bottom
   quarter of the task list screen's height, newest delete first, reloaded
   when files in `.trash/` change on disk; `t` (binding id

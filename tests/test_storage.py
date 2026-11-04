@@ -13,9 +13,12 @@ from tskmngr.models import Status, Task, new_task
 from tskmngr.storage import (
     ConflictError,
     ConflictReason,
+    DeletedTask,
     check_unchanged,
     delete_task,
     load_tasks,
+    load_trash,
+    parse_trash_name,
     save_completed,
     save_task,
     scan_tasks_dir,
@@ -361,6 +364,180 @@ def test_delete_refuses_file_deleted_on_disk(tmp_path: Path) -> None:
     with pytest.raises(ConflictError) as excinfo:
         delete_task(tmp_path, source, now=DELETED)
     assert excinfo.value.reason is ConflictReason.DELETED
+
+
+# Listing the trash (M8.1)
+
+
+def trashed_names(directory: Path) -> list[str]:
+    result = load_trash(directory)
+    assert result.bad_files == []
+    return [entry.path.name for entry in result.deleted]
+
+
+def test_load_trash_lists_a_deleted_task_with_its_delete_time(
+    tmp_path: Path,
+) -> None:
+    write(tmp_path, "01JB3K7Q2X.md")
+    source = load_one(tmp_path)
+    target = delete_task(tmp_path, source, now=DELETED)
+
+    result = load_trash(tmp_path)
+
+    assert result.bad_files == []
+    assert result.deleted == [DeletedTask(target, source.task, DELETED, 0)]
+    assert result.deleted[0].task.id == "01JB3K7Q2X"
+    assert result.deleted[0].deleted.tzinfo is UTC
+
+
+def test_load_trash_lists_newest_delete_first(tmp_path: Path) -> None:
+    trash = tmp_path / ".trash"
+    trash.mkdir()
+    for name in [
+        "b.2026-10-30T12-00-05Z.md",
+        "a.2026-11-01T08-00-00Z.md",
+        "c.2026-10-29T23-59-59Z.md",
+    ]:
+        write(trash, name)
+
+    assert trashed_names(tmp_path) == [
+        "a.2026-11-01T08-00-00Z.md",
+        "b.2026-10-30T12-00-05Z.md",
+        "c.2026-10-29T23-59-59Z.md",
+    ]
+
+
+def test_each_delete_of_a_task_is_its_own_entry(tmp_path: Path) -> None:
+    write(tmp_path, "a.md")
+    delete_task(tmp_path, load_one(tmp_path), now=DELETED)
+    write(tmp_path, "a.md", TASK_TEXT.replace("Buy milk", "Buy oat milk"))
+    delete_task(tmp_path, load_one(tmp_path), now=DELETED + timedelta(days=1))
+
+    deleted = load_trash(tmp_path).deleted
+
+    assert [entry.task.id for entry in deleted] == ["a", "a"]
+    assert [entry.task.title for entry in deleted] == ["Buy oat milk", "Buy milk"]
+
+
+def test_deletes_in_the_same_second_are_newest_first_by_their_number(
+    tmp_path: Path,
+) -> None:
+    for _ in range(11):
+        write(tmp_path, "a.md")
+        delete_task(tmp_path, load_one(tmp_path), now=DELETED)
+
+    deleted = load_trash(tmp_path).deleted
+
+    assert [entry.sequence for entry in deleted] == list(range(10, -1, -1))
+    assert deleted[0].path.name == "a.2026-10-30T12-00-05Z-10.md"
+    assert deleted[-1].path.name == "a.2026-10-30T12-00-05Z.md"
+    assert {entry.deleted for entry in deleted} == {DELETED}
+
+
+def test_load_trash_without_a_trash_folder_is_empty(tmp_path: Path) -> None:
+    write(tmp_path, "a.md")
+
+    result = load_trash(tmp_path)
+
+    assert result.deleted == []
+    assert result.bad_files == []
+    assert load_trash(tmp_path / "missing").deleted == []
+
+
+def test_load_trash_skips_what_load_tasks_skips(tmp_path: Path) -> None:
+    trash = tmp_path / ".trash"
+    trash.mkdir()
+    write(trash, "a.2026-10-30T12-00-05Z.md")
+    write(trash, ".b.2026-10-30T12-00-05Z.md")
+    write(trash, "c.2026-10-30T12-00-05Z.txt")
+    (trash / "d.2026-10-30T12-00-05Z.md").mkdir()
+
+    assert trashed_names(tmp_path) == ["a.2026-10-30T12-00-05Z.md"]
+
+
+def test_load_trash_reports_malformed_files_and_changes_nothing(
+    tmp_path: Path,
+) -> None:
+    trash = tmp_path / ".trash"
+    trash.mkdir()
+    write(trash, "a.2026-10-30T12-00-05Z.md")
+    bad = write(trash, "b.2026-10-30T12-00-05Z.md", "---\ntitle: 1.10\n---\n")
+    non_utf8 = trash / "c.2026-10-30T12-00-05Z.md"
+    non_utf8.write_bytes(b"---\ntitle: caf\xe9\n---\n")
+
+    result = load_trash(tmp_path)
+
+    assert [entry.task.id for entry in result.deleted] == ["a"]
+    assert [bad_file.path for bad_file in result.bad_files] == [bad, non_utf8]
+    assert result.bad_files[0].error.field == "title"
+    assert "UTF-8" in str(result.bad_files[1].error)
+    assert bad.read_text() == "---\ntitle: 1.10\n---\n"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "a.md",
+        "a.backup.md",
+        "a.2026-10-30.md",
+        "a.2026-10-30T12-00-05.md",
+        "a.2026-10-30T12:00:05Z.md",
+        "a.2026-13-30T12-00-05Z.md",
+        "a.2026-02-30T12-00-05Z.md",
+        "a.2026-10-30T12-00-05Z-0.md",
+        "a.2026-10-30T12-00-05Z-x.md",
+        ".2026-10-30T12-00-05Z.md",
+    ],
+)
+def test_a_name_without_a_delete_time_is_reported(tmp_path: Path, name: str) -> None:
+    trash = tmp_path / ".trash"
+    trash.mkdir()
+    path = write(trash, name)
+
+    result = load_trash(tmp_path)
+
+    if name.startswith("."):
+        # A hidden file, skipped like in the tasks directory.
+        assert result == load_trash(tmp_path / "missing")
+        return
+    assert result.deleted == []
+    [bad_file] = result.bad_files
+    assert bad_file.path == path
+    assert str(bad_file.error) == "name isn't <id>.<delete time>.md"
+    assert path.read_text() == TASK_TEXT
+
+
+@pytest.mark.parametrize(
+    ("name", "parts"),
+    [
+        ("01JB3K7Q2X.2026-10-30T12-00-05Z.md", ("01JB3K7Q2X", DELETED, 0)),
+        ("a.2026-10-30T12-00-05Z-3.md", ("a", DELETED, 3)),
+        ("my.task.2026-10-30T12-00-05Z.md", ("my.task", DELETED, 0)),
+    ],
+)
+def test_parse_trash_name(name: str, parts: tuple[str, datetime, int]) -> None:
+    assert parse_trash_name(name) == parts
+
+
+def test_parse_trash_name_reads_what_delete_task_writes(tmp_path: Path) -> None:
+    write(tmp_path, "a.md")
+    target = delete_task(tmp_path, load_one(tmp_path), now=DELETED)
+
+    assert parse_trash_name(target.name) == ("a", DELETED, 0)
+
+
+def test_load_trash_raises_if_the_trash_cannot_be_listed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".trash").mkdir()
+
+    def iterdir(self: Path) -> None:
+        raise PermissionError(13, "Permission denied", str(self))
+
+    monkeypatch.setattr(Path, "iterdir", iterdir)
+
+    with pytest.raises(PermissionError):
+        load_trash(tmp_path)
 
 
 # Polling for changes

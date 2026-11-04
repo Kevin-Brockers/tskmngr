@@ -2,11 +2,13 @@
 
 One `<id>.md` file per task. Saves are atomic and refuse to overwrite a file
 that changed on disk since it was loaded. Deleting moves the file into
-`.trash/`, which is never loaded or emptied. `scan_tasks_dir` gives the time and
-size of each task file, so a caller can poll for changes made outside the app.
+`.trash/`, as `<id>.<delete time>.md`. Files there are never loaded as tasks or
+emptied; `load_trash` only lists them. `scan_tasks_dir` gives the time and size
+of each task file, so a caller can poll for changes made outside the app.
 """
 
 import os
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -20,6 +22,14 @@ ENV_VAR = "TSKMNGR_DIR"
 DEFAULT_DIR = Path(".local", "share", "tskmngr", "tasks")
 SUFFIX = ".md"
 TRASH = ".trash"
+# The delete time in a trashed file's name, in UTC, e.g. `2026-10-30T12-00-05Z`.
+TRASH_TIME_FORMAT = "%Y-%m-%dT%H-%M-%SZ"
+# A trashed file's name: `<id>.<delete time>.md`, with `-N` after the time for
+# the Nth later delete of the task in the same second.
+_TRASH_NAME = re.compile(
+    r"(?P<id>.+)\.(?P<time>\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)"
+    r"(?:-(?P<sequence>[1-9][0-9]*))?\.md"
+)
 
 
 class ConflictReason(StrEnum):
@@ -59,6 +69,25 @@ class LoadResult:
         return {source.task.id for source in self.tasks} | {
             bad.path.stem for bad in self.bad_files
         }
+
+
+@dataclass(frozen=True)
+class DeletedTask:
+    """A task file in `.trash/`: the task as it was when deleted, and when."""
+
+    path: Path
+    task: Task
+    # In UTC, to the second, from the file's name.
+    deleted: datetime
+    # Which delete of the task in that second: 0 for the first, then 1, 2, …
+    sequence: int = 0
+
+
+@dataclass(frozen=True)
+class TrashResult:
+    # Newest delete first.
+    deleted: list[DeletedTask]
+    bad_files: list[BadFile]
 
 
 def tasks_dir(configured: Path | None = None) -> Path:
@@ -117,7 +146,7 @@ def load_tasks(directory: Path) -> LoadResult:
         return LoadResult(tasks, bad_files)
     for path in _task_paths(directory):
         try:
-            tasks.append(_load(path))
+            tasks.append(_load(path, path.stem))
         except MalformedTaskError as error:
             bad_files.append(BadFile(path, error))
     return LoadResult(tasks, bad_files)
@@ -173,7 +202,7 @@ def delete_task(
     _check_unchanged(path, source)
     trash = directory / TRASH
     trash.mkdir(exist_ok=True)
-    stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
+    stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime(TRASH_TIME_FORMAT)
     target = trash / f"{source.task.id}.{stamp}{SUFFIX}"
     counter = 0
     while target.exists():
@@ -181,6 +210,62 @@ def delete_task(
         target = trash / f"{source.task.id}.{stamp}-{counter}{SUFFIX}"
     path.rename(target)
     return target
+
+
+def load_trash(directory: Path) -> TrashResult:
+    """List the deleted tasks in `directory`'s `.trash/`, newest delete first.
+
+    Each file is one delete, so a task deleted twice is listed twice. The
+    delete time comes from the file's name (see `parse_trash_name`); deletes
+    in the same second are newest first by their `-N`. Hidden files,
+    subdirectories and files not ending in `.md` are skipped, like
+    `load_tasks` does. A file that can't be read or parsed, or whose name has
+    no delete time, is returned in `bad_files`, sorted by name. Nothing is
+    changed. A missing `.trash/` has no deleted tasks; `OSError` is raised if
+    it can't be listed.
+    """
+    trash = directory / TRASH
+    deleted: list[DeletedTask] = []
+    bad_files: list[BadFile] = []
+    if not trash.is_dir():
+        return TrashResult(deleted, bad_files)
+    for path in _task_paths(trash):
+        name = parse_trash_name(path.name)
+        if name is None:
+            error = MalformedTaskError("name isn't <id>.<delete time>.md")
+            bad_files.append(BadFile(path, error))
+            continue
+        task_id, when, sequence = name
+        try:
+            source = _load(path, task_id)
+        except MalformedTaskError as error:
+            bad_files.append(BadFile(path, error))
+            continue
+        deleted.append(DeletedTask(path, source.task, when, sequence))
+    deleted.sort(
+        key=lambda entry: (entry.deleted, entry.sequence, entry.path.name),
+        reverse=True,
+    )
+    return TrashResult(deleted, bad_files)
+
+
+def parse_trash_name(name: str) -> tuple[str, datetime, int] | None:
+    """The task ID, delete time (UTC) and `-N` in a trashed file's name.
+
+    `delete_task` names the files `<id>.<delete time>.md`, adding `-N` after
+    the time for later deletes of the task in the same second; without it,
+    N is 0. Returns None for any other name, or one with a time that doesn't
+    exist (like month 13).
+    """
+    match = _TRASH_NAME.fullmatch(name)
+    if match is None:
+        return None
+    try:
+        when = datetime.strptime(match["time"], TRASH_TIME_FORMAT)
+    except ValueError:
+        return None
+    sequence = int(match["sequence"]) if match["sequence"] else 0
+    return match["id"], when.replace(tzinfo=UTC), sequence
 
 
 def check_unchanged(directory: Path, source: TaskFile) -> None:
@@ -204,7 +289,7 @@ def _task_paths(directory: Path) -> list[Path]:
     ]
 
 
-def _load(path: Path) -> TaskFile:
+def _load(path: Path, task_id: str) -> TaskFile:
     try:
         text = _read(path)
         mtime = path.stat().st_mtime
@@ -213,7 +298,7 @@ def _load(path: Path) -> TaskFile:
     except OSError as error:
         raise MalformedTaskError(f"can't be read: {error.strerror}") from error
     fallback = datetime.fromtimestamp(mtime, UTC).replace(microsecond=0)
-    return parse(text, path.stem, fallback_time=fallback)
+    return parse(text, task_id, fallback_time=fallback)
 
 
 def _read(path: Path) -> str:
