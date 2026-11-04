@@ -165,6 +165,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   one setting; `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`,
   even if it can't be used, and then checks it like the TUI does, naming the
   key of any problem
+- [#53](https://github.com/Kevin-Brockers/tskmngr/pull/53) - Roadmap milestone M8: a view of the deleted tasks below the TUI's
+  task list, which `t` hides and shows, with its columns and whether it starts
+  shown set in the config file. Listed before M7 and built first; step IDs
+  are unchanged
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
@@ -208,6 +212,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#49](https://github.com/Kevin-Brockers/tskmngr/pull/49) - Roadmap order: M7.2 (task list column order) comes next, then M7.1
   (`tskmngr config`), and M6.2 (git-synced tasks) moves to the end, with the
   M6 milestone now listed after M7. Step IDs are unchanged
+- [#53](https://github.com/Kevin-Brockers/tskmngr/pull/53) - Roadmap step M7.2b depends on M7.2a, not on the
+  M6.2a that doesn't exist
 
 ### Removed
 
