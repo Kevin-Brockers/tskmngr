@@ -63,11 +63,11 @@ def shown_text(app: TskmngrApp, selector: str) -> str | None:
 # Cells and headers
 
 
-def test_default_columns_are_title_deleted_and_id() -> None:
-    assert trash_labels() == ("Title", "Deleted", "ID")
+def test_default_columns_are_title_tags_deleted_and_id() -> None:
+    assert trash_labels() == ("Title", "Tags", "Deleted", "ID")
 
 
-def test_trash_row_has_the_title_with_markers_the_delete_time_and_the_id() -> None:
+def test_trash_row_has_the_title_with_markers_tags_delete_time_and_id() -> None:
     task = make_task(
         "AAAA",
         "Water plants",
@@ -78,9 +78,25 @@ def test_trash_row_has_the_title_with_markers_the_delete_time_and_the_id() -> No
     entry = DeletedTask(Path("AAAA.x.md"), task, DELETED)
 
     assert [cell.plain for cell in trash_row(entry)] == [
-        "Water plants ↻ [1/2] #home",
+        "Water plants ↻ [1/2]",
+        "home",
         "2026-10-30T12:00:05Z",
         "AAAA",
+    ]
+
+
+def test_without_a_tags_column_the_trash_title_keeps_its_tags() -> None:
+    task = make_task("AAAA", "Buy milk", tags=("errands", "shop"))
+    entry = DeletedTask(Path("AAAA.x.md"), task, DELETED)
+    columns = (TrashColumn.TITLE, TrashColumn.DELETED)
+
+    assert [cell.plain for cell in trash_row(entry, columns)] == [
+        "Buy milk #errands #shop",
+        "2026-10-30T12:00:05Z",
+    ]
+    assert [cell.plain for cell in trash_row(entry)][:2] == [
+        "Buy milk",
+        "errands, shop",
     ]
 
 
@@ -150,10 +166,10 @@ async def test_the_view_lists_deleted_tasks_newest_first(tmp_path: Path) -> None
     app = TskmngrApp(tmp_path, poll_interval=0)
     async with app.run_test():
         assert trash_view(app).border_title == "Deleted tasks"
-        assert trash_headers(app) == ["Title", "Deleted", "ID"]
+        assert trash_headers(app) == ["Title", "Tags", "Deleted", "ID"]
         assert trash_rows(app) == [
-            ["Draft", "2026-11-02T00:00:00Z", "BBBB"],
-            ["Old idea", "2026-10-30T12:00:05Z", "AAAA"],
+            ["Draft", "", "2026-11-02T00:00:00Z", "BBBB"],
+            ["Old idea", "", "2026-10-30T12:00:05Z", "AAAA"],
         ]
         assert shown_text(app, "#no-deleted-tasks") is None
         assert shown_text(app, "#trash-warning") is None
@@ -182,7 +198,7 @@ async def test_files_in_the_trash_that_cant_be_loaded_are_named(
             "1 file in .trash/ couldn't be loaded:\n"
             "  .trash/junk.md: name isn't <id>.<delete time>.md"
         )
-        assert [row[2] for row in trash_rows(app)] == ["AAAA"]
+        assert [row[-1] for row in trash_rows(app)] == ["AAAA"]
 
 
 @pytest.mark.asyncio
@@ -322,7 +338,7 @@ async def test_deleting_from_the_list_adds_the_task_to_the_view(
         await pilot.pause()
 
         assert [row[0] for row in trash_rows(app)] == ["Buy milk"]
-        assert [row[2] for row in trash_rows(app)] == ["AAAA"]
+        assert [row[-1] for row in trash_rows(app)] == ["AAAA"]
 
 
 @pytest.mark.asyncio

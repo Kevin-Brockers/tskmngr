@@ -190,6 +190,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `tskmngr list`: `mlik` finds milk and `#erands` finds `#errands`. A wrong,
   missing or extra letter or two swapped ones count as one; words of 4 to 7
   letters may have one, longer ones two, and shorter ones must be exact
+- [#61](https://github.com/Kevin-Brockers/tskmngr/pull/61) - A Tags column in the TUI's task list and deleted tasks view, with a
+  task's tags separated by commas; it's in the default `columns` and
+  `trash_columns`, after `title`. While a table has no tags column, its title
+  keeps the `#tags`, so config files that don't list `tags` still show them
 - [#57](https://github.com/Kevin-Brockers/tskmngr/pull/57) - Roadmap milestone M9: prefixes and typo-tolerant words in the
   filter (TUI and `tskmngr list`), the TUI's sort-only columns at the far
   right, and a tags column. Listed before M7 and built first; step IDs are

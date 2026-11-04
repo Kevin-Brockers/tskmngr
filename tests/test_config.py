@@ -27,7 +27,7 @@ PATH = Path("/home/me/.tskmngr/config.json")
 
 SORT = "sort: expected one of due, priority, created, updated, got "
 POLL = "poll_interval: expected a number of seconds, 0 or more, got "
-NAMES = "id, status, priority, due, created, updated, title"
+NAMES = "id, status, priority, due, created, updated, title, tags"
 COLUMNS = f"columns: expected names from {NAMES}, got "
 TRASH_NAMES = NAMES + ", deleted"
 TRASH_COLUMNS = f"trash_columns: expected names from {TRASH_NAMES}, got "
@@ -98,10 +98,12 @@ def test_the_default_file_is_indented_json() -> None:
         '    "status",\n'
         '    "priority",\n'
         '    "due",\n'
-        '    "title"\n'
+        '    "title",\n'
+        '    "tags"\n'
         "  ],\n"
         '  "trash_columns": [\n'
         '    "title",\n'
+        '    "tags",\n'
         '    "deleted",\n'
         '    "id"\n'
         "  ],\n"
@@ -300,14 +302,22 @@ def test_spaces_around_keybinding_keys_are_dropped() -> None:
     assert config.keybindings == {"task_list.new": "a,f2"}
 
 
-def test_default_columns_are_id_status_priority_due_and_title() -> None:
+def test_default_columns_are_id_status_priority_due_title_and_tags() -> None:
     assert Config().columns == (
         Column.ID,
         Column.STATUS,
         Column.PRIORITY,
         Column.DUE,
         Column.TITLE,
+        Column.TAGS,
     )
+
+
+def test_tags_is_a_column_of_both_tables() -> None:
+    config = parse_config('{"columns": ["tags"], "trash_columns": ["tags"]}', PATH)
+
+    assert config.columns == (Column.TAGS,)
+    assert config.trash_columns == (TrashColumn.TAGS,)
 
 
 def test_columns_keep_their_order_and_may_include_created_and_updated() -> None:
@@ -315,16 +325,17 @@ def test_columns_keep_their_order_and_may_include_created_and_updated() -> None:
     assert config.columns == (Column.UPDATED, Column.TITLE, Column.ID, Column.CREATED)
 
 
-def test_default_trash_columns_are_title_deleted_and_id() -> None:
+def test_default_trash_columns_are_title_tags_deleted_and_id() -> None:
     assert Config().trash_columns == (
         TrashColumn.TITLE,
+        TrashColumn.TAGS,
         TrashColumn.DELETED,
         TrashColumn.ID,
     )
 
 
 def test_trash_columns_may_have_every_task_list_column_and_deleted() -> None:
-    names = ["id", "status", "priority", "due", "created", "updated", "title"]
+    names = ["id", "status", "priority", "due", "created", "updated", "title", "tags"]
     config = parse_config(json.dumps({"trash_columns": [*names, "deleted"]}), PATH)
 
     assert [column.value for column in config.trash_columns] == [*names, "deleted"]
@@ -402,7 +413,7 @@ def test_unknown_keys_are_refused() -> None:
             '{"columns": []}',
             f"columns: expected at least one of {NAMES}, got an empty list",
         ),
-        ('{"columns": ["id", "tags"]}', COLUMNS + "the text 'tags'"),
+        ('{"columns": ["id", "colour"]}', COLUMNS + "the text 'colour'"),
         ('{"columns": ["ID"]}', COLUMNS + "the text 'ID'"),
         ('{"columns": [1]}', COLUMNS + "the number 1"),
         ('{"columns": [["id"]]}', COLUMNS + "a list"),
@@ -415,7 +426,7 @@ def test_unknown_keys_are_refused() -> None:
             '{"trash_columns": []}',
             f"trash_columns: expected at least one of {TRASH_NAMES}, got an empty list",
         ),
-        ('{"trash_columns": ["tags"]}', TRASH_COLUMNS + "the text 'tags'"),
+        ('{"trash_columns": ["colour"]}', TRASH_COLUMNS + "the text 'colour'"),
         ('{"trash_columns": [null]}', TRASH_COLUMNS + "null"),
         (
             '{"trash_columns": ["deleted", "deleted"]}',

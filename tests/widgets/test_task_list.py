@@ -47,7 +47,7 @@ def warning_text(screen: TaskListScreen) -> str | None:
     return content.plain if isinstance(content, Text) else str(content)
 
 
-def test_task_row_has_id_status_priority_due_and_title_with_tags() -> None:
+def test_task_row_has_id_status_priority_due_title_and_tags() -> None:
     task = make_task(
         "01JB3K7Q2X",
         "Buy milk",
@@ -62,8 +62,24 @@ def test_task_row_has_id_status_priority_due_and_title_with_tags() -> None:
         "doing",
         "high",
         "2026-11-01",
+        "Buy milk",
+        "errands, shop",
+    ]
+
+
+def test_without_a_tags_column_the_title_keeps_its_tags() -> None:
+    task = make_task("A", "Buy milk", tags=("errands", "shop"))
+    columns = (Column.ID, Column.TITLE)
+
+    assert [cell.plain for cell in task_row(task, SortKey.DUE, columns)] == [
+        "A",
         "Buy milk #errands #shop",
     ]
+    assert column_labels(SortKey.DUE, False, columns) == ("ID", "Title")
+
+
+def test_a_task_without_tags_has_an_empty_tags_cell() -> None:
+    assert task_row(make_task("A", "Read"))[-1].plain == ""
 
 
 def test_task_row_shows_subtask_progress_after_the_title() -> None:
@@ -71,7 +87,7 @@ def test_task_row_shows_subtask_progress_after_the_title() -> None:
         "A", "Plan trip", tags=("travel",), notes="- [x] Flights\n- [ ] Pack\n"
     )
 
-    assert task_row(task)[-1].plain == "Plan trip [1/2] #travel"
+    assert [cell.plain for cell in task_row(task)[-2:]] == ["Plan trip [1/2]", "travel"]
 
 
 def test_task_row_leaves_due_empty_without_a_due_date() -> None:
@@ -355,7 +371,7 @@ async def test_s_conflict_is_shown_and_the_task_reloaded_not_overwritten(
                 "disk; the status wasn't changed."
             )
         ]
-        assert table_rows(app.screen)[0][1:] == ["todo", "normal", "", "Theirs"]
+        assert table_rows(app.screen)[0][1:] == ["todo", "normal", "", "Theirs", ""]
 
 
 @pytest.mark.asyncio
@@ -946,19 +962,27 @@ def header_labels(app: TskmngrApp) -> list[str]:
 @pytest.mark.parametrize(
     ("sort_key", "reverse", "labels"),
     [
-        (SortKey.DUE, False, ["ID", "Status", "Priority", "Due ▲", "Title"]),
-        (SortKey.DUE, True, ["ID", "Status", "Priority", "Due ▼", "Title"]),
-        (SortKey.PRIORITY, False, ["ID", "Status", "Priority ▼", "Due", "Title"]),
-        (SortKey.PRIORITY, True, ["ID", "Status", "Priority ▲", "Due", "Title"]),
+        (SortKey.DUE, False, ["ID", "Status", "Priority", "Due ▲", "Title", "Tags"]),
+        (SortKey.DUE, True, ["ID", "Status", "Priority", "Due ▼", "Title", "Tags"]),
+        (
+            SortKey.PRIORITY,
+            False,
+            ["ID", "Status", "Priority ▼", "Due", "Title", "Tags"],
+        ),
+        (
+            SortKey.PRIORITY,
+            True,
+            ["ID", "Status", "Priority ▲", "Due", "Title", "Tags"],
+        ),
         (
             SortKey.CREATED,
             False,
-            ["ID", "Status", "Priority", "Due", "Title", "Created ▲"],
+            ["ID", "Status", "Priority", "Due", "Title", "Tags", "Created ▲"],
         ),
         (
             SortKey.UPDATED,
             True,
-            ["ID", "Status", "Priority", "Due", "Title", "Updated ▼"],
+            ["ID", "Status", "Priority", "Due", "Title", "Tags", "Updated ▼"],
         ),
     ],
 )
@@ -979,10 +1003,11 @@ def test_task_row_adds_the_sorted_time_last() -> None:
         "normal",
         "",
         "Read",
+        "",
         "2026-10-28T09:15:00Z",
     ]
     assert task_row(task, SortKey.UPDATED)[-1].plain == "2026-10-30T12:00:05Z"
-    assert len(task_row(task, SortKey.PRIORITY)) == 5
+    assert len(task_row(task, SortKey.PRIORITY)) == 6
 
 
 @pytest.mark.asyncio
@@ -992,11 +1017,25 @@ async def test_capital_s_steps_through_the_sort_keys(tmp_path: Path) -> None:
     app = TskmngrApp(tmp_path)
     async with app.run_test() as pilot:
         assert shown_ids(app) == ["BBBB", "AAAA", "CCCC"]
-        assert header_labels(app) == ["ID", "Status", "Priority", "Due ▲", "Title"]
+        assert header_labels(app) == [
+            "ID",
+            "Status",
+            "Priority",
+            "Due ▲",
+            "Title",
+            "Tags",
+        ]
 
         await pilot.press("S")
         assert shown_ids(app) == ["BBBB", "CCCC", "AAAA"]
-        assert header_labels(app) == ["ID", "Status", "Priority ▼", "Due", "Title"]
+        assert header_labels(app) == [
+            "ID",
+            "Status",
+            "Priority ▼",
+            "Due",
+            "Title",
+            "Tags",
+        ]
 
         await pilot.press("S")
         assert shown_ids(app) == ["AAAA", "CCCC", "BBBB"]
@@ -1010,8 +1049,15 @@ async def test_capital_s_steps_through_the_sort_keys(tmp_path: Path) -> None:
 
         await pilot.press("S")
         assert shown_ids(app) == ["BBBB", "AAAA", "CCCC"]
-        assert header_labels(app) == ["ID", "Status", "Priority", "Due ▲", "Title"]
-        assert len(table_rows(app.screen)[0]) == 5
+        assert header_labels(app) == [
+            "ID",
+            "Status",
+            "Priority",
+            "Due ▲",
+            "Title",
+            "Tags",
+        ]
+        assert len(table_rows(app.screen)[0]) == 6
 
 
 @pytest.mark.asyncio
@@ -1306,7 +1352,10 @@ def test_task_row_marks_a_repeating_task_after_the_title() -> None:
         notes="- [x] Kitchen\n- [ ] Office\n",
     )
 
-    assert task_row(task)[-1].plain == "Water plants ↻ [1/2] #home"
+    assert [cell.plain for cell in task_row(task)[-2:]] == [
+        "Water plants ↻ [1/2]",
+        "home",
+    ]
 
 
 @pytest.mark.asyncio

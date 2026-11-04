@@ -21,6 +21,7 @@ class Column(StrEnum):
     CREATED = "created"
     UPDATED = "updated"
     TITLE = "title"
+    TAGS = "tags"
 
 
 # The task list's columns when the config file doesn't set `columns`. Created
@@ -31,6 +32,7 @@ DEFAULT_COLUMNS: tuple[Column, ...] = (
     Column.PRIORITY,
     Column.DUE,
     Column.TITLE,
+    Column.TAGS,
 )
 
 
@@ -44,12 +46,14 @@ class TrashColumn(StrEnum):
     CREATED = "created"
     UPDATED = "updated"
     TITLE = "title"
+    TAGS = "tags"
     # When the task was deleted.
     DELETED = "deleted"
 
 
 DEFAULT_TRASH_COLUMNS: tuple[TrashColumn, ...] = (
     TrashColumn.TITLE,
+    TrashColumn.TAGS,
     TrashColumn.DELETED,
     TrashColumn.ID,
 )
@@ -97,11 +101,13 @@ def format_timestamp(value: datetime) -> str:
     return text
 
 
-def task_cell(task: Task, column: Column) -> str:
+def task_cell(task: Task, column: Column, *, tags_in_title: bool = False) -> str:
     """A task's text in one of the task list's columns.
 
-    The title is followed by `↻` if the task repeats, its subtasks done and
-    total, like `[1/3]`, if it has any, and then its tags as `#tag`.
+    The title is followed by `↻` if the task repeats, and its subtasks done
+    and total, like `[1/3]`, if it has any; with `tags_in_title`, for a table
+    without a tags column, then by its tags as `#tag`. The tags column lists
+    them separated by commas.
     """
     match column:
         case Column.ID:
@@ -123,4 +129,7 @@ def task_cell(task: Task, column: Column) -> str:
                 *(["↻"] if task.repeat else []),
                 *([f"[{done}]"] if done else []),
             ]
-            return " ".join([*title, *(f"#{tag}" for tag in task.tags)])
+            tags = [f"#{tag}" for tag in task.tags] if tags_in_title else []
+            return " ".join([*title, *tags])
+        case Column.TAGS:
+            return ", ".join(task.tags)
