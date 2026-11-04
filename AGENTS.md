@@ -197,10 +197,19 @@ mapping TUI binding ids to keys as in Textual's keymap. All are optional.
   While the old file exists, every run prints a warning on stderr; the file
   is never moved or changed.
 - Invalid JSON, an unknown key or a value of the wrong type stops the CLI
-  and the TUI with an error naming the file and the key. Only the TUI checks
-  `theme` (a theme Textual has) and `keybindings` (known binding ids, no two
-  bindings on one screen sharing a key, none taking the app's own keys), and
-  stops on a problem; CLI commands don't use those keys and run anyway.
+  and the TUI with an error naming the file and the key, except
+  `tskmngr config edit`, which opens the file anyway so it can be fixed. Only
+  the TUI and `config edit` check `theme` (a theme Textual has) and
+  `keybindings` (known binding ids, no two bindings on one screen sharing a
+  key, none taking the app's own keys), and stop on a problem; other CLI
+  commands don't use those keys and run anyway.
+- `tskmngr config` prints the file's path and every setting in use, marking
+  the ones the file leaves out `(default)`, or `(TSKMNGR_DIR)` for the tasks
+  directory. `config get KEY` prints one: plain text, `tasks_dir` as the full
+  path, `columns` and `keybindings` as JSON. `config edit` opens the file in
+  `$VISUAL`/`$EDITOR`, then runs every check above, the TUI's included. It
+  names the key of the first problem and exits 1, and never rewrites the
+  file.
 
 ## Working conventions
 
