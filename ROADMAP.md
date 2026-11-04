@@ -152,7 +152,7 @@ Goal: richer task structure. The storage format for both must be agreed with
 the maintainer before starting, and `AGENTS.md` updated to match.
 
 - [x] **M5.1** Subtasks as a checklist within a task, shown and toggled in the
-  TUI · `feature/subtasks` · #TBD
+  TUI · `feature/subtasks` · [#38](https://github.com/Kevin-Brockers/tskmngr/pull/38)
 - [ ] **M5.2** Recurring tasks: a repeat rule, and core logic that creates the
   next occurrence when a task is marked done, used by both `tskmngr done` and
   the TUI · `feature/recurring_tasks` · depends on M2.3, M3.4
