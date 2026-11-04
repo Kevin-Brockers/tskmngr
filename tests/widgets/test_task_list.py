@@ -953,12 +953,12 @@ def header_labels(app: TskmngrApp) -> list[str]:
         (
             SortKey.CREATED,
             False,
-            ["ID", "Status", "Priority", "Due", "Created ▲", "Title"],
+            ["ID", "Status", "Priority", "Due", "Title", "Created ▲"],
         ),
         (
             SortKey.UPDATED,
             True,
-            ["ID", "Status", "Priority", "Due", "Updated ▼", "Title"],
+            ["ID", "Status", "Priority", "Due", "Title", "Updated ▼"],
         ),
     ],
 )
@@ -968,7 +968,7 @@ def test_column_labels_mark_the_sorted_column(
     assert list(column_labels(sort_key, reverse)) == labels
 
 
-def test_task_row_adds_the_sorted_time_before_the_title() -> None:
+def test_task_row_adds_the_sorted_time_last() -> None:
     task = replace(
         make_task("A", "Read"), updated=datetime(2026, 10, 30, 12, 0, 5, tzinfo=UTC)
     )
@@ -978,10 +978,10 @@ def test_task_row_adds_the_sorted_time_before_the_title() -> None:
         "todo",
         "normal",
         "",
-        "2026-10-28T09:15:00Z",
         "Read",
+        "2026-10-28T09:15:00Z",
     ]
-    assert task_row(task, SortKey.UPDATED)[4].plain == "2026-10-30T12:00:05Z"
+    assert task_row(task, SortKey.UPDATED)[-1].plain == "2026-10-30T12:00:05Z"
     assert len(task_row(task, SortKey.PRIORITY)) == 5
 
 
@@ -1000,13 +1000,13 @@ async def test_capital_s_steps_through_the_sort_keys(tmp_path: Path) -> None:
 
         await pilot.press("S")
         assert shown_ids(app) == ["AAAA", "CCCC", "BBBB"]
-        assert header_labels(app)[4] == "Created ▲"
-        assert table_rows(app.screen)[0][4] == "2026-10-01T09:00:00Z"
+        assert header_labels(app)[-1] == "Created ▲"
+        assert table_rows(app.screen)[0][-1] == "2026-10-01T09:00:00Z"
 
         await pilot.press("S")
         assert shown_ids(app) == ["CCCC", "AAAA", "BBBB"]
-        assert header_labels(app)[4] == "Updated ▲"
-        assert table_rows(app.screen)[0][4] == "2026-10-05T09:00:00Z"
+        assert header_labels(app)[-1] == "Updated ▲"
+        assert table_rows(app.screen)[0][-1] == "2026-10-05T09:00:00Z"
 
         await pilot.press("S")
         assert shown_ids(app) == ["BBBB", "AAAA", "CCCC"]
@@ -1037,7 +1037,7 @@ async def test_capital_r_reverses_and_undated_tasks_stay_last(
         # The next key starts in its default direction again.
         await pilot.press("S")
         assert shown_ids(app) == ["AAAA", "CCCC", "BBBB"]
-        assert header_labels(app)[4] == "Created ▲"
+        assert header_labels(app)[-1] == "Created ▲"
         assert not app.screen.sort_reverse
 
 
@@ -1089,7 +1089,7 @@ async def test_sorting_an_empty_list_changes_the_headers(tmp_path: Path) -> None
     async with app.run_test() as pilot:
         await pilot.press("S", "S", "R")
 
-        assert header_labels(app)[4] == "Created ▼"
+        assert header_labels(app)[-1] == "Created ▼"
         assert app.screen.query_one("#no-tasks").has_class("-shown")
 
 
@@ -1108,12 +1108,13 @@ def test_shown_columns_are_the_configured_ones_in_their_order() -> None:
     [
         (
             (Column.DUE, Column.TITLE, Column.ID),
-            (Column.DUE, Column.CREATED, Column.TITLE, Column.ID),
+            (Column.DUE, Column.TITLE, Column.ID, Column.CREATED),
         ),
         ((Column.ID, Column.DUE), (Column.ID, Column.DUE, Column.CREATED)),
+        ((Column.TITLE,), (Column.TITLE, Column.CREATED)),
     ],
 )
-def test_sorting_by_a_hidden_time_adds_it_before_the_title_or_last(
+def test_sorting_by_a_hidden_time_adds_it_last(
     columns: tuple[Column, ...], shown: tuple[Column, ...]
 ) -> None:
     assert shown_columns(SortKey.CREATED, columns) == shown
@@ -1137,11 +1138,11 @@ def test_column_labels_follow_the_columns_and_mark_the_sorted_one() -> None:
         "Status",
     )
     assert column_labels(SortKey.UPDATED, False, columns) == (
-        "Updated ▲",
         "Title",
         "Created",
         "Due",
         "Status",
+        "Updated ▲",
     )
 
 
@@ -1170,18 +1171,19 @@ async def test_the_table_has_the_configured_columns(tmp_path: Path) -> None:
         assert header_labels(app) == ["Title", "Due ▲", "ID"]
         assert table_rows(app.screen)[0] == ["Task BBBB", "2026-11-01", "BBBB"]
 
-        # Created isn't configured, so it's shown only while sorting by it.
+        # Created isn't configured, so it's shown only while sorting by it,
+        # at the far right.
         await pilot.press("S", "S")
-        assert header_labels(app) == ["Created ▲", "Title", "Due", "ID"]
+        assert header_labels(app) == ["Title", "Due", "ID", "Created ▲"]
         assert table_rows(app.screen)[0] == [
-            "2026-10-01T09:00:00Z",
             "Task AAAA",
             "2026-11-03",
             "AAAA",
+            "2026-10-01T09:00:00Z",
         ]
 
         await pilot.press("S")
-        assert header_labels(app) == ["Updated ▲", "Title", "Due", "ID"]
+        assert header_labels(app) == ["Title", "Due", "ID", "Updated ▲"]
 
         await pilot.press("S")
         assert header_labels(app) == ["Title", "Due ▲", "ID"]

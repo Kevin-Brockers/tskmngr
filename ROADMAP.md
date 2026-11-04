@@ -228,10 +228,10 @@ the step IDs keep their numbers.
     `difflib`, whose scores can't tell typos from different short words),
     with 1 allowed for 4 to 7 letters, 2 for more and none for 3 or fewer ·
     `feature/filter_typos` · [#59](https://github.com/Kevin-Brockers/tskmngr/pull/59)
-- [ ] **M9.2** The columns the TUI task list shows only while it's sorted by
+- [x] **M9.2** The columns the TUI task list shows only while it's sorted by
   them (created, updated) go last, at the far right, instead of before
   Title; update the README and `AGENTS.md` to match ·
-  `feature/sort_column_last`
+  `feature/sort_column_last` · #TBD
 - [ ] **M9.3** Tags column in the TUI: `tags` joins the column names of
   `columns` and `trash_columns` and shows a task's tags separated by commas;
   the defaults gain it after `title` (`["id", "status", "priority", "due",

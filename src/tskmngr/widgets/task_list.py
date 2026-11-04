@@ -103,14 +103,13 @@ def shown_columns(
     """The columns shown: `columns`, the config file's, in their order.
 
     Sorting by created or updated also shows that column if `columns` leaves
-    it out: before Title, or last if Title is hidden too. Other hidden
-    columns stay hidden while the list is sorted by them.
+    it out, last, at the far right. Other hidden columns stay hidden while the
+    list is sorted by them.
     """
     shown = list(columns)
     sorted_column = SORT_COLUMNS[sort_key]
     if sort_key in TIME_SORT_KEYS and sorted_column not in shown:
-        at = shown.index(Column.TITLE) if Column.TITLE in shown else len(shown)
-        shown.insert(at, sorted_column)
+        shown.append(sorted_column)
     return tuple(shown)
 
 
