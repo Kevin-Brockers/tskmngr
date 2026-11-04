@@ -153,7 +153,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#41](https://github.com/Kevin-Brockers/tskmngr/pull/41) - Roadmap milestone M6: the config file in `~/.tskmngr/`, created on
   first run, with its `tasks_dir` before `TSKMNGR_DIR`, and the tasks
   directory in a separate git repository
-- #TBD - Roadmap milestone M7: `tskmngr config` to show the config file, get
+- [#44](https://github.com/Kevin-Brockers/tskmngr/pull/44) - Roadmap milestone M7: `tskmngr config` to show the config file, get
   one setting or open it in the editor, and the order of the TUI task list
   columns, with hidden ones, from the config file
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
