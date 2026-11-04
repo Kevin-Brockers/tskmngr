@@ -139,7 +139,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   detail view, Space, Enter or a click checks or unchecks one and saves the
   task; checking the last open one marks the task done, and unchecking one of
   a done task moves it back to doing
-- #TBD - Recurring tasks: a `repeat` rule (`daily`, `weekly`, `monthly`,
+- [#39](https://github.com/Kevin-Brockers/tskmngr/pull/39) - Recurring tasks: a `repeat` rule (`daily`, `weekly`, `monthly`,
   `yearly` or `every N days|weeks|months|years`), set with `tskmngr add
   --repeat` and `tskmngr edit --repeat`/`--no-repeat` and shown by `tskmngr
   show` and the TUI's detail view. `tskmngr done` and `tskmngr edit --status

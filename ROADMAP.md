@@ -159,7 +159,7 @@ the maintainer before starting, and `AGENTS.md` updated to match.
   - [x] **M5.2a** Core and CLI: `repeat` and `repeat_from` in the task file,
     the next-occurrence logic, `tskmngr done` and `edit --status done`,
     `add`/`edit --repeat`, and the rule in `tskmngr show` ·
-    `feature/recurring_tasks_core` · #TBD
+    `feature/recurring_tasks_core` · [#39](https://github.com/Kevin-Brockers/tskmngr/pull/39)
   - [ ] **M5.2b** TUI: repeat field in the form, a marker in the task list, the
     rule in the detail view, and the next occurrence created by `s`, the form
     and the subtask auto-done · `feature/recurring_tasks_tui` · depends on
