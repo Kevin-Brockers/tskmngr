@@ -645,6 +645,22 @@ async def test_the_filter_bar_takes_the_start_of_tags_and_values(
 
 
 @pytest.mark.asyncio
+async def test_the_filter_bar_finds_words_and_tags_with_a_typo(
+    tmp_path: Path,
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        # The title of AAAA and the notes of BBBB.
+        await pilot.press("slash", *"mlik")
+        assert shown_ids(app) == ["AAAA", "BBBB"]
+
+        await pilot.press(*" #erands")
+        assert shown_ids(app) == ["AAAA"]
+
+
+@pytest.mark.asyncio
 async def test_typing_in_the_filter_bar_filters_as_you_type(tmp_path: Path) -> None:
     save_filter_tasks(tmp_path)
 

@@ -213,19 +213,21 @@ Goal: the filter also finds tasks from partial or misspelled input, and the
 TUI's tables are easier to read. Listed before M7 and built first, after M8;
 the step IDs keep their numbers.
 
-- [ ] **M9.1** Partial matches in the filter, the same in the TUI's filter
-  bar and `tskmngr list` (shared in `query.py`) · `feature/partial_filter`.
-  Split into:
+- [x] **M9.1** Partial matches in the filter, the same in the TUI's filter
+  bar and `tskmngr list` (shared in `query.py`) · `feature/partial_filter` ·
+  [#58](https://github.com/Kevin-Brockers/tskmngr/pull/58), [#59](https://github.com/Kevin-Brockers/tskmngr/pull/59). Split into:
   - [x] **M9.1a** Prefixes: `#tag` matches every tag that starts with it
     (`#err` finds `errands`), and `status:` and `priority:` take the start of
     a value (`status:do` finds doing and done, `priority:hi` finds high); a
     value nothing starts with is still an error · `feature/filter_prefixes` ·
     [#58](https://github.com/Kevin-Brockers/tskmngr/pull/58)
-  - [ ] **M9.1b** Typo-tolerant words: a word also matches a word in the
-    title or notes that's close to it (`mlik` finds milk), using the
-    standard library's `difflib`, no new dependency; how close counts must
-    be agreed with the maintainer before starting · `feature/filter_typos` ·
-    depends on M9.1a
+  - [x] **M9.1b** Typo-tolerant words: a word also matches a word in the
+    title or notes that's close to it (`mlik` finds milk), and `#tag` a tag;
+    as agreed with the maintainer, a typo is a wrong, missing or extra letter
+    or two swapped neighbours (counted in plain Python rather than with
+    `difflib`, whose scores can't tell typos from different short words),
+    with 1 allowed for 4 to 7 letters, 2 for more and none for 3 or fewer ·
+    `feature/filter_typos` · [#59](https://github.com/Kevin-Brockers/tskmngr/pull/59)
 - [ ] **M9.2** The columns the TUI task list shows only while it's sorted by
   them (created, updated) go last, at the far right, instead of before
   Title; update the README and `AGENTS.md` to match ·

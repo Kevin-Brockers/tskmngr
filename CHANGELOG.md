@@ -186,6 +186,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#58](https://github.com/Kevin-Brockers/tskmngr/pull/58) - The filter takes the start of a tag, status or priority: `#err`
   finds `#errands`, `status:do` finds doing and done and `priority:hi` finds
   high, in the TUI's filter bar and in `tskmngr list`'s `-t`, `-s` and `-p`
+- [#59](https://github.com/Kevin-Brockers/tskmngr/pull/59) - Filter words and tags may have typos, in the TUI's filter bar and in
+  `tskmngr list`: `mlik` finds milk and `#erands` finds `#errands`. A wrong,
+  missing or extra letter or two swapped ones count as one; words of 4 to 7
+  letters may have one, longer ones two, and shorter ones must be exact
 - [#57](https://github.com/Kevin-Brockers/tskmngr/pull/57) - Roadmap milestone M9: prefixes and typo-tolerant words in the
   filter (TUI and `tskmngr list`), the TUI's sort-only columns at the far
   right, and a tags column. Listed before M7 and built first; step IDs are
