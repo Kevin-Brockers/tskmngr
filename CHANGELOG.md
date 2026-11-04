@@ -196,7 +196,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   usage errors don't write the default config or warn about the old one, and
   only the TUI checks `theme` and `keybindings`. In `ROADMAP.md`, M6.2 names
   its branch like the other split steps, and M7.1 and M7.2 depend on M6.1
-- #TBD - Roadmap order: M7.2 (task list column order) comes next, then M7.1
+- [#49](https://github.com/Kevin-Brockers/tskmngr/pull/49) - Roadmap order: M7.2 (task list column order) comes next, then M7.1
   (`tskmngr config`), and M6.2 (git-synced tasks) moves to the end, with the
   M6 milestone now listed after M7. Step IDs are unchanged
 
