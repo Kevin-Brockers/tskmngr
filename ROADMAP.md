@@ -231,7 +231,7 @@ the step IDs keep their numbers.
 - [x] **M9.2** The columns the TUI task list shows only while it's sorted by
   them (created, updated) go last, at the far right, instead of before
   Title; update the README and `AGENTS.md` to match ·
-  `feature/sort_column_last` · #TBD
+  `feature/sort_column_last` · [#60](https://github.com/Kevin-Brockers/tskmngr/pull/60)
 - [ ] **M9.3** Tags column in the TUI: `tags` joins the column names of
   `columns` and `trash_columns` and shows a task's tags separated by commas;
   the defaults gain it after `title` (`["id", "status", "priority", "due",
