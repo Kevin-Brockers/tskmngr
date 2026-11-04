@@ -167,6 +167,22 @@ the maintainer before starting, and `AGENTS.md` updated to match.
     rule in the detail view, and the next occurrence created by `s`, the form
     and the subtask auto-done · `feature/recurring_tasks_tui` · [#40](https://github.com/Kevin-Brockers/tskmngr/pull/40)
 
+### M7 · Settings
+
+Goal: the config file can be viewed and edited from the CLI, and the TUI's
+task list columns can be arranged.
+
+- [ ] **M7.2** Order of the TUI task list columns: a `columns` config key,
+  a list of column names whose order is the display order, with columns
+  left out hidden; document it in the README and update `AGENTS.md` to
+  match · `feature/tui_column_order` · depends on M6.1
+- [ ] **M7.1** `tskmngr config` prints the config file's path and its
+  settings, `tskmngr config get <key>` prints one setting, and
+  `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`, then checks it
+  the way loading does and reports any error naming the key; document the
+  command in the README and update `AGENTS.md` to match ·
+  `feature/cli_config` · depends on M6.1
+
 ### M6 · Config home and synced tasks
 
 Goal: settings live in `~/.tskmngr/`, and the tasks directory can be kept in a
@@ -198,19 +214,3 @@ synced must be agreed with the maintainer before starting M6.2, and
   - [ ] **M6.2b** TUI: pull at start, commit and push after each change, a
     sync key, and sync errors and conflicts shown to the user ·
     `feature/git_sync_tui` · depends on M6.2a
-
-### M7 · Settings
-
-Goal: the config file can be viewed and edited from the CLI, and the TUI's
-task list columns can be arranged.
-
-- [ ] **M7.1** `tskmngr config` prints the config file's path and its
-  settings, `tskmngr config get <key>` prints one setting, and
-  `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`, then checks it
-  the way loading does and reports any error naming the key; document the
-  command in the README and update `AGENTS.md` to match ·
-  `feature/cli_config` · depends on M6.1
-- [ ] **M7.2** Order of the TUI task list columns: a `columns` config key,
-  a list of column names whose order is the display order, with columns
-  left out hidden; document it in the README and update `AGENTS.md` to
-  match · `feature/tui_column_order` · depends on M6.1
