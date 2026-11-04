@@ -196,7 +196,7 @@ Textual's keymap. All are optional.
 - `columns` sets the TUI task list's columns in display order, from `id`,
   `status`, `priority`, `due`, `created`, `updated` and `title`; the ones
   left out are hidden. Sorting by `created` or `updated` still shows that
-  column, before Title (or last), while that sort lasts. An empty list, an
+  column, last (at the far right), while that sort lasts. An empty list, an
   unknown name or a name listed twice stops the CLI and the TUI.
 - `trash_columns` sets the TUI's deleted tasks view's columns in display
   order, from the `columns` names plus `deleted` (the delete time), checked

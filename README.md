@@ -135,7 +135,7 @@ goes back to the list and keeps the filter. Filter and sort last until the app
 exits; the list starts with the config file's sort.
 
 The list has the columns ID, Status, Priority, Due and Title; sorting by
-created or updated adds that column before Title while it lasts. `columns` in
+created or updated adds that column at the far right while it lasts. `columns` in
 the [config file](#config-file) changes which columns are shown and in which
 order. Tasks with [subtasks](#subtasks) show how many are done after the
 title, like `Plan trip [1/3]`, and [repeating](#recurring-tasks) tasks are
@@ -410,8 +410,8 @@ or a value it can't use, tskmngr says what's wrong and exits instead of
 guessing. A theme name or binding id that doesn't exist only stops the TUI.
 
 `columns` needs at least one column, and each only once. Sorting by created
-or updated shows that column even when `columns` leaves it out, before Title
-(or last, if Title is hidden too), as long as that sort lasts. A hidden due
+or updated shows that column even when `columns` leaves it out, last, at the
+far right, as long as that sort lasts. A hidden due
 date or priority column stays hidden when the list is sorted by it. The title
 column also holds the repeat marker, the subtasks done and the tags.
 `trash_columns` follows the same rules, with `deleted` as one more name; the

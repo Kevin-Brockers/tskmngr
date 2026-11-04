@@ -239,6 +239,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
   M6 milestone now listed after M7. Step IDs are unchanged
 - [#53](https://github.com/Kevin-Brockers/tskmngr/pull/53) - Roadmap step M7.2b depends on M7.2a, not on the
   M6.2a that doesn't exist
+- [#60](https://github.com/Kevin-Brockers/tskmngr/pull/60) - The created or updated column the TUI task list shows only while it's
+  sorted by it is now the last one, at the far right, instead of before Title
 
 ### Removed
 
