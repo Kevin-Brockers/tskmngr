@@ -5,6 +5,7 @@ Every function takes either `Task`s or `TaskFile`s (as returned by
 need for saving.
 """
 
+import re
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -13,6 +14,9 @@ from tskmngr.models import Priority, Status, Task
 from tskmngr.taskfile import TaskFile
 
 PRIORITY_RANK = {Priority.LOW: 0, Priority.NORMAL: 1, Priority.HIGH: 2}
+
+# The words of a title or notes, for typo matches: runs of letters and digits.
+_WORD = re.compile(r"[^\W_]+")
 
 
 class SortKey(StrEnum):
@@ -140,8 +144,10 @@ def filter_tasks[T: (Task, TaskFile)](
 
     An empty criterion matches all tasks. A task matches if its status is one
     of `statuses`, its priority one of `priorities`, each of `tags` starts one
-    of its tags (`err` for `errands`) and every word of `text` appears in its
-    title or notes. Tags and text ignore case.
+    of its tags (`err` for `errands`) or is a typo of one, and every word of
+    `text` appears in its title or notes or is a typo of a word there (`mlik`
+    for milk). Tags and text ignore case; see `is_typo_of` for what counts as
+    a typo.
     """
     wanted_tags = {tag.lower() for tag in tags}
     words = text.casefold().split()
@@ -231,7 +237,55 @@ def _matches(
         return False
     if priorities and task.priority not in priorities:
         return False
-    if not all(any(own.startswith(tag) for own in task.tags) for tag in tags):
+    if not all(
+        any(own.startswith(tag) or is_typo_of(tag, own) for own in task.tags)
+        for tag in tags
+    ):
         return False
     haystack = f"{task.title}\n{task.notes}".casefold()
-    return all(word in haystack for word in words)
+    missing = [word for word in words if word not in haystack]
+    if not missing:
+        return True
+    own_words = set(_WORD.findall(haystack))
+    return all(any(is_typo_of(word, own) for own in own_words) for word in missing)
+
+
+def allowed_edits(word: str) -> int:
+    """How many typos `word` may have: none up to 3 letters, 1 up to 7, then 2."""
+    if len(word) <= 3:
+        return 0
+    return 1 if len(word) <= 7 else 2
+
+
+def is_typo_of(word: str, other: str) -> bool:
+    """Whether `word` is `other` with at most `allowed_edits(word)` typos.
+
+    A typo is a wrong, missing or extra letter, or two neighbouring letters
+    swapped (`mlik` for milk). Both are expected in the same case. A word of
+    3 letters or fewer must be exact, so it's never a typo of another word.
+    """
+    limit = allowed_edits(word)
+    if limit == 0 or abs(len(word) - len(other)) > limit:
+        return False
+    return edit_distance(word, other) <= limit
+
+
+def edit_distance(a: str, b: str) -> int:
+    """The fewest typos that turn `a` into `b`, as `is_typo_of` counts them.
+
+    The optimal string alignment distance: changing, adding or removing a
+    letter, or swapping two neighbours, each count as one, and no part of the
+    word is edited twice.
+    """
+    # rows[i][j]: the distance between a[:i] and b[:j].
+    rows = [list(range(len(b) + 1))]
+    for i in range(1, len(a) + 1):
+        row = [i] + [0] * len(b)
+        for j in range(1, len(b) + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            row[j] = min(rows[i - 1][j] + 1, row[j - 1] + 1, rows[i - 1][j - 1] + cost)
+            swapped = a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]
+            if i > 1 and j > 1 and swapped:
+                row[j] = min(row[j], rows[i - 2][j - 2] + 1)
+        rows.append(row)
+    return rows[-1][-1]

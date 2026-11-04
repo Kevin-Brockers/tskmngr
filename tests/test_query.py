@@ -10,8 +10,11 @@ from tskmngr.query import (
     SortKey,
     TaskFilter,
     TaskNotFoundError,
+    allowed_edits,
+    edit_distance,
     filter_tasks,
     find_by_prefix,
+    is_typo_of,
     match_id_prefix,
     parse_filter,
     sort_tasks,
@@ -108,7 +111,7 @@ def test_filter_by_tags_matches_the_start_of_a_tag() -> None:
 
     assert ids(filter_tasks(tasks, tags=["err"])) == ["A", "B"]
     assert ids(filter_tasks(tasks, tags=["ERR"])) == ["A", "B"]
-    assert ids(filter_tasks(tasks, tags=["errandsx"])) == []
+    assert ids(filter_tasks(tasks, tags=["shopping"])) == []
 
 
 def test_each_tag_prefix_needs_a_tag_starting_with_it() -> None:
@@ -165,6 +168,109 @@ def test_search_matches_part_of_a_word() -> None:
     tasks = [make_task("A", title="Groceries")]
 
     assert ids(filter_tasks(tasks, text="grocer")) == ["A"]
+
+
+# Typos (M9.1b)
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "distance"),
+    [
+        ("milk", "milk", 0),
+        ("mlik", "milk", 1),
+        ("milc", "milk", 1),
+        ("mil", "milk", 1),
+        ("milkk", "milk", 1),
+        ("reprot", "report", 1),
+        ("rpeort", "report", 1),
+        ("rpeotr", "report", 2),
+        ("quartely", "quarterly", 1),
+        ("", "abc", 3),
+        ("kitten", "sitting", 3),
+    ],
+)
+def test_edit_distance(a: str, b: str, distance: int) -> None:
+    assert edit_distance(a, b) == distance
+    assert edit_distance(b, a) == distance
+
+
+@pytest.mark.parametrize(
+    ("word", "edits"),
+    [("a", 0), ("buy", 0), ("milk", 1), ("lisbon", 1), ("dentist", 1), ("quartely", 2)],
+)
+def test_allowed_edits_grow_with_the_word(word: str, edits: int) -> None:
+    assert allowed_edits(word) == edits
+
+
+@pytest.mark.parametrize(
+    ("word", "other", "expected"),
+    [
+        ("mlik", "milk", True),
+        ("reprot", "report", True),
+        ("lisbn", "lisbon", True),
+        ("quartely", "quarterly", True),
+        ("quartrly", "quarterly", True),
+        ("qartrly", "quarterly", False),
+        ("qaurtrly", "quarterly", True),
+        ("qrtrly", "quarterly", False),
+        ("mlki", "milk", False),
+        ("bus", "buy", False),
+        ("milk", "milk", True),
+        ("milk", "milkshake", False),
+    ],
+)
+def test_is_typo_of(word: str, other: str, expected: bool) -> None:
+    assert is_typo_of(word, other) is expected
+
+
+def test_search_matches_a_word_with_a_typo() -> None:
+    tasks = [
+        make_task("A", title="Buy milk"),
+        make_task("B", title="Write report", notes="For the quarterly review."),
+        make_task("C", title="Mile run"),
+        make_task("D", title="Read"),
+    ]
+
+    assert ids(filter_tasks(tasks, text="mlik")) == ["A"]
+    assert ids(filter_tasks(tasks, text="Reprot QUARTELY")) == ["B"]
+    # Any typo tolerance also finds real words one letter apart.
+    assert ids(filter_tasks(tasks, text="milk")) == ["A", "C"]
+
+
+def test_short_words_need_to_match_exactly() -> None:
+    tasks = [make_task("A", title="Buy milk"), make_task("B", title="Take the bus")]
+
+    assert ids(filter_tasks(tasks, text="buy")) == ["A"]
+    assert ids(filter_tasks(tasks, text="byu")) == []
+
+
+def test_a_typo_matches_a_whole_word_not_part_of_one() -> None:
+    tasks = [make_task("A", title="Milkshake"), make_task("B", title="milk-shake")]
+
+    assert ids(filter_tasks(tasks, text="mlik")) == ["B"]
+    assert ids(filter_tasks(tasks, text="mil")) == ["A", "B"]
+
+
+def test_every_word_still_has_to_match_with_or_without_a_typo() -> None:
+    tasks = [make_task("A", title="Buy milk"), make_task("B", title="Buy bread")]
+
+    assert ids(filter_tasks(tasks, text="mlik buy")) == ["A"]
+    assert ids(filter_tasks(tasks, text="mlik braed")) == []
+
+
+def test_a_tag_with_a_typo_matches() -> None:
+    tasks = [
+        make_task("A", tags=["errands"]),
+        make_task("B", tags=["errand"]),
+        make_task("C", tags=["work"]),
+    ]
+
+    # Two edits from errand, and 6 letters may have only one.
+    assert ids(filter_tasks(tasks, tags=["erands"])) == ["A"]
+    assert ids(filter_tasks(tasks, tags=["erand"])) == ["B"]
+    assert ids(filter_tasks(tasks, tags=["wrok"])) == ["C"]
+    # Three letters or fewer must still be the start of a tag.
+    assert ids(filter_tasks(tasks, tags=["wro"])) == []
 
 
 def test_search_does_not_match_across_title_and_notes() -> None:

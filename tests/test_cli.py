@@ -430,7 +430,7 @@ def test_list_sorts(
         (["-t", "err"], ["TODO000004", "TODO000001"]),
         (["-t", "PH"], ["TODO000004"]),
         (["-t", "err", "-t", "ph"], ["TODO000004"]),
-        (["-t", "errandsx"], []),
+        (["-t", "shopping"], []),
         (["-s", "do"], ["DONE000003", "DOING00002"]),
         (
             ["-s", "D", "-s", "t"],
@@ -442,6 +442,23 @@ def test_list_sorts(
     ],
 )
 def test_list_options_take_the_start_of_a_value(
+    mixed: Path,
+    argv: list[str],
+    expected: list[str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert list_ids(argv, capsys) == expected
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (["mlik"], ["TODO000004", "TODO000001"]),
+        (["-t", "erands"], ["TODO000004", "TODO000001"]),
+        (["reprot"], ["DOING00002"]),
+    ],
+)
+def test_list_finds_words_and_tags_with_a_typo(
     mixed: Path,
     argv: list[str],
     expected: list[str],
