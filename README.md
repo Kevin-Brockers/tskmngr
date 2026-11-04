@@ -74,7 +74,7 @@ $ tskmngr done m2p
 | Command | What it does |
 | ------- | ------------ |
 | `add TITLE` | Add a task and print its ID. Options: `-p/--priority low\|normal\|high` (default `normal`), `-d/--due YYYY-MM-DD`, `--repeat RULE` to make it [recurring](#recurring-tasks), `-t/--tag TAG` (repeat for more tags) |
-| `list [WORD ...]` | List tasks, by default the ones not done yet, soonest due first. Words are searched in titles and notes; a task needs all of them. Options: `-s/--status` (repeat for more), `-a/--all` to include done tasks, `-p/--priority` (repeat for more), `-t/--tag` (repeat to require more tags), `--sort due\|priority\|created\|updated` (default: the config file's `sort`, else `due`), `-r/--reverse` to reverse that order |
+| `list [WORD ...]` | List tasks, by default the ones not done yet, soonest due first. Words are searched in titles and notes; a task needs all of them. Options: `-s/--status` (repeat for more), `-a/--all` to include done tasks, `-p/--priority` (repeat for more), `-t/--tag` (repeat to require more tags); each also takes the start of a value, like `-s do` for doing and done, `-p hi` for high or `-t err` for `#errands`, `--sort due\|priority\|created\|updated` (default: the config file's `sort`, else `due`), `-r/--reverse` to reverse that order |
 | `show ID` | Show all fields of a task, including its subtasks done and total, then its notes |
 | `edit ID` | Change the given fields: `--title`, `-s/--status`, `-p/--priority`, `-d/--due` or `--no-due`, `--repeat RULE` or `--no-repeat`, `-t/--tag` to add a tag, `--untag` to remove one or `--clear-tags` to remove all (each tag option can be repeated) |
 | `done ID` | Mark a task as done. If it [repeats](#recurring-tasks), its next occurrence is added and its ID and due date printed |
@@ -120,7 +120,9 @@ panel above the list.
 
 The filter narrows the list as you type. Words are searched in titles and
 notes, `#tag` needs a tag, and `status:` and `priority:` restrict to a value;
-repeat them for any of several, as in `status:todo status:doing`. `Enter`
+repeat them for any of several, as in `status:todo status:doing`. All three
+take the start of one too: `#err` finds `#errands`, `status:do` finds doing
+and done, and `priority:hi` finds high. `Enter`
 goes back to the list and keeps the filter. Filter and sort last until the app
 exits; the list starts with the config file's sort.
 

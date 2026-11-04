@@ -216,10 +216,11 @@ the step IDs keep their numbers.
 - [ ] **M9.1** Partial matches in the filter, the same in the TUI's filter
   bar and `tskmngr list` (shared in `query.py`) · `feature/partial_filter`.
   Split into:
-  - [ ] **M9.1a** Prefixes: `#tag` matches every tag that starts with it
+  - [x] **M9.1a** Prefixes: `#tag` matches every tag that starts with it
     (`#err` finds `errands`), and `status:` and `priority:` take the start of
     a value (`status:do` finds doing and done, `priority:hi` finds high); a
-    value nothing starts with is still an error · `feature/filter_prefixes`
+    value nothing starts with is still an error · `feature/filter_prefixes` ·
+    #TBD
   - [ ] **M9.1b** Typo-tolerant words: a word also matches a word in the
     title or notes that's close to it (`mlik` finds milk), using the
     standard library's `difflib`, no new dependency; how close counts must

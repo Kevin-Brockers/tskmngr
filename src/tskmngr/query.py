@@ -64,14 +64,16 @@ class TaskFilter:
 def parse_filter(text: str) -> tuple[TaskFilter, list[str]]:
     """Parse a filter string such as `milk #errands status:todo priority:high`.
 
-    Words are split on whitespace. `#tag` requires a tag, `status:<status>`
-    and `priority:<priority>` restrict to that value (repeat for any of
-    several), ignoring case. Every other word, including other `key:value`
-    words, is searched for in the title and notes.
+    Words are split on whitespace. `#tag` requires a tag that starts with
+    it, and `status:<status>` and `priority:<priority>` restrict to the values
+    that start with it, like `status:do` for doing and done (repeat them for
+    any of several), all ignoring case. Every other word, including other
+    `key:value` words, is searched for in the title and notes.
 
     Returns the filter and a message for each word that was left out of it:
-    an unknown or missing status or priority, or a bare `#`. The rest of the
-    filter still applies, so a half-typed word doesn't empty the list.
+    a status or priority nothing starts with, a missing one, or a bare `#`.
+    The rest of the filter still applies, so a half-typed word doesn't empty
+    the list.
     """
     statuses: list[Status] = []
     priorities: list[Priority] = []
@@ -103,14 +105,27 @@ def parse_filter(text: str) -> tuple[TaskFilter, list[str]]:
 def _parse_value[E: (Status, Priority)](
     enum: type[E], name: str, value: str, values: list[E], errors: list[str]
 ) -> None:
-    """Append `value` as an `enum` member to `values`, or a message to `errors`."""
-    try:
-        values.append(enum(value.lower()))
-    except ValueError:
-        choices = [member.value for member in enum]
-        options = f"{', '.join(choices[:-1])} or {choices[-1]}"
-        given = f"unknown {name} {value!r}" if value else f"{name}: needs a value"
-        errors.append(f"{given}; use {options}")
+    """Append the `enum` members `value` starts, or a message to `errors`."""
+    matches = values_starting_with(enum, value)
+    if matches:
+        values.extend(matches)
+        return
+    choices = [member.value for member in enum]
+    options = f"{', '.join(choices[:-1])} or {choices[-1]}"
+    given = f"unknown {name} {value!r}" if value else f"{name}: needs a value"
+    errors.append(f"{given}; use {options}")
+
+
+def values_starting_with[E: StrEnum](enum: type[E], prefix: str) -> list[E]:
+    """The members of `enum` whose value starts with `prefix`, ignoring case.
+
+    In the enum's order; none for an empty `prefix`, so a bare `status:` is
+    still an error.
+    """
+    prefix = prefix.lower()
+    if not prefix:
+        return []
+    return [member for member in enum if member.value.startswith(prefix)]
 
 
 def filter_tasks[T: (Task, TaskFile)](
@@ -124,9 +139,9 @@ def filter_tasks[T: (Task, TaskFile)](
     """Return the tasks that match every given criterion, in their order.
 
     An empty criterion matches all tasks. A task matches if its status is one
-    of `statuses`, its priority one of `priorities`, it has all of `tags` and
-    every word of `text` appears in its title or notes. Tags and text ignore
-    case.
+    of `statuses`, its priority one of `priorities`, each of `tags` starts one
+    of its tags (`err` for `errands`) and every word of `text` appears in its
+    title or notes. Tags and text ignore case.
     """
     wanted_tags = {tag.lower() for tag in tags}
     words = text.casefold().split()
@@ -216,7 +231,7 @@ def _matches(
         return False
     if priorities and task.priority not in priorities:
         return False
-    if not tags.issubset(task.tags):
+    if not all(any(own.startswith(tag) for own in task.tags) for tag in tags):
         return False
     haystack = f"{task.title}\n{task.notes}".casefold()
     return all(word in haystack for word in words)

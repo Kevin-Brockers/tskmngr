@@ -626,6 +626,25 @@ async def test_filter_bar_is_hidden_until_slash_and_the_table_has_focus(
 
 
 @pytest.mark.asyncio
+async def test_the_filter_bar_takes_the_start_of_tags_and_values(
+    tmp_path: Path,
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("slash", *"#err")
+        assert shown_ids(app) == ["AAAA", "CCCC"]
+
+        await pilot.press(*" status:d")
+        assert shown_ids(app) == ["CCCC"]
+        assert filter_error(app) is None
+
+        await pilot.press("ctrl+u", *"priority:hi")
+        assert shown_ids(app) == ["BBBB"]
+
+
+@pytest.mark.asyncio
 async def test_typing_in_the_filter_bar_filters_as_you_type(tmp_path: Path) -> None:
     save_filter_tasks(tmp_path)
 

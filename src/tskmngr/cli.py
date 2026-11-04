@@ -4,9 +4,10 @@ import argparse
 import json
 import os
 import sys
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import replace
 from datetime import UTC, date, datetime
+from enum import StrEnum
 from pathlib import Path
 
 from tskmngr.app import TskmngrApp
@@ -32,7 +33,13 @@ from tskmngr.models import (
     parse_due,
     parse_repeat,
 )
-from tskmngr.query import SortKey, filter_tasks, match_id_prefix, sort_tasks
+from tskmngr.query import (
+    SortKey,
+    filter_tasks,
+    match_id_prefix,
+    sort_tasks,
+    values_starting_with,
+)
 from tskmngr.recurrence import RecurrenceError, complete
 from tskmngr.storage import (
     ENV_VAR,
@@ -159,19 +166,24 @@ def _parser() -> argparse.ArgumentParser:
         "-s",
         "--status",
         action="append",
-        choices=[status.value for status in Status],
+        type=_prefix_of(Status, "status"),
+        metavar=_choices_metavar(Status),
         dest="statuses",
-        help="only tasks with this status; repeat for more (default: todo and doing)",
+        help=(
+            "only tasks with this status, or one starting with it; repeat for "
+            "more (default: todo and doing)"
+        ),
     )
     statuses.add_argument("-a", "--all", action="store_true", help="include done tasks")
     list_.add_argument(
         "-p",
         "--priority",
         action="append",
-        choices=[priority.value for priority in Priority],
+        type=_prefix_of(Priority, "priority"),
+        metavar=_choices_metavar(Priority),
         default=[],
         dest="priorities",
-        help="only tasks with this priority; repeat for more",
+        help="only tasks with this priority, or one starting with it; repeat for more",
     )
     list_.add_argument(
         "-t",
@@ -345,13 +357,14 @@ def _list(args: argparse.Namespace) -> int:
     for bad in result.bad_files:
         print(f"tskmngr: warning: can't load {bad.path}: {bad.error}", file=sys.stderr)
     if args.statuses:
-        statuses = [Status(status) for status in args.statuses]
+        # Each `-s` gave every status it starts.
+        statuses = [status for given in args.statuses for status in given]
     else:
         statuses = [] if args.all else list(OPEN_STATUSES)
     tasks = filter_tasks(
         [source.task for source in result.tasks],
         statuses=statuses,
-        priorities=[Priority(priority) for priority in args.priorities],
+        priorities=[priority for given in args.priorities for priority in given],
         tags=args.tags,
         text=" ".join(args.words),
     )
@@ -661,6 +674,28 @@ def _load(directory: Path) -> LoadResult:
 
 def _reason(error: OSError) -> str:
     return error.strerror or str(error)
+
+
+def _prefix_of[E: (Status, Priority)](
+    enum: type[E], name: str
+) -> Callable[[str], list[E]]:
+    """An argparse type for `enum`: the members a value starts, ignoring case."""
+
+    def parse(value: str) -> list[E]:
+        matches = values_starting_with(enum, value)
+        if not matches:
+            choices = ", ".join(member.value for member in enum)
+            raise argparse.ArgumentTypeError(
+                f"no {name} starts with {value!r} (choose from {choices})"
+            )
+        return matches
+
+    return parse
+
+
+def _choices_metavar(enum: type[StrEnum]) -> str:
+    """The choices as argparse shows them, like `{todo,doing,done}`."""
+    return "{" + ",".join(member.value for member in enum) + "}"
 
 
 def _repeat_rule(value: str) -> Repeat:
