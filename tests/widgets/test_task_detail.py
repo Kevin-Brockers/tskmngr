@@ -136,6 +136,7 @@ def test_bindings_have_stable_ids() -> None:
         "task_list.reverse_sort",
         "task_list.filter",
         "task_list.clear_filter",
+        "task_list.toggle_trash",
     }
     assert detail_ids == {
         "task_detail.close",

@@ -308,3 +308,18 @@ def test_unusable_keybindings_are_a_config_error(
 
     assert excinfo.value.path == tmp_path / "config.json"
     assert excinfo.value.message.startswith(start)
+
+
+@pytest.mark.asyncio
+async def test_check_tasks_dir_also_sees_changes_in_the_trash(tmp_path: Path) -> None:
+    trash = tmp_path / TRASH
+    trash.mkdir()
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test():
+        assert not app.check_tasks_dir()
+
+        (trash / "AAAA.2026-10-30T12-00-05Z.md").write_text("---\ntitle: A\n---\n")
+
+        assert app.check_tasks_dir()
+        assert not app.check_tasks_dir()

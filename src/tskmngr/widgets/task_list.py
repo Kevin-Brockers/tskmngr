@@ -17,6 +17,10 @@ cursor on the same task.
 tag, `status:` and `priority:` restrict to a value. Enter goes back to the
 table and keeps the filter; Escape clears it.
 
+`t` shows or hides the deleted tasks view below the table (see
+`tskmngr.widgets.trash_view`), which takes the bottom quarter of the screen; it
+starts shown, and is reloaded with the list.
+
 `S` sorts by the next key (due → priority → created → updated → due), each in
 its default direction (see `query.sort_tasks`), and `R` reverses the order. The
 header of the sorted column gets ▲ when the smallest value is at the top
@@ -41,7 +45,7 @@ from textual.binding import Binding, BindingType
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
-from tskmngr.display import DEFAULT_COLUMNS, Column, format_timestamp
+from tskmngr.display import DEFAULT_COLUMNS, Column, task_cell
 from tskmngr.models import Task, next_status
 from tskmngr.query import SortKey, TaskFilter, parse_filter, sort_tasks
 from tskmngr.recurrence import RecurrenceError
@@ -52,7 +56,6 @@ from tskmngr.storage import (
     load_tasks,
     task_path,
 )
-from tskmngr.subtasks import parse_subtasks, progress
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
 from tskmngr.widgets.external_editor import edit_in_editor
@@ -60,6 +63,7 @@ from tskmngr.widgets.saving import notify_next, save_task_and_next
 from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_form import TaskFormScreen
 from tskmngr.widgets.tasks_changed import TasksChanged
+from tskmngr.widgets.trash_view import TrashView
 
 # The order `S` steps through.
 SORT_KEYS = (SortKey.DUE, SortKey.PRIORITY, SortKey.CREATED, SortKey.UPDATED)
@@ -135,32 +139,8 @@ def task_row(
     total, like `[1/3]`, if it has any, and then its tags as `#tag`.
     """
     return tuple(
-        Text(_cell(task, column)) for column in shown_columns(sort_key, columns)
+        Text(task_cell(task, column)) for column in shown_columns(sort_key, columns)
     )
-
-
-def _cell(task: Task, column: Column) -> str:
-    match column:
-        case Column.ID:
-            return task.id
-        case Column.STATUS:
-            return task.status.value
-        case Column.PRIORITY:
-            return task.priority.value
-        case Column.DUE:
-            return task.due.isoformat() if task.due else ""
-        case Column.CREATED:
-            return format_timestamp(task.created)
-        case Column.UPDATED:
-            return format_timestamp(task.updated)
-        case Column.TITLE:
-            done = progress(parse_subtasks(task.notes))
-            title = [
-                task.title,
-                *(["↻"] if task.repeat else []),
-                *([f"[{done}]"] if done else []),
-            ]
-            return " ".join([*title, *(f"#{tag}" for tag in task.tags)])
 
 
 def bad_files_warning(directory: Path, bad_files: Sequence[BadFile]) -> Text:
@@ -187,7 +167,9 @@ class TaskListScreen(Screen):
 
     `sort_key` and `reverse` set the starting sort (the config file's). It can
     be changed with `S` and `R`; that lasts until the app exits. `columns` are
-    the table's columns, in order (see `shown_columns`).
+    the table's columns, in order (see `shown_columns`). `show_trash` is
+    whether the deleted tasks view starts shown; `t` toggles it until the app
+    exits.
     """
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -202,6 +184,7 @@ class TaskListScreen(Screen):
         Binding("R", "reverse_sort", "Reverse", id="task_list.reverse_sort"),
         Binding("slash", "filter", "Filter", id="task_list.filter"),
         Binding("escape", "clear_filter", "Clear", id="task_list.clear_filter"),
+        Binding("t", "toggle_trash", "Deleted", id="task_list.toggle_trash"),
     ]
 
     # Not the first focusable widget, the filter bar, which starts hidden.
@@ -249,6 +232,13 @@ class TaskListScreen(Screen):
     TaskListScreen #no-tasks.-shown {
         display: block;
     }
+    TaskListScreen #trash-view {
+        /* A quarter of the screen's height, header and footer included. */
+        height: 25vh;
+    }
+    TaskListScreen #trash-view.-hidden {
+        display: none;
+    }
     """
 
     def __init__(
@@ -258,6 +248,7 @@ class TaskListScreen(Screen):
         sort_key: SortKey = SortKey.DUE,
         reverse: bool = False,
         columns: Sequence[Column] = DEFAULT_COLUMNS,
+        show_trash: bool = True,
     ) -> None:
         super().__init__()
         self.directory = directory
@@ -271,6 +262,7 @@ class TaskListScreen(Screen):
         self.sort_key = sort_key
         self.sort_reverse = reverse
         self.columns = tuple(columns)
+        self.show_trash = show_trash
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -286,6 +278,9 @@ class TaskListScreen(Screen):
         table.add_columns(*self._column_labels())
         yield table
         yield Static(Text("No tasks."), id="no-tasks")
+        trash = TrashView(self.directory, id="trash-view")
+        trash.set_class(not self.show_trash, "-hidden")
+        yield trash
         yield Footer()
 
     def on_mount(self) -> None:
@@ -293,7 +288,10 @@ class TaskListScreen(Screen):
         self.load()
 
     def load(self) -> None:
-        """(Re)load the tasks from disk and show them."""
+        """(Re)load the tasks, and the deleted ones, from disk and show them."""
+        if self.is_mounted:
+            # On mount the view loads itself.
+            self.query_one(TrashView).load()
         warning = self.query_one("#load-warning", Static)
         try:
             result = load_tasks(self.directory)
@@ -397,6 +395,11 @@ class TaskListScreen(Screen):
         self._show_tasks()
         # Stay on the task under the cursor if it still matches, else the top.
         self._move_cursor(current.task.id if current else None, 0)
+
+    def action_toggle_trash(self) -> None:
+        """Show or hide the deleted tasks view."""
+        self.show_trash = not self.show_trash
+        self.query_one(TrashView).set_class(not self.show_trash, "-hidden")
 
     def action_cycle_sort(self) -> None:
         """Sort by the next key in `SORT_KEYS`, in its default direction."""

@@ -133,6 +133,14 @@ def scan_tasks_dir(directory: Path) -> dict[str, FileStamp]:
     return stamps
 
 
+def scan_trash(directory: Path) -> dict[str, FileStamp]:
+    """The modification time and size of each file `load_trash` would list.
+
+    Like `scan_tasks_dir`, for `directory`'s `.trash/`.
+    """
+    return scan_tasks_dir(directory / TRASH)
+
+
 def load_tasks(directory: Path) -> LoadResult:
     """Load every task file in `directory`, sorted by filename.
 

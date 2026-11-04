@@ -8,7 +8,7 @@ from textual.binding import Binding, BindingType
 from textual.screen import Screen
 
 from tskmngr.config import Config, ConfigError
-from tskmngr.storage import FileStamp, scan_tasks_dir, tasks_dir
+from tskmngr.storage import TRASH, FileStamp, scan_tasks_dir, scan_trash, tasks_dir
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
 from tskmngr.widgets.confirm_discard import ConfirmDiscardScreen
 from tskmngr.widgets.task_detail import TaskDetailScreen
@@ -93,8 +93,8 @@ class TskmngrApp(App):
     def check_tasks_dir(self) -> bool:
         """Send `TasksChanged` to every screen if task files changed on disk.
 
-        Compares the time and size of each task file with the last check.
-        Returns whether anything changed. The app's own saves count too; the
+        Compares the time and size of each task file, and each file in
+        `.trash/`, with the last check. Returns whether anything changed. The app's own saves count too; the
         screens reload them like any other change.
         """
         stamps = self._scan()
@@ -107,7 +107,11 @@ class TskmngrApp(App):
 
     def _scan(self) -> dict[str, FileStamp] | None:
         try:
-            return scan_tasks_dir(self.directory)
+            stamps = scan_tasks_dir(self.directory)
+            # Named apart from task files, which can't be in a folder.
+            for name, stamp in scan_trash(self.directory).items():
+                stamps[f"{TRASH}/{name}"] = stamp
+            return stamps
         except OSError:
             # The list shows the error when it reloads; check again later.
             return None
