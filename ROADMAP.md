@@ -199,7 +199,7 @@ moving its file back by hand.
   when files in `.trash/` change on disk; `t` (binding id
   `task_list.toggle_trash`, remappable through `keybindings`) shows or hides
   it until the app exits, and it starts shown · `feature/tui_trash_view` ·
-  #TBD
+  [#55](https://github.com/Kevin-Brockers/tskmngr/pull/55)
 - [ ] **M8.3** Config keys `trash_columns`, the view's columns in display
   order from the `columns` names plus `deleted` (the delete time), checked
   like `columns`, default `["title", "deleted", "id"]`; and `show_trash`,
