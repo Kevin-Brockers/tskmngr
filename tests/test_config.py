@@ -1,3 +1,5 @@
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -6,15 +8,20 @@ import pytest
 
 from tskmngr.config import (
     DEFAULT_POLL_INTERVAL,
+    DEFAULT_SETTINGS,
+    DEFAULT_THEME,
     Config,
     ConfigError,
     config_path,
+    create_default_config,
+    default_config_text,
     load_config,
+    old_config_path,
     parse_config,
 )
 from tskmngr.query import SortKey
 
-PATH = Path("/home/me/.config/tskmngr/config.json")
+PATH = Path("/home/me/.tskmngr/config.json")
 
 SORT = "sort: expected one of due, priority, created, updated, got "
 POLL = "poll_interval: expected a number of seconds, 0 or more, got "
@@ -33,27 +40,148 @@ def error_message(text: str) -> str:
 # Where the file is
 
 
-def test_config_path_uses_env_var(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+def test_config_path_is_in_dot_tskmngr(user_home: Path) -> None:
+    assert config_path() == user_home / ".tskmngr" / "config.json"
+
+
+def test_tskmngr_config_is_no_longer_read(
+    user_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TSKMNGR_CONFIG", str(tmp_path / "my.json"))
-    assert config_path() == tmp_path / "my.json"
+    assert config_path() == user_home / ".tskmngr" / "config.json"
 
 
-def test_config_path_expands_home(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TSKMNGR_CONFIG", "~/my.json")
-    assert config_path() == Path.home() / "my.json"
+def test_old_config_path_is_in_dot_config(user_home: Path) -> None:
+    assert old_config_path() == user_home / ".config" / "tskmngr" / "config.json"
 
 
-@pytest.mark.parametrize("value", [None, ""])
-def test_config_path_defaults_to_dot_config(
-    monkeypatch: pytest.MonkeyPatch, value: str | None
+# Writing the default file
+
+
+def test_the_default_file_has_every_setting_but_tasks_dir() -> None:
+    assert json.loads(default_config_text()) == DEFAULT_SETTINGS
+    assert set(DEFAULT_SETTINGS) == {
+        "sort",
+        "reverse",
+        "theme",
+        "poll_interval",
+        "keybindings",
+    }
+
+
+def test_the_default_file_reads_as_the_defaults() -> None:
+    config = parse_config(default_config_text(), PATH)
+
+    assert config == Config(path=PATH, theme=DEFAULT_THEME)
+    assert config.tasks_dir is None
+    assert config.poll_interval == DEFAULT_POLL_INTERVAL
+
+
+def test_the_default_file_is_indented_json() -> None:
+    assert default_config_text() == (
+        "{\n"
+        '  "sort": "due",\n'
+        '  "reverse": false,\n'
+        '  "theme": "textual-dark",\n'
+        '  "poll_interval": 2,\n'
+        '  "keybindings": {}\n'
+        "}\n"
+    )
+
+
+def test_create_default_config_writes_the_file_and_its_folders(
+    tmp_path: Path,
 ) -> None:
-    if value is None:
-        monkeypatch.delenv("TSKMNGR_CONFIG", raising=False)
-    else:
-        monkeypatch.setenv("TSKMNGR_CONFIG", value)
-    assert config_path() == Path.home() / ".config" / "tskmngr" / "config.json"
+    path = tmp_path / ".tskmngr" / "config.json"
+
+    assert create_default_config(path) is True
+
+    assert path.read_text(encoding="utf-8") == default_config_text()
+    assert list(path.parent.iterdir()) == [path]
+
+
+def test_create_default_config_never_overwrites_a_file(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.write_text('{"sort": "priority"}', encoding="utf-8")
+
+    assert create_default_config(path) is False
+
+    assert path.read_text(encoding="utf-8") == '{"sort": "priority"}'
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_create_default_config_leaves_a_folder_in_its_place(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.mkdir()
+
+    assert create_default_config(path) is False
+
+    assert path.is_dir()
+
+
+def test_create_default_config_keeps_a_file_made_meanwhile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "config.json"
+    real_link = os.link
+
+    def made_meanwhile(source: Path, target: Path) -> None:
+        path.write_text("{}", encoding="utf-8")
+        real_link(source, target)
+
+    monkeypatch.setattr(os, "link", made_meanwhile)
+
+    assert create_default_config(path) is False
+
+    assert path.read_text(encoding="utf-8") == "{}"
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_create_default_config_reports_a_folder_it_cant_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "config.json"
+
+    def unwritable(*args: object, **kwargs: object) -> int:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(os, "open", unwritable)
+
+    with pytest.raises(ConfigError) as excinfo:
+        create_default_config(path)
+
+    assert str(excinfo.value) == f"{path}: can't be created: Permission denied"
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_create_default_config_cleans_up_when_linking_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "config.json"
+
+    def no_links(source: Path, target: Path) -> None:
+        raise OSError(1, "Operation not permitted")
+
+    monkeypatch.setattr(os, "link", no_links)
+
+    with pytest.raises(ConfigError) as excinfo:
+        create_default_config(path)
+
+    assert excinfo.value.message == "can't be created: Operation not permitted"
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_create_default_config_reports_a_file_in_place_of_its_folder(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".tskmngr").write_text("", encoding="utf-8")
+    path = tmp_path / ".tskmngr" / "config.json"
+
+    with pytest.raises(ConfigError) as excinfo:
+        create_default_config(path)
+
+    assert excinfo.value.path == path
+    assert excinfo.value.message.startswith("can't be created: ")
 
 
 # Reading it
@@ -70,12 +198,10 @@ def test_missing_file_gives_the_defaults(tmp_path: Path) -> None:
     assert config.poll_interval == DEFAULT_POLL_INTERVAL == 2.0
 
 
-def test_load_reads_the_file_at_config_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    path = tmp_path / "config.json"
+def test_load_reads_the_file_at_config_path() -> None:
+    path = config_path()
+    path.parent.mkdir()
     path.write_text('{"sort": "updated"}', encoding="utf-8")
-    monkeypatch.setenv("TSKMNGR_CONFIG", str(path))
 
     assert load_config() == Config(path=path, sort=SortKey.UPDATED)
 

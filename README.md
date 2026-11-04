@@ -260,12 +260,20 @@ once the day fits.
 ### Where the files live
 
 Tasks are stored in `~/.local/share/tskmngr/tasks/`. To use another directory,
-set `tasks_dir` in the [config file](#config-file), or set `TSKMNGR_DIR`,
-which comes first:
+set `tasks_dir` in the [config file](#config-file), or set `TSKMNGR_DIR`:
 
 ```bash
 export TSKMNGR_DIR=~/tasks
 ```
+
+tskmngr picks the first of these that is set:
+
+1. `tasks_dir` in the config file
+2. `TSKMNGR_DIR`
+3. `~/.local/share/tskmngr/tasks/`
+
+The config file tskmngr writes on first run leaves `tasks_dir` out, so
+`TSKMNGR_DIR` works until you add it.
 
 The directory is created when the first task is saved.
 
@@ -278,9 +286,25 @@ as `<id>.md`. tskmngr never empties `.trash/`.
 
 ## Config file
 
-Settings go in `~/.config/tskmngr/config.json`, a JSON object; set
-`TSKMNGR_CONFIG` to use another file. Every setting is optional, and without
-the file tskmngr uses the defaults. tskmngr never creates or changes it.
+Settings go in `~/.tskmngr/config.json`, a JSON object. If the file doesn't
+exist, tskmngr creates it the first time it runs (any command, or the TUI),
+with every setting except `tasks_dir` at its default:
+
+```json
+{
+  "sort": "due",
+  "reverse": false,
+  "theme": "textual-dark",
+  "poll_interval": 2,
+  "keybindings": {}
+}
+```
+
+After that tskmngr only reads the file and never changes it; edit it to
+change your settings. Every setting is optional, so you can also remove the
+ones you don't need. If the file can't be created, tskmngr says why and exits.
+
+A file with every setting looks like this:
 
 ```json
 {
@@ -293,9 +317,14 @@ the file tskmngr uses the defaults. tskmngr never creates or changes it.
 }
 ```
 
+Earlier versions read `~/.config/tskmngr/config.json`, or the file
+`TSKMNGR_CONFIG` pointed to. Neither is read any more. While the old file
+exists, tskmngr warns about it on every run: move your settings to
+`~/.tskmngr/config.json`, then delete the old file to stop the warning.
+
 | Setting | Value | Default |
 | ------- | ----- | ------- |
-| `tasks_dir` | The tasks directory; `~` is your home, and a relative path is read from the config file's folder. `TSKMNGR_DIR` comes first | `~/.local/share/tskmngr/tasks` |
+| `tasks_dir` | The tasks directory; `~` is your home, and a relative path is read from the config file's folder (`~/.tskmngr`). Comes before `TSKMNGR_DIR` | `TSKMNGR_DIR`, else `~/.local/share/tskmngr/tasks` |
 | `sort` | How the TUI list and `tskmngr list` are sorted: `due`, `priority`, `created` or `updated` | `due` |
 | `reverse` | `true` reverses that order | `false` |
 | `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |

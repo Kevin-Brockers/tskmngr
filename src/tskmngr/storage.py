@@ -62,15 +62,15 @@ class LoadResult:
 
 
 def tasks_dir(configured: Path | None = None) -> Path:
-    """The tasks directory: `TSKMNGR_DIR` if set, else `configured`, else the default.
+    """The tasks directory: `configured`, else `TSKMNGR_DIR` if set, else the default.
 
     `configured` is the config file's `tasks_dir`, if it has one.
     """
+    if configured is not None:
+        return configured
     value = os.environ.get(ENV_VAR)
     if value:
         return Path(value).expanduser()
-    if configured is not None:
-        return configured
     return Path.home() / DEFAULT_DIR
 
 

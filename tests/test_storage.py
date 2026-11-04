@@ -89,7 +89,7 @@ def test_tasks_dir_default(monkeypatch: pytest.MonkeyPatch, value: str | None) -
     assert tasks_dir() == Path.home() / ".local" / "share" / "tskmngr" / "tasks"
 
 
-def test_tasks_dir_from_the_config_file_comes_after_the_env_var(
+def test_tasks_dir_from_the_config_file_comes_before_the_env_var(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configured = tmp_path / "configured"
@@ -97,7 +97,8 @@ def test_tasks_dir_from_the_config_file_comes_after_the_env_var(
     assert tasks_dir(configured) == configured
 
     monkeypatch.setenv("TSKMNGR_DIR", str(tmp_path / "env"))
-    assert tasks_dir(configured) == tmp_path / "env"
+    assert tasks_dir(configured) == configured
+    assert tasks_dir() == tmp_path / "env"
 
 
 # Loading

@@ -173,6 +173,11 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36) - The config file is JSON (`config.json`, read with the standard
   library's `json`) instead of the planned TOML, in `ROADMAP.md` and
   `AGENTS.md`; `config` joins the modules that don't import Textual
+- #TBD - The config file is `~/.tskmngr/config.json`, and tskmngr writes it
+  with the default settings (all but `tasks_dir`) on first run if it doesn't
+  exist, never overwriting one; `~/.config/tskmngr/config.json` and
+  `TSKMNGR_CONFIG` are no longer read, with a warning on stderr while the old
+  file exists. The config's `tasks_dir` now comes before `TSKMNGR_DIR`
 
 ### Fixed
 

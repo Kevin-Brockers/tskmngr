@@ -1,8 +1,9 @@
 """The config file: a JSON object of settings, all optional.
 
-It lives at `~/.config/tskmngr/config.json`, or wherever `TSKMNGR_CONFIG`
-points. A missing file means the defaults; the app never creates or writes
-it. Anything wrong with the file (invalid JSON, an unknown key, a value of the
+It lives at `~/.tskmngr/config.json`. If there's no file there, the CLI and
+the TUI first write `DEFAULT_SETTINGS` to it (`create_default_config`); an
+existing file is never changed. A missing file reads as the defaults.
+Anything wrong with the file (invalid JSON, an unknown key, a value of the
 wrong type) is a `ConfigError`, so nothing runs with a half-read config.
 
     {
@@ -15,26 +16,43 @@ wrong type) is a `ConfigError`, so nothing runs with a half-read config.
     }
 
 `tasks_dir` may start with `~`; a relative path is read from the config
-file's folder. `TSKMNGR_DIR` still comes first (see `storage.tasks_dir`).
+file's folder. It comes before `TSKMNGR_DIR` (see `storage.tasks_dir`).
 `keybindings` maps binding ids to keys, as Textual's keymap does. The theme
 and the binding ids are checked by the TUI, which knows the theme names and
 the bindings.
+
+The old file at `~/.config/tskmngr/config.json` (`OLD_PATH`) isn't read.
 """
 
 import json
 import math
 import os
+import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from tskmngr.query import SortKey
 
-ENV_VAR = "TSKMNGR_CONFIG"
-DEFAULT_PATH = Path(".config", "tskmngr", "config.json")
+DEFAULT_PATH = Path(".tskmngr", "config.json")
+# Where the config file was before; only looked for to warn that it's unused.
+OLD_PATH = Path(".config", "tskmngr", "config.json")
 
 # Seconds between two looks at the tasks directory in the TUI; 0 turns it off.
 DEFAULT_POLL_INTERVAL = 2.0
+# Textual's default theme, which the TUI uses when the config has none.
+DEFAULT_THEME = "textual-dark"
+
+# What a new config file holds: every setting but `tasks_dir`, at its default,
+# so the file shows what can be set. Without `tasks_dir`, `TSKMNGR_DIR` or the
+# default tasks directory is used.
+DEFAULT_SETTINGS: dict[str, object] = {
+    "sort": SortKey.DUE.value,
+    "reverse": False,
+    "theme": DEFAULT_THEME,
+    "poll_interval": 2,
+    "keybindings": {},
+}
 
 
 class ConfigError(Exception):
@@ -64,18 +82,60 @@ class Config:
 
 
 def config_path() -> Path:
-    """The config file: `TSKMNGR_CONFIG` if set, else the default."""
-    value = os.environ.get(ENV_VAR)
-    if value:
-        return Path(value).expanduser()
+    """The config file, `~/.tskmngr/config.json`."""
     return Path.home() / DEFAULT_PATH
+
+
+def old_config_path() -> Path:
+    """Where the config file was before, `~/.config/tskmngr/config.json`."""
+    return Path.home() / OLD_PATH
+
+
+def default_config_text() -> str:
+    """The text of a new config file: `DEFAULT_SETTINGS` as indented JSON."""
+    return json.dumps(DEFAULT_SETTINGS, indent=2) + "\n"
+
+
+def create_default_config(path: Path) -> bool:
+    """Write the default config to `path` if nothing is there yet.
+
+    Returns whether it was written. An existing file (or anything else at
+    `path`) is never overwritten. The file appears whole or not at all: it's
+    written to a hidden temp file, then linked to `path`, which fails if
+    `path` came into being meanwhile. Missing folders are created. Raises
+    `ConfigError` if the file can't be written.
+    """
+    if os.path.lexists(path):
+        return False
+    temp = path.with_name(f".{path.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # 0o666 lets the umask decide the file's permissions, like open() does.
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as file:
+                file.write(default_config_text())
+                file.flush()
+                os.fsync(file.fileno())
+            try:
+                os.link(temp, path)
+            except FileExistsError:
+                # Made by someone else since the check above: leave it be.
+                return False
+        finally:
+            temp.unlink(missing_ok=True)
+    except OSError as error:
+        reason = error.strerror or str(error)
+        raise ConfigError(path, f"can't be created: {reason}") from error
+    return True
 
 
 def load_config(path: Path | None = None) -> Config:
     """Read the config file at `path` (default: `config_path()`).
 
-    A missing file gives the defaults. Raises `ConfigError` if the file can't
-    be read or isn't a valid config.
+    A missing file gives the defaults (`create_default_config` writes one
+    first). Raises `ConfigError` if the file can't be read or isn't a valid
+    config.
     """
     path = path if path is not None else config_path()
     try:
