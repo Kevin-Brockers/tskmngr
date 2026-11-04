@@ -2,7 +2,7 @@
 
 import argparse
 import sys
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -12,22 +12,31 @@ from tskmngr.config import Config, ConfigError, load_config
 from tskmngr.display import task_fields
 from tskmngr.models import (
     Priority,
+    Repeat,
     Status,
     Task,
     TaskValidationError,
     new_task,
     parse_due,
+    parse_repeat,
 )
 from tskmngr.query import SortKey, filter_tasks, match_id_prefix, sort_tasks
+from tskmngr.recurrence import RecurrenceError, complete
 from tskmngr.storage import (
     ConflictError,
     LoadResult,
     delete_task,
     load_tasks,
+    save_completed,
     save_task,
     tasks_dir,
 )
 from tskmngr.taskfile import TaskFile
+
+REPEAT_HELP = (
+    "repeat rule: daily, weekly, monthly, yearly or every N days, weeks, months "
+    "or years (quote it if it has spaces)"
+)
 
 # Statuses `tskmngr list` shows unless told otherwise.
 OPEN_STATUSES = (Status.TODO, Status.DOING)
@@ -96,6 +105,7 @@ def _parser() -> argparse.ArgumentParser:
     add.add_argument(
         "-d", "--due", type=_due_date, metavar="YYYY-MM-DD", help="due date"
     )
+    add.add_argument("--repeat", type=_repeat_rule, metavar="RULE", help=REPEAT_HELP)
     add.add_argument(
         "-t",
         "--tag",
@@ -180,6 +190,13 @@ def _parser() -> argparse.ArgumentParser:
         "-d", "--due", type=_due_date, metavar="YYYY-MM-DD", help="new due date"
     )
     due.add_argument("--no-due", action="store_true", help="remove the due date")
+    repeat = edit.add_mutually_exclusive_group()
+    repeat.add_argument(
+        "--repeat", type=_repeat_rule, metavar="RULE", help=f"new {REPEAT_HELP}"
+    )
+    repeat.add_argument(
+        "--no-repeat", action="store_true", help="stop the task from repeating"
+    )
     edit.add_argument(
         "-t",
         "--tag",
@@ -204,7 +221,12 @@ def _parser() -> argparse.ArgumentParser:
     edit.set_defaults(handler=_edit, parser=edit)
 
     done = commands.add_parser(
-        "done", help="mark a task as done", description="Mark a task as done."
+        "done",
+        help="mark a task as done",
+        description=(
+            "Mark a task as done. If it repeats, its next occurrence is added "
+            "as a new task and its ID printed."
+        ),
     )
     _add_id_argument(done)
     done.set_defaults(handler=_done, parser=done)
@@ -240,6 +262,7 @@ def _add(args: argparse.Namespace) -> int:
             existing_ids=existing_ids,
             priority=Priority(args.priority),
             due=args.due,
+            repeat=args.repeat,
             tags=args.tags,
         )
     except TaskValidationError as error:
@@ -303,6 +326,8 @@ def _edit(args: argparse.Namespace) -> int:
         changes["priority"] = Priority(args.priority)
     if args.due is not None or args.no_due:
         changes["due"] = args.due
+    if args.repeat is not None or args.no_repeat:
+        changes["repeat"] = args.repeat
     tag_changes = args.tags or args.untags or args.clear_tags
     if not changes and not tag_changes:
         args.parser.error("nothing to change; give at least one option")
@@ -312,8 +337,12 @@ def _edit(args: argparse.Namespace) -> int:
         args.parser.error(f"can't both add and remove tag {both[0]!r}")
 
     directory = args.directory
-    source = _find(args, _load(directory))
+    result = _load(directory)
+    source = _find(args, result)
     task = source.task
+    if changes.get("repeat", task.repeat) != task.repeat:
+        # The day of the month it kept belongs to the old rule.
+        changes["repeat_from"] = None
     if tag_changes:
         tags = [] if args.clear_tags else list(task.tags)
         for tag in args.untags:
@@ -328,14 +357,16 @@ def _edit(args: argparse.Namespace) -> int:
         edited = replace(task, **changes)
     except TaskValidationError as error:
         args.parser.error(str(error))
-    _save_changed(directory, source, edited)
+    _save_changed(directory, source, edited, result.ids)
     return 0
 
 
 def _done(args: argparse.Namespace) -> int:
     directory = args.directory
-    source = _find(args, _load(directory))
-    _save_changed(directory, source, replace(source.task, status=Status.DONE))
+    result = _load(directory)
+    source = _find(args, result)
+    edited = replace(source.task, status=Status.DONE)
+    _save_changed(directory, source, edited, result.ids)
     return 0
 
 
@@ -401,19 +432,38 @@ def _find(args: argparse.Namespace, result: LoadResult) -> TaskFile:
     return next(source for source in result.tasks if source.task.id == task_id)
 
 
-def _save_changed(directory: Path, source: TaskFile, task: Task) -> None:
-    """Save `task` with `updated` set to now, unless it's the same as `source`'s."""
+def _save_changed(
+    directory: Path, source: TaskFile, task: Task, existing_ids: Collection[str]
+) -> None:
+    """Save `task` with `updated` set to now, unless it's the same as `source`'s.
+
+    A repeating task that's marked done gets its next occurrence, whose ID and
+    due date are printed.
+    """
     if task == source.task:
         return
-    task = replace(task, updated=datetime.now(UTC).replace(microsecond=0))
+    now = datetime.now(UTC).replace(microsecond=0)
+    following = None
+    if task.status is Status.DONE and source.task.status is not Status.DONE:
+        try:
+            task, following = complete(
+                task, existing_ids=existing_ids, now=now, today=date.today()
+            )
+        except RecurrenceError as error:
+            raise CommandError(f"can't add the next occurrence: {error}") from error
+    else:
+        task = replace(task, updated=now)
     try:
-        save_task(directory, task, source)
+        save_completed(directory, task, source, following)
     except ConflictError as error:
         raise CommandError(f"can't save the task: {error}") from error
     except OSError as error:
         raise CommandError(
             f"can't save the task in {directory}: {_reason(error)}"
         ) from error
+    if following is not None:
+        due = following.due.isoformat() if following.due else "-"
+        print(f"Next occurrence: {following.id}, due {due}")
 
 
 def format_details(task: Task) -> list[str]:
@@ -462,6 +512,14 @@ def _load(directory: Path) -> LoadResult:
 
 def _reason(error: OSError) -> str:
     return error.strerror or str(error)
+
+
+def _repeat_rule(value: str) -> Repeat:
+    """Parse a repeat rule like `weekly` or `every 2 weeks`, for argparse."""
+    try:
+        return parse_repeat(value)
+    except TaskValidationError as error:
+        raise argparse.ArgumentTypeError(error.message) from None
 
 
 def _due_date(value: str) -> date:

@@ -87,6 +87,12 @@ def progress(subtasks: Sequence[Subtask]) -> str:
     return f"{sum(subtask.done for subtask in subtasks)}/{len(subtasks)}"
 
 
+def uncheck_all(notes: str) -> str:
+    """`notes` with every checked subtask unchecked, the rest as written."""
+    marks = {subtask.mark for subtask in parse_subtasks(notes) if subtask.done}
+    return "".join(" " if index in marks else char for index, char in enumerate(notes))
+
+
 def toggle_subtask(task: Task, index: int, now: datetime) -> Task:
     """`task` with subtask `index` checked or unchecked and `updated` set to `now`.
 

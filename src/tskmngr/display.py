@@ -21,11 +21,21 @@ def task_fields(task: Task) -> list[tuple[str, str]]:
         ("Status", task.status.value),
         ("Priority", task.priority.value),
         ("Due", task.due.isoformat() if task.due else "-"),
+        ("Repeat", format_repeat(task)),
         ("Tags", ", ".join(task.tags) or "-"),
         ("Subtasks", progress(parse_subtasks(task.notes)) or "-"),
         ("Created", format_timestamp(task.created)),
         ("Updated", format_timestamp(task.updated)),
     ]
+
+
+def format_repeat(task: Task) -> str:
+    """The repeat rule, with the date it counts from if it has one; else `-`."""
+    if task.repeat is None:
+        return "-"
+    if task.repeat_from is None:
+        return str(task.repeat)
+    return f"{task.repeat} from {task.repeat_from.isoformat()}"
 
 
 def format_timestamp(value: datetime) -> str:

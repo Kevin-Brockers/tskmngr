@@ -6,7 +6,7 @@ import pytest
 
 from tskmngr import cli, models
 from tskmngr.app import TskmngrApp
-from tskmngr.models import Priority, Status, Task
+from tskmngr.models import Priority, Repeat, Status, Task, Unit
 from tskmngr.storage import load_tasks, save_task
 from tskmngr.taskfile import TaskFile
 
@@ -510,6 +510,7 @@ def test_show_prints_all_fields_and_the_notes(
             "Status:    doing\n"
             "Priority:  high\n"
             "Due:       2026-11-01\n"
+            "Repeat:    -\n"
             "Tags:      errands, home\n"
             "Subtasks:  -\n"
             "Created:   2026-10-28T09:15:00Z\n"
@@ -531,7 +532,12 @@ def test_show_without_due_date_tags_or_notes(
     assert cli.main(["show", "6ACV1F0HMW"]) == 0
 
     lines = capsys.readouterr().out.splitlines()
-    assert lines[4:7] == ["Due:       -", "Tags:      -", "Subtasks:  -"]
+    assert lines[4:8] == [
+        "Due:       -",
+        "Repeat:    -",
+        "Tags:      -",
+        "Subtasks:  -",
+    ]
     assert lines[-1].startswith("Updated:")
 
 
@@ -694,13 +700,13 @@ def test_done_reports_a_conflict_and_keeps_the_other_change(
     # The file is edited by hand between loading and saving.
     add_task(tasks, "6ACV1F0HMW", "Buy milk")
     path = tasks / "6ACV1F0HMW.md"
-    original_save = cli.save_task
+    original_save = cli.save_completed
 
     def save_after_edit(*args: object) -> object:
         path.write_text("---\ntitle: Edited\n---\n", encoding="utf-8")
         return original_save(*args)
 
-    monkeypatch.setattr(cli, "save_task", save_after_edit)
+    monkeypatch.setattr(cli, "save_completed", save_after_edit)
 
     assert cli.main(["done", "6"]) == 1
 
@@ -879,7 +885,7 @@ def test_edit_reports_a_task_file_that_cant_be_saved(
     def unwritable(*args: object) -> object:
         raise PermissionError(13, "Permission denied")
 
-    monkeypatch.setattr(cli, "save_task", unwritable)
+    monkeypatch.setattr(cli, "save_completed", unwritable)
 
     assert cli.main(["edit", "6", "--title", "New"]) == 1
 
@@ -1264,3 +1270,241 @@ def test_help_works_with_a_broken_config_file(
 
     assert exit_info.value.code == 0
     assert "usage: tskmngr" in capsys.readouterr().out
+
+
+# repeat
+
+
+def by_id(directory: Path) -> dict[str, Task]:
+    return {source.task.id: source.task for source in load_all(directory)}
+
+
+def test_add_with_a_repeat_rule(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["add", "Water plants", "--repeat", "every 2 weeks"]) == 0
+
+    task_id = capsys.readouterr().out.strip()
+    assert by_id(tasks)[task_id].repeat == Repeat(2, Unit.WEEKS)
+    assert "repeat: every 2 weeks\n" in (tasks / f"{task_id}.md").read_text()
+
+
+def test_add_rejects_an_unknown_repeat_rule(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    err = usage_error(["add", "Water plants", "--repeat", "fortnightly"], capsys)
+
+    assert "argument --repeat: expected daily, weekly, monthly, yearly" in err
+    assert not tasks.exists()
+
+
+def test_edit_sets_and_changes_the_repeat_rule(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Water plants")
+
+    assert cli.main(["edit", "6", "--repeat", "weekly"]) == 0
+    assert by_id(tasks)["6ACV1F0HMW"].repeat == Repeat(1, Unit.WEEKS)
+
+    assert cli.main(["edit", "6", "--repeat", "Every 3 Days"]) == 0
+    assert by_id(tasks)["6ACV1F0HMW"].repeat == Repeat(3, Unit.DAYS)
+
+
+def test_edit_no_repeat_removes_the_rule_and_repeat_from(tasks: Path) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Pay rent",
+        repeat=Repeat(1, Unit.MONTHS),
+        repeat_from=date(2026, 1, 31),
+    )
+
+    assert cli.main(["edit", "6", "--no-repeat"]) == 0
+
+    text = (tasks / "6ACV1F0HMW.md").read_text()
+    assert "repeat" not in text
+
+
+def test_edit_changing_the_rule_drops_repeat_from(tasks: Path) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Pay rent",
+        repeat=Repeat(1, Unit.MONTHS),
+        repeat_from=date(2026, 1, 31),
+    )
+
+    assert cli.main(["edit", "6", "--repeat", "every 2 months"]) == 0
+
+    task = by_id(tasks)["6ACV1F0HMW"]
+    assert task.repeat == Repeat(2, Unit.MONTHS)
+    assert task.repeat_from is None
+
+
+def test_edit_setting_the_same_rule_keeps_repeat_from(tasks: Path) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Pay rent",
+        repeat=Repeat(1, Unit.MONTHS),
+        repeat_from=date(2026, 1, 31),
+    )
+
+    assert cli.main(["edit", "6", "--repeat", "monthly", "--title", "Rent"]) == 0
+
+    assert by_id(tasks)["6ACV1F0HMW"].repeat_from == date(2026, 1, 31)
+
+
+def test_edit_repeat_and_no_repeat_are_exclusive(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    err = usage_error(["edit", "6", "--repeat", "daily", "--no-repeat"], capsys)
+
+    assert "not allowed with argument" in err
+
+
+def test_done_on_a_repeating_task_adds_the_next_occurrence(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Pay rent",
+        status=Status.DOING,
+        priority=Priority.HIGH,
+        due=date(2099, 1, 31),
+        repeat=Repeat(1, Unit.MONTHS),
+        tags=("home",),
+        notes="- [x] Transfer\n",
+    )
+
+    assert cli.main(["done", "6ACV"]) == 0
+
+    tasks_by_id = by_id(tasks)
+    done = tasks_by_id.pop("6ACV1F0HMW")
+    [following] = tasks_by_id.values()
+    assert capsys.readouterr() == (
+        f"Next occurrence: {following.id}, due 2099-02-28\n",
+        "",
+    )
+    assert done.status is Status.DONE
+    assert done.repeat is None
+    assert done.updated > CREATED
+    assert following.title == "Pay rent"
+    assert following.status is Status.TODO
+    assert following.priority is Priority.HIGH
+    assert following.due == date(2099, 2, 28)
+    assert following.repeat == Repeat(1, Unit.MONTHS)
+    assert following.repeat_from == date(2099, 1, 31)
+    assert following.tags == ("home",)
+    assert following.notes == "- [ ] Transfer\n"
+    assert following.created == following.updated == done.updated
+
+
+def test_done_on_a_repeating_task_without_a_due_date_counts_from_today(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Water plants", repeat=Repeat(1, Unit.DAYS))
+
+    assert cli.main(["done", "6"]) == 0
+
+    following = next(t for t in by_id(tasks).values() if t.id != "6ACV1F0HMW")
+    assert following.due == date.today() + timedelta(days=1)
+    assert capsys.readouterr().out.startswith(f"Next occurrence: {following.id}, ")
+
+
+def test_done_twice_adds_only_one_occurrence(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Water plants", repeat=Repeat(1, Unit.WEEKS))
+
+    assert cli.main(["done", "6ACV1F0HMW"]) == 0
+    assert cli.main(["done", "6ACV1F0HMW"]) == 0
+
+    assert len(load_all(tasks)) == 2
+
+
+def test_edit_status_done_adds_the_next_occurrence_with_the_other_edits(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Water plants",
+        due=date(2099, 3, 1),
+        repeat=Repeat(1, Unit.WEEKS),
+    )
+
+    assert cli.main(["edit", "6", "-s", "done", "--title", "Water all plants"]) == 0
+
+    tasks_by_id = by_id(tasks)
+    done = tasks_by_id.pop("6ACV1F0HMW")
+    [following] = tasks_by_id.values()
+    assert done.status is Status.DONE
+    assert done.title == following.title == "Water all plants"
+    assert following.due == date(2099, 3, 8)
+    assert capsys.readouterr().out == (
+        f"Next occurrence: {following.id}, due 2099-03-08\n"
+    )
+
+
+def test_edit_status_done_with_a_new_rule_uses_the_new_rule(tasks: Path) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Water plants", due=date(2099, 3, 1))
+
+    assert cli.main(["edit", "6", "-s", "done", "--repeat", "daily"]) == 0
+
+    following = next(t for t in by_id(tasks).values() if t.id != "6ACV1F0HMW")
+    assert following.due == date(2099, 3, 2)
+    assert following.repeat == Repeat(1, Unit.DAYS)
+
+
+def test_edit_other_fields_of_a_done_repeating_task_adds_nothing(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Water plants",
+        status=Status.DONE,
+        repeat=Repeat(1, Unit.WEEKS),
+    )
+
+    assert cli.main(["edit", "6", "--title", "Water all plants"]) == 0
+
+    assert list(by_id(tasks)) == ["6ACV1F0HMW"]
+    assert capsys.readouterr().out == ""
+
+
+def test_done_reports_a_next_due_date_that_cant_be_computed(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Water plants",
+        due=date(9999, 12, 1),
+        repeat=Repeat(1, Unit.MONTHS),
+    )
+    before = (tasks / "6ACV1F0HMW.md").read_text()
+
+    assert cli.main(["done", "6"]) == 1
+
+    assert capsys.readouterr().err == (
+        "tskmngr: error: can't add the next occurrence: the next occurrence of "
+        "monthly would be after the year 9999\n"
+    )
+    assert (tasks / "6ACV1F0HMW.md").read_text() == before
+
+
+def test_show_prints_the_repeat_rule(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(
+        tasks,
+        "6ACV1F0HMW",
+        "Pay rent",
+        repeat=Repeat(1, Unit.MONTHS),
+        repeat_from=date(2026, 1, 31),
+    )
+
+    assert cli.main(["show", "6"]) == 0
+
+    assert "Repeat:    monthly from 2026-01-31\n" in capsys.readouterr().out

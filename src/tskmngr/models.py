@@ -1,4 +1,5 @@
-"""The task data model: the `Task` dataclass, its enums and ID generation."""
+"""The task data model: the `Task` dataclass, its enums, repeat rules and ID
+generation."""
 
 import re
 import secrets
@@ -41,6 +42,68 @@ class TaskValidationError(ValueError):
         self.message = message
 
 
+class Unit(StrEnum):
+    """The unit of a repeat rule's interval."""
+
+    DAYS = "days"
+    WEEKS = "weeks"
+    MONTHS = "months"
+    YEARS = "years"
+
+
+# The one-word rules, each an interval of one unit.
+_SINGLE_RULES = {
+    "daily": Unit.DAYS,
+    "weekly": Unit.WEEKS,
+    "monthly": Unit.MONTHS,
+    "yearly": Unit.YEARS,
+}
+
+_EVERY_RULE = re.compile(r"every\s+([0-9]+)\s+(day|week|month|year)s?")
+
+REPEAT_HINT = "daily, weekly, monthly, yearly or every N days, weeks, months or years"
+
+
+@dataclass(frozen=True)
+class Repeat:
+    """A repeat rule: every `every` `unit`s, like every 2 weeks."""
+
+    every: int
+    unit: Unit
+
+    def __post_init__(self) -> None:
+        # bool is a subclass of int, but `every: true` isn't an interval.
+        if not isinstance(self.every, int) or isinstance(self.every, bool):
+            raise TaskValidationError(
+                "repeat", f"expected a whole number, got {type(self.every).__name__}"
+            )
+        if self.every < 1:
+            raise TaskValidationError("repeat", "the interval must be at least 1")
+        _check_type("repeat", self.unit, Unit)
+
+    def __str__(self) -> str:
+        """The rule as written in task files: `weekly`, or `every 2 weeks`."""
+        if self.every == 1:
+            return next(
+                word for word, unit in _SINGLE_RULES.items() if unit is self.unit
+            )
+        return f"every {self.every} {self.unit.value}"
+
+
+def parse_repeat(text: str) -> Repeat:
+    """Parse a repeat rule like `weekly` or `every 2 weeks`, ignoring case.
+
+    Raises `TaskValidationError` for anything else.
+    """
+    words = " ".join(text.split()).lower()
+    if words in _SINGLE_RULES:
+        return Repeat(1, _SINGLE_RULES[words])
+    match = _EVERY_RULE.fullmatch(words)
+    if match:
+        return Repeat(int(match.group(1)), Unit(match.group(2) + "s"))
+    raise TaskValidationError("repeat", f"expected {REPEAT_HINT}, got {text!r}")
+
+
 @dataclass(frozen=True, kw_only=True)
 class Task:
     """One task. Validated on creation; edit it with `dataclasses.replace`.
@@ -48,6 +111,10 @@ class Task:
     `id` is the task file's name without `.md` and is not stored in the
     frontmatter. `notes` is the Markdown body. Tags are lowercased and stored
     as a tuple; a list is accepted too.
+
+    `repeat` makes the task recurring. `repeat_from` is the date a monthly or
+    yearly rule counts from, kept when a due date had to be moved to the end of
+    a shorter month (see `tskmngr.recurrence`).
     """
 
     id: str
@@ -55,6 +122,8 @@ class Task:
     status: Status = Status.TODO
     priority: Priority = Priority.NORMAL
     due: date | None = None
+    repeat: Repeat | None = None
+    repeat_from: date | None = None
     tags: tuple[str, ...] = ()
     created: datetime
     updated: datetime
@@ -65,7 +134,10 @@ class Task:
         _check_title(self.title)
         _check_type("status", self.status, Status)
         _check_type("priority", self.priority, Priority)
-        _check_due(self.due)
+        _check_date("due", self.due)
+        if self.repeat is not None:
+            _check_type("repeat", self.repeat, Repeat)
+        _check_date("repeat_from", self.repeat_from)
         # Frozen dataclass, so the normalized tags are set via object.__setattr__.
         object.__setattr__(self, "tags", _normalize_tags(self.tags))
         _check_timestamp("created", self.created)
@@ -93,6 +165,8 @@ def new_task(
     status: Status = Status.TODO,
     priority: Priority = Priority.NORMAL,
     due: date | None = None,
+    repeat: Repeat | None = None,
+    repeat_from: date | None = None,
     tags: Iterable[str] = (),
     notes: str = "",
 ) -> Task:
@@ -104,6 +178,8 @@ def new_task(
         status=status,
         priority=priority,
         due=due,
+        repeat=repeat,
+        repeat_from=repeat_from,
         tags=tuple(tags),
         created=now,
         updated=now,
@@ -146,13 +222,13 @@ def _check_title(value: object) -> None:
         raise TaskValidationError("title", "must be a single line")
 
 
-def _check_due(value: object) -> None:
+def _check_date(field: str, value: object) -> None:
     if value is None:
         return
-    # datetime is a subclass of date, but a due date has no time of day.
+    # datetime is a subclass of date, but a date field has no time of day.
     if not isinstance(value, date) or isinstance(value, datetime):
         raise TaskValidationError(
-            "due", f"expected date or None, got {type(value).__name__}"
+            field, f"expected date or None, got {type(value).__name__}"
         )
 
 

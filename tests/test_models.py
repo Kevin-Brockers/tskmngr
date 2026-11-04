@@ -10,13 +10,16 @@ from tskmngr.models import (
     CROCKFORD_ALPHABET,
     ID_LENGTH,
     Priority,
+    Repeat,
     Status,
     Task,
     TaskValidationError,
+    Unit,
     new_id,
     new_task,
     next_status,
     parse_due,
+    parse_repeat,
 )
 
 CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
@@ -326,3 +329,107 @@ def test_models_does_not_import_textual() -> None:
     code = "import sys, tskmngr.models; sys.exit('textual' in sys.modules)"
 
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+# Repeat rules
+
+
+@pytest.mark.parametrize(
+    ("text", "every", "unit"),
+    [
+        ("daily", 1, Unit.DAYS),
+        ("weekly", 1, Unit.WEEKS),
+        ("monthly", 1, Unit.MONTHS),
+        ("yearly", 1, Unit.YEARS),
+        ("every 3 days", 3, Unit.DAYS),
+        ("every 2 weeks", 2, Unit.WEEKS),
+        ("every 6 months", 6, Unit.MONTHS),
+        ("every 1 year", 1, Unit.YEARS),
+        ("  Every  2   Weeks ", 2, Unit.WEEKS),
+        ("WEEKLY", 1, Unit.WEEKS),
+    ],
+)
+def test_parse_repeat(text: str, every: int, unit: Unit) -> None:
+    assert parse_repeat(text) == Repeat(every, unit)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "fortnightly",
+        "every week",
+        "every 2",
+        "every two weeks",
+        "2 weeks",
+        "every -1 days",
+    ],
+)
+def test_parse_repeat_rejects_other_text(text: str) -> None:
+    with pytest.raises(TaskValidationError) as raised:
+        parse_repeat(text)
+
+    assert raised.value.field == "repeat"
+    assert raised.value.message == (
+        "expected daily, weekly, monthly, yearly or every N days, weeks, months "
+        f"or years, got {text!r}"
+    )
+
+
+def test_parse_repeat_rejects_a_zero_interval() -> None:
+    with pytest.raises(TaskValidationError, match="at least 1"):
+        parse_repeat("every 0 days")
+
+
+@pytest.mark.parametrize(
+    ("repeat", "text"),
+    [
+        (Repeat(1, Unit.DAYS), "daily"),
+        (Repeat(1, Unit.YEARS), "yearly"),
+        (Repeat(2, Unit.WEEKS), "every 2 weeks"),
+        (Repeat(12, Unit.MONTHS), "every 12 months"),
+    ],
+)
+def test_repeat_writes_the_shortest_form(repeat: Repeat, text: str) -> None:
+    assert str(repeat) == text
+    assert parse_repeat(text) == repeat
+
+
+@pytest.mark.parametrize("every", [True, 1.5, "2"])
+def test_repeat_rejects_an_interval_that_isnt_a_whole_number(every: object) -> None:
+    with pytest.raises(TaskValidationError, match="expected a whole number"):
+        Repeat(every, Unit.DAYS)  # type: ignore[arg-type]
+
+
+def test_repeat_rejects_an_unknown_unit() -> None:
+    with pytest.raises(TaskValidationError, match="expected Unit"):
+        Repeat(1, "days")  # type: ignore[arg-type]
+
+
+def test_task_takes_a_repeat_rule_and_repeat_from() -> None:
+    task = new_task(
+        "Water plants",
+        existing_ids=(),
+        repeat=Repeat(2, Unit.WEEKS),
+        repeat_from=date(2026, 1, 31),
+    )
+
+    assert task.repeat == Repeat(2, Unit.WEEKS)
+    assert task.repeat_from == date(2026, 1, 31)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("repeat", "weekly"),
+        ("repeat_from", "2026-01-31"),
+        ("repeat_from", datetime(2026, 1, 31, tzinfo=UTC)),
+    ],
+)
+def test_task_rejects_repeat_fields_of_the_wrong_type(
+    field: str, value: object
+) -> None:
+    with pytest.raises(TaskValidationError) as raised:
+        new_task("Water plants", existing_ids=(), **{field: value})
+
+    assert raised.value.field == field

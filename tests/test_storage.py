@@ -16,6 +16,7 @@ from tskmngr.storage import (
     check_unchanged,
     delete_task,
     load_tasks,
+    save_completed,
     save_task,
     scan_tasks_dir,
     tasks_dir,
@@ -466,3 +467,65 @@ def test_storage_does_not_import_textual() -> None:
     code = "import sys, tskmngr.storage; sys.exit('textual' in sys.modules)"
 
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_save_completed_writes_the_task_and_its_next_occurrence(
+    tmp_path: Path,
+) -> None:
+    source = save_task(tmp_path, make_task(), None)
+    done = dataclasses.replace(source.task, status=Status.DONE)
+    following = make_task(id="NEXT", title="Buy milk again")
+
+    saved, written = save_completed(tmp_path, done, source, following)
+
+    assert saved.task == done
+    assert written is not None
+    assert written.task == following
+    assert {s.task.id: s.task for s in load_tasks(tmp_path).tasks} == {
+        "01JB3K7Q2X": done,
+        "NEXT": following,
+    }
+
+
+def test_save_completed_without_a_next_occurrence(tmp_path: Path) -> None:
+    source = save_task(tmp_path, make_task(), None)
+    done = dataclasses.replace(source.task, status=Status.DONE)
+
+    saved, written = save_completed(tmp_path, done, source, None)
+
+    assert written is None
+    assert [s.task for s in load_tasks(tmp_path).tasks] == [saved.task]
+
+
+def test_save_completed_writes_nothing_if_the_task_changed_on_disk(
+    tmp_path: Path,
+) -> None:
+    source = save_task(tmp_path, make_task(), None)
+    path = tmp_path / "01JB3K7Q2X.md"
+    path.write_text("---\ntitle: Edited\n---\n", encoding="utf-8")
+    done = dataclasses.replace(source.task, status=Status.DONE)
+
+    with pytest.raises(ConflictError) as excinfo:
+        save_completed(tmp_path, done, source, make_task(id="NEXT"))
+
+    assert excinfo.value.reason is ConflictReason.CHANGED
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["01JB3K7Q2X.md"]
+    assert path.read_text(encoding="utf-8") == "---\ntitle: Edited\n---\n"
+
+
+def test_save_completed_leaves_the_task_if_the_next_one_cant_be_written(
+    tmp_path: Path,
+) -> None:
+    source = save_task(tmp_path, make_task(), None)
+    write(tmp_path, "NEXT.md")
+    done = dataclasses.replace(source.task, status=Status.DONE)
+
+    with pytest.raises(ConflictError) as excinfo:
+        save_completed(tmp_path, done, source, make_task(id="NEXT"))
+
+    assert excinfo.value.reason is ConflictReason.EXISTS
+    assert load_one_by_id(tmp_path, "01JB3K7Q2X") == source
+
+
+def load_one_by_id(directory: Path, task_id: str) -> TaskFile:
+    return next(s for s in load_tasks(directory).tasks if s.task.id == task_id)

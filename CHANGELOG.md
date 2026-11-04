@@ -139,6 +139,13 @@ its commit for changes that reached `dev` or `main` without a pull request.
   detail view, Space, Enter or a click checks or unchecks one and saves the
   task; checking the last open one marks the task done, and unchecking one of
   a done task moves it back to doing
+- #TBD - Recurring tasks: a `repeat` rule (`daily`, `weekly`, `monthly`,
+  `yearly` or `every N days|weeks|months|years`), set with `tskmngr add
+  --repeat` and `tskmngr edit --repeat`/`--no-repeat` and shown by `tskmngr
+  show` and the TUI's detail view. `tskmngr done` and `tskmngr edit --status
+  done` add the next occurrence as a new task, due one interval after the old
+  due date (skipping past ones), and print its ID; monthly and yearly rules
+  keep the day of the month via `repeat_from`
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
