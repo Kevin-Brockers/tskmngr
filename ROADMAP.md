@@ -193,7 +193,7 @@ moving its file back by hand.
   time taken from each file's name (`<id>.<delete time>.md`, including the
   `-N` that tells deletes in the same second apart), newest delete first;
   each delete of a task is its own entry, and files that can't be read are
-  reported, never hidden; no Textual · `feature/trash_listing` · #TBD
+  reported, never hidden; no Textual · `feature/trash_listing` · [#54](https://github.com/Kevin-Brockers/tskmngr/pull/54)
 - [ ] **M8.2** TUI: a read-only view of the deleted tasks in the bottom
   quarter of the task list screen's height, newest delete first, reloaded
   when files in `.trash/` change on disk; `t` (binding id

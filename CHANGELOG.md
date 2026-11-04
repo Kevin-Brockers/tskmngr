@@ -169,7 +169,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   task list, which `t` hides and shows, with its columns and whether it starts
   shown set in the config file. Listed before M7 and built first; step IDs
   are unchanged
-- #TBD - `storage.load_trash` lists the deleted tasks in `.trash/`, newest
+- [#54](https://github.com/Kevin-Brockers/tskmngr/pull/54) - `storage.load_trash` lists the deleted tasks in `.trash/`, newest
   delete first, with the delete time read from each file's name; files that
   can't be read, or whose name has no delete time, are reported like broken
   task files, and nothing is changed
