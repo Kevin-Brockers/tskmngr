@@ -156,7 +156,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#44](https://github.com/Kevin-Brockers/tskmngr/pull/44) - Roadmap milestone M7: `tskmngr config` to show the config file, get
   one setting or open it in the editor, and the order of the TUI task list
   columns, with hidden ones, from the config file
-- #TBD - `columns` in the config file sets the TUI task list's columns and
+- [#50](https://github.com/Kevin-Brockers/tskmngr/pull/50) - `columns` in the config file sets the TUI task list's columns and
   their order, from `id`, `status`, `priority`, `due`, `created`, `updated`
   and `title`; the ones left out are hidden, and the default config file
   lists the default columns
