@@ -213,3 +213,5 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#17](https://github.com/Kevin-Brockers/tskmngr/pull/17) - Task files starting with a UTF-8 byte order mark, or with spaces or
   tabs after a `---` line, load instead of being reported as malformed; the
   byte order mark is kept when the task is saved
+- #TBD - The test suite passes again: the tests of the diff-review hook,
+  which [#45](https://github.com/Kevin-Brockers/tskmngr/pull/45) removed along with the hook, are gone too
