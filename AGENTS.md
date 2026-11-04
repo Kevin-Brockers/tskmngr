@@ -195,29 +195,20 @@ optional.
   test.
 - Run `uv run pytest` before committing; do not commit with failing tests.
 
-### Review the diff with the maintainer before every commit
-- Before each commit, stage the changes and show the maintainer the full diff
-  (`git diff --staged`, plus `git status` for new or deleted files).
-- Ask the maintainer whether the diff is fine, and commit only after they
-  explicitly approve. If they request changes, make them and show the new diff.
-- This applies to every commit, including small fixes and hook auto-fixes.
-- For Claude Code this is enforced by a project hook
-  (`.claude/settings.json` → `.claude/hooks/review-diff.sh`): every
-  `git commit` triggers an approval prompt showing `git status` and the staged
-  diff. Never work around it (e.g. by committing via another tool or script).
-
-#### Local vs. cloud sessions
-- **Local session:** strictly follow the diff-review hook. Commit only after
-  the maintainer approves the prompt. Nothing else overrides this.
-- **Cloud session** (e.g. Claude Code on the web; `CLAUDE_CODE_REMOTE=true`):
+### Commit, push, open the pull request, then stop
+The same rules apply in local and cloud sessions.
+- Commit and push to your working branch without asking first. Any branch is
+  fine except `dev` and `main`, which you never commit or push to (see
+  "Branches and pull requests").
+- In a cloud session (e.g. Claude Code on the web; `CLAUDE_CODE_REMOTE=true`),
   the environment has a built-in check that asks for uncommitted changes to be
-  committed and pushed. Handle it in this order:
-  1. First run the diff review: show the staged diff and wait for the
-     maintainer's explicit approval, exactly as in a local session.
-  2. Only after approval, satisfy the built-in check: commit and push to the
-     working branch.
-  If the built-in check fires while approval is still pending, do not commit;
-  tell the maintainer the changes are waiting for their review.
+  committed and pushed: do that on the working branch.
+- When the work is done, open a pull request against `dev`. Then replace every
+  `#TBD` from the branch (in `CHANGELOG.md` and `ROADMAP.md`) with the PR's
+  link, and commit and push that.
+- Then stop: tell the maintainer the work is done, with the PR's link, and
+  wait for them. Never merge a pull request yourself; only the maintainer
+  merges.
 
 ### Follow the roadmap
 - [`ROADMAP.md`](ROADMAP.md) breaks the plan into milestones and small
@@ -236,7 +227,7 @@ optional.
 
 ### Branches and pull requests
 - `main` holds released code; `dev` is the integration branch. Never commit
-  directly to either; both change only through pull requests.
+  or push directly to either; both change only through pull requests.
 - Create one branch per change from the latest `dev`, named by type:
   - `feature/<name>` for new features (e.g. `feature/due_dates`)
   - `fix/<name>` for bug fixes (e.g. `fix/crash_on_empty_title`)

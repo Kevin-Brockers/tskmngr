@@ -9,7 +9,7 @@ Get up to speed on how this project is worked on and what comes next.
 
 1. Read `AGENTS.md` at the repository root in full, using the Read tool. It
    holds the working etiquette, tech stack, commands, task storage format and
-   working conventions (branches, diff review before commits, changelog,
+   working conventions (branches, commits and pull requests, changelog,
    dependencies).
 2. Read `ROADMAP.md` at the repository root in full, using the Read tool. It
    holds the milestones and steps, which are done and which are open.

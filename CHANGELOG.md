@@ -183,6 +183,16 @@ its commit for changes that reached `dev` or `main` without a pull request.
   file exists. The config's `tasks_dir` now comes before `TSKMNGR_DIR`
 - [#43](https://github.com/Kevin-Brockers/tskmngr/pull/43) - Roadmap M4.2 describes the config file as it works now: at
   `~/.tskmngr/config.json`, with its `tasks_dir` before `TSKMNGR_DIR`
+- #TBD - Agents commit and push to their working branch (never `dev` or
+  `main`) without asking for a diff review first, in local and cloud sessions
+  alike. When the work is done they open the pull request against `dev`,
+  replace the `#TBD` placeholders with its link, then stop and tell the
+  maintainer; only the maintainer merges pull requests
+
+### Removed
+
+- #TBD - The Claude Code hook that asked the maintainer to approve the staged
+  diff before every `git commit`
 
 ### Fixed
 
