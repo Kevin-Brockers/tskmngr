@@ -3,7 +3,8 @@
 The subtasks, the checklist items in the notes (see `tskmngr.subtasks`), are
 listed above the notes; Space, Enter or a click checks or unchecks the one
 under the cursor and saves the task right away. Checking the last open one
-marks the task done, unchecking one of a done task moves it back to doing. A
+marks the task done, unchecking one of a done task moves it back to doing; a
+repeating task marked done this way gets its next occurrence. A
 save that hits a conflict is shown, and the task reloaded, instead of
 overwriting the file.
 
@@ -29,10 +30,12 @@ from textual.widgets import Footer, Header, Markdown, OptionList, Static
 
 from tskmngr.display import task_fields
 from tskmngr.models import Status, Task
-from tskmngr.storage import ConflictError, load_tasks, save_task, task_path
+from tskmngr.recurrence import RecurrenceError
+from tskmngr.storage import ConflictError, load_tasks, task_path
 from tskmngr.subtasks import Subtask, parse_subtasks, toggle_subtask
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.external_editor import edit_in_editor
+from tskmngr.widgets.saving import notify_next, save_task_and_next
 from tskmngr.widgets.task_form import TaskFormScreen
 from tskmngr.widgets.tasks_changed import TasksChanged
 
@@ -158,11 +161,15 @@ class TaskDetailScreen(Screen):
         old = self.source.task
         task = toggle_subtask(old, index, datetime.now(UTC).replace(microsecond=0))
         try:
-            save_task(self.directory, task, self.source)
+            following = save_task_and_next(self.directory, task, self.source)
         except ConflictError as error:
             self._notify_error(
                 f"{error.path.name} {error.reason}. It was reloaded from disk; "
                 "the subtask wasn't changed."
+            )
+        except RecurrenceError as error:
+            self._notify_error(
+                f"Can't add the next occurrence: {error}. The subtask wasn't changed."
             )
         except OSError as error:
             self._notify_error(
@@ -180,6 +187,7 @@ class TaskDetailScreen(Screen):
                     title="Status changed",
                     markup=False,
                 )
+            notify_next(self, following)
         await self.reload()
 
     def _notify_error(self, message: str) -> None:

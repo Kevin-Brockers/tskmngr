@@ -6,7 +6,7 @@ from rich.console import Console
 from textual.widgets import DataTable, Input, Markdown, OptionList
 
 from tskmngr.app import TskmngrApp
-from tskmngr.models import Status, Task
+from tskmngr.models import Repeat, Status, Task, Unit
 from tskmngr.storage import save_task
 from tskmngr.taskfile import TaskFile, render
 from tskmngr.widgets.task_detail import TaskDetailScreen, fields_table
@@ -471,3 +471,61 @@ async def test_subtasks_are_shown_again_after_a_change_on_disk(tmp_path: Path) -
 
         assert not checklist.display
         assert screen.focused is screen.query_one("#detail-body")
+
+
+@pytest.mark.asyncio
+async def test_checking_the_last_subtask_of_a_repeating_task_adds_the_next(
+    tmp_path: Path,
+) -> None:
+    notes = "- [x] Kitchen\n- [ ] Office\n"
+    task = make_task(
+        "AAAA",
+        "Water plants",
+        due=date(2099, 3, 1),
+        repeat=Repeat(1, Unit.WEEKS),
+        notes=notes,
+    )
+    save_task(tmp_path, task, None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("enter", "down", "space")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+
+        others = [
+            name
+            for name in sorted(p.name for p in tmp_path.iterdir())
+            if name != "AAAA.md"
+        ]
+        [next_file] = others
+        next_text = (tmp_path / next_file).read_text(encoding="utf-8")
+        assert "due: 2099-03-08\n" in next_text
+        assert "repeat: weekly\n" in next_text
+        assert next_text.endswith("- [ ] Kitchen\n- [ ] Office\n")
+        assert screen.source.task.status is Status.DONE
+        assert screen.source.task.repeat is None
+        assert messages[-2:] == [
+            "All subtasks are done, so the task is now done.",
+            f"Next occurrence: {next_file.removesuffix('.md')}, due 2099-03-08",
+        ]
+        assert "Repeat    -" in rendered(screen.query_one("#fields").content)
+
+
+@pytest.mark.asyncio
+async def test_the_detail_view_shows_the_repeat_rule(tmp_path: Path) -> None:
+    task = make_task(
+        "AAAA",
+        "Pay rent",
+        repeat=Repeat(1, Unit.MONTHS),
+        repeat_from=date(2026, 1, 31),
+    )
+    save_task(tmp_path, task, None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+
+        fields = rendered(app.screen.query_one("#fields").content)
+        assert "Repeat    monthly from 2026-01-31" in fields

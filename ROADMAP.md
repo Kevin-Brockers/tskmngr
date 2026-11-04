@@ -153,14 +153,14 @@ the maintainer before starting, and `AGENTS.md` updated to match.
 
 - [x] **M5.1** Subtasks as a checklist within a task, shown and toggled in the
   TUI · `feature/subtasks` · [#38](https://github.com/Kevin-Brockers/tskmngr/pull/38)
-- [ ] **M5.2** Recurring tasks: a repeat rule, and core logic that creates the
+- [x] **M5.2** Recurring tasks: a repeat rule, and core logic that creates the
   next occurrence when a task is marked done, used by both `tskmngr done` and
-  the TUI · `feature/recurring_tasks` · depends on M2.3, M3.4. Split into:
+  the TUI · `feature/recurring_tasks` ·
+  [#39](https://github.com/Kevin-Brockers/tskmngr/pull/39), [#40](https://github.com/Kevin-Brockers/tskmngr/pull/40). Split into:
   - [x] **M5.2a** Core and CLI: `repeat` and `repeat_from` in the task file,
     the next-occurrence logic, `tskmngr done` and `edit --status done`,
     `add`/`edit --repeat`, and the rule in `tskmngr show` ·
     `feature/recurring_tasks_core` · [#39](https://github.com/Kevin-Brockers/tskmngr/pull/39)
-  - [ ] **M5.2b** TUI: repeat field in the form, a marker in the task list, the
+  - [x] **M5.2b** TUI: repeat field in the form, a marker in the task list, the
     rule in the detail view, and the next occurrence created by `s`, the form
-    and the subtask auto-done · `feature/recurring_tasks_tui` · depends on
-    M5.2a, M5.1
+    and the subtask auto-done · `feature/recurring_tasks_tui` · [#40](https://github.com/Kevin-Brockers/tskmngr/pull/40)

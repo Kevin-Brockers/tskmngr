@@ -146,6 +146,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   done` add the next occurrence as a new task, due one interval after the old
   due date (skipping past ones), and print its ID; monthly and yearly rules
   keep the day of the month via `repeat_from`
+- [#40](https://github.com/Kevin-Brockers/tskmngr/pull/40) - Recurring tasks in the TUI: a Repeat field in the task form, `↻`
+  after the title of repeating tasks in the task list, and the next
+  occurrence added (and shown in a notification) when `s`, saving the form or
+  checking the last open subtask marks a repeating task done
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

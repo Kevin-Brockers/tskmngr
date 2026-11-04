@@ -9,7 +9,7 @@ from pathlib import Path
 
 from tskmngr.app import TskmngrApp
 from tskmngr.config import Config, ConfigError, load_config
-from tskmngr.display import task_fields
+from tskmngr.display import format_next_occurrence, task_fields
 from tskmngr.models import (
     Priority,
     Repeat,
@@ -462,8 +462,7 @@ def _save_changed(
             f"can't save the task in {directory}: {_reason(error)}"
         ) from error
     if following is not None:
-        due = following.due.isoformat() if following.due else "-"
-        print(f"Next occurrence: {following.id}, due {due}")
+        print(format_next_occurrence(following))
 
 
 def format_details(task: Task) -> list[str]:

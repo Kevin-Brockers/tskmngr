@@ -38,6 +38,12 @@ def format_repeat(task: Task) -> str:
     return f"{task.repeat} from {task.repeat_from.isoformat()}"
 
 
+def format_next_occurrence(task: Task) -> str:
+    """The line telling the user a task's next occurrence was added."""
+    due = task.due.isoformat() if task.due else "-"
+    return f"Next occurrence: {task.id}, due {due}"
+
+
 def format_timestamp(value: datetime) -> str:
     """ISO 8601 like in the task files, with UTC written as `Z`."""
     text = value.isoformat()
