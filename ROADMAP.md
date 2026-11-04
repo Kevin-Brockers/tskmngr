@@ -57,7 +57,10 @@ Finished steps keep their line and get the PR link appended, in the same
 Goal: conventions, tooling and documentation in place before any app code.
 
 - [x] **M0.1** `AGENTS.md`, prek hooks, diff-review hook, branching policy
-  and `CHANGELOG.md` · `docs/agents-md` · [#1](https://github.com/Kevin-Brockers/tskmngr/pull/1)
+  and `CHANGELOG.md` · `docs/agents-md` · [#1](https://github.com/Kevin-Brockers/tskmngr/pull/1).
+  Changed in [#45](https://github.com/Kevin-Brockers/tskmngr/pull/45): the
+  diff review before every commit and its hook are gone; agents commit and
+  push to their working branch without asking
 - [x] **M0.2** `ROADMAP.md` and its policy in `AGENTS.md` · `docs/roadmap` · [#2](https://github.com/Kevin-Brockers/tskmngr/pull/2)
 - [x] **M0.3** Plan milestones M1 to M5, refined after review, and the storage
   format decisions in `AGENTS.md` · `docs/roadmap_mvp` · [#3](https://github.com/Kevin-Brockers/tskmngr/pull/3)

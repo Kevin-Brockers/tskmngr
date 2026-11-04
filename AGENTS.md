@@ -27,6 +27,12 @@ The development plan, what's done and what comes next, lives in
   whether something is correct, say so plainly, including the relevant output.
 - **Stay in scope.** Do what was asked. Mention other improvements you notice,
   but don't make them without agreement.
+- **Don't change `AGENTS.md` or `ROADMAP.md` on your own.** Before changing
+  either file, tell the maintainer what you'd change and why, and change it
+  only after they explicitly approve, unless they asked for that change
+  themselves. This includes the `AGENTS.md` updates a roadmap step calls for.
+  Two updates need no approval: marking the step you implement `[x]` with its
+  PR's link, and replacing `#TBD` with the PR's link.
 - **Don't destroy work.** Never delete or overwrite files, task data or git
   history (no force-push, no `reset --hard` on shared branches) without
   explicit confirmation.
