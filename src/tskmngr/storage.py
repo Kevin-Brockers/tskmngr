@@ -143,6 +143,21 @@ def save_task(directory: Path, task: Task, source: TaskFile | None) -> TaskFile:
     return TaskFile(task, text)
 
 
+def save_completed(
+    directory: Path, task: Task, source: TaskFile, following: Task | None
+) -> tuple[TaskFile, TaskFile | None]:
+    """Save a task marked done and, if it repeats, its next occurrence.
+
+    `following` is the new task for the next occurrence (see
+    `recurrence.complete`), or None. Nothing is written if `source`'s file
+    changed on disk (`ConflictError`). The next occurrence is written first,
+    so if it can't be, the task isn't marked done and still repeats.
+    """
+    check_unchanged(directory, source)
+    written = None if following is None else save_task(directory, following, None)
+    return save_task(directory, task, source), written
+
+
 def delete_task(
     directory: Path, source: TaskFile, *, now: datetime | None = None
 ) -> Path:

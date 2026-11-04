@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
 
-from tskmngr.models import Priority, Status, Task
+from tskmngr.models import REPEAT_HINT, Priority, Repeat, Status, Task, Unit
 from tskmngr.taskfile import MalformedTaskError, TaskFile, parse, render
 
 CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
@@ -617,3 +617,107 @@ def test_taskfile_does_not_import_textual() -> None:
     code = "import sys, tskmngr.taskfile; sys.exit('textual' in sys.modules)"
 
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+# Repeat rules
+
+RECURRING = """\
+---
+title: Water plants
+due: 2026-02-28
+repeat: Every 2  Months   # watered by hand
+repeat_from: 2026-01-31
+---
+"""
+
+
+def test_parse_repeat_and_repeat_from() -> None:
+    task = load(RECURRING).task
+
+    assert task.repeat == Repeat(2, Unit.MONTHS)
+    assert task.repeat_from == date(2026, 1, 31)
+
+
+@pytest.mark.parametrize("value", ["", " ~", " null"])
+def test_parse_empty_repeat(value: str) -> None:
+    task = load(f"---\ntitle: Water plants\nrepeat:{value}\n---\n").task
+
+    assert task.repeat is None
+
+
+def test_unchanged_repeat_rule_is_kept_as_written() -> None:
+    text = edit(RECURRING, title="Water the plants")
+
+    assert "repeat: Every 2  Months   # watered by hand\n" in text
+    assert "repeat_from: 2026-01-31\n" in text
+
+
+def test_render_new_task_writes_the_repeat_fields_after_due() -> None:
+    task = make_task(
+        due=date(2026, 2, 28),
+        repeat=Repeat(1, Unit.MONTHS),
+        repeat_from=date(2026, 1, 31),
+    )
+
+    assert render(task).startswith(
+        "---\n"
+        "title: Buy milk\n"
+        "status: todo\n"
+        "priority: normal\n"
+        "due: 2026-02-28\n"
+        "repeat: monthly\n"
+        "repeat_from: 2026-01-31\n"
+        "tags: []\n"
+    )
+
+
+def test_render_without_a_repeat_rule_leaves_the_keys_out() -> None:
+    text = render(make_task())
+
+    assert "repeat" not in text
+
+
+def test_edit_setting_a_repeat_rule_adds_it_after_due() -> None:
+    text = edit(DOCUMENTED, repeat=Repeat(2, Unit.WEEKS))
+
+    assert "due: 2026-11-01       # optional, ISO date\nrepeat: every 2 weeks\n" in text
+    assert load(text).task.repeat == Repeat(2, Unit.WEEKS)
+
+
+def test_edit_changing_the_repeat_rule_writes_it_in_the_shortest_form() -> None:
+    text = edit(RECURRING, repeat=Repeat(1, Unit.WEEKS))
+
+    assert "repeat: weekly" in text
+
+
+def test_edit_clearing_the_repeat_fields_removes_them() -> None:
+    text = edit(RECURRING, repeat=None, repeat_from=None)
+
+    assert "repeat" not in text
+    assert load(text).task.repeat is None
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("fortnightly", f"expected {REPEAT_HINT}, got 'fortnightly'"),
+        ("7", f"expected {REPEAT_HINT}, got the number 7"),
+        ("[weekly]", f"expected {REPEAT_HINT}, got a list"),
+        ("every 0 weeks", "the interval must be at least 1"),
+    ],
+)
+def test_malformed_repeat(value: str, message: str) -> None:
+    error = assert_malformed(
+        f"---\ntitle: Water plants\nrepeat: {value}\n---\n", "repeat", 3
+    )
+
+    assert error.message == message
+
+
+@pytest.mark.parametrize("value", ["soon", "2026-01-31T10:00:00Z", "[2026-01-31]"])
+def test_malformed_repeat_from(value: str) -> None:
+    error = assert_malformed(
+        f"---\ntitle: Water plants\nrepeat_from: {value}\n---\n", "repeat_from", 3
+    )
+
+    assert error.message.startswith("expected a date like 2026-11-01, got ")

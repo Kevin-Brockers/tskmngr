@@ -3,7 +3,13 @@ from datetime import UTC, datetime
 import pytest
 
 from tskmngr.models import Status, Task
-from tskmngr.subtasks import Subtask, parse_subtasks, progress, toggle_subtask
+from tskmngr.subtasks import (
+    Subtask,
+    parse_subtasks,
+    progress,
+    toggle_subtask,
+    uncheck_all,
+)
 
 CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
 NOW = datetime(2026, 11, 4, 10, 0, tzinfo=UTC)
@@ -189,3 +195,19 @@ def test_toggle_refuses_a_subtask_that_doesnt_exist(index: int) -> None:
 
     with pytest.raises(IndexError, match="the task has 2"):
         toggle_subtask(task, index, NOW)
+
+
+def test_uncheck_all_unchecks_every_subtask_and_keeps_the_rest() -> None:
+    notes = (
+        "Intro [x] not an item\r\n- [x] One\r\n  * [X] Two\r\n- [ ] Three\r\n"
+        "```\r\n- [x] Code\r\n```\r\n"
+    )
+
+    assert uncheck_all(notes) == (
+        "Intro [x] not an item\r\n- [ ] One\r\n  * [ ] Two\r\n- [ ] Three\r\n"
+        "```\r\n- [x] Code\r\n```\r\n"
+    )
+
+
+def test_uncheck_all_without_subtasks_changes_nothing() -> None:
+    assert uncheck_all("Just notes.\n") == "Just notes.\n"

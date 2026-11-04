@@ -17,7 +17,15 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.error import MarkedYAMLError, YAMLError
 from ruamel.yaml.representer import RoundTripRepresenter
 
-from tskmngr.models import Priority, Status, Task, TaskValidationError
+from tskmngr.models import (
+    REPEAT_HINT,
+    Priority,
+    Repeat,
+    Status,
+    Task,
+    TaskValidationError,
+    parse_repeat,
+)
 
 DELIMITER = "---"
 
@@ -25,7 +33,20 @@ DELIMITER = "---"
 BOM = "\ufeff"
 
 # Frontmatter keys in the order they're written for a new task.
-FIELDS = ("title", "status", "priority", "due", "tags", "created", "updated")
+FIELDS = (
+    "title",
+    "status",
+    "priority",
+    "due",
+    "repeat",
+    "repeat_from",
+    "tags",
+    "created",
+    "updated",
+)
+
+# Fields left out of the frontmatter when they have no value.
+OPTIONAL_FIELDS = ("due", "repeat", "repeat_from")
 
 QUOTE_HINT = "if it's meant as text, put it in quotes"
 
@@ -80,7 +101,9 @@ def parse(text: str, task_id: str, *, fallback_time: datetime) -> TaskFile:
             title=_text(frontmatter, "title"),
             status=_choice(frontmatter, "status", Status, Status.TODO),
             priority=_choice(frontmatter, "priority", Priority, Priority.NORMAL),
-            due=_due(frontmatter),
+            due=_date(frontmatter, "due"),
+            repeat=_repeat(frontmatter),
+            repeat_from=_date(frontmatter, "repeat_from"),
             tags=_tags(frontmatter),
             created=_timestamp(frontmatter, "created", fallback_time),
             updated=_timestamp(frontmatter, "updated", fallback_time),
@@ -219,9 +242,9 @@ def _update(frontmatter: CommentedMap, task: Task, old: Task | None) -> Commente
     for field in FIELDS:
         value = getattr(task, field)
         unchanged = old is not None and value == getattr(old, field)
-        if field == "due" and value is None:
+        if field in OPTIONAL_FIELDS and value is None:
             if not unchanged:
-                frontmatter.pop("due", None)
+                frontmatter.pop(field, None)
             continue
         if unchanged and field in frontmatter:
             continue
@@ -229,6 +252,8 @@ def _update(frontmatter: CommentedMap, task: Task, old: Task | None) -> Commente
             value = _tag_list(value, frontmatter.get("tags"))
         elif isinstance(value, (Status, Priority)):
             value = value.value
+        elif isinstance(value, Repeat):
+            value = str(value)
         if field in frontmatter:
             frontmatter[field] = value
         else:
@@ -319,14 +344,28 @@ def _choice[E: (Status, Priority)](
         ) from None
 
 
-def _due(frontmatter: CommentedMap) -> date | None:
-    value = frontmatter.get("due")
-    # datetime is a subclass of date, but a due date has no time of day.
+def _date(frontmatter: CommentedMap, key: str) -> date | None:
+    value = frontmatter.get(key)
+    # datetime is a subclass of date, but a date field has no time of day.
     if value is None or (isinstance(value, date) and not isinstance(value, datetime)):
         return value
     raise _error(
-        frontmatter, "due", f"expected a date like 2026-11-01, got {_describe(value)}"
+        frontmatter, key, f"expected a date like 2026-11-01, got {_describe(value)}"
     )
+
+
+def _repeat(frontmatter: CommentedMap) -> Repeat | None:
+    value = frontmatter.get("repeat")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _error(
+            frontmatter, "repeat", f"expected {REPEAT_HINT}, got {_describe(value)}"
+        )
+    try:
+        return parse_repeat(value)
+    except TaskValidationError as error:
+        raise _error(frontmatter, "repeat", error.message) from None
 
 
 def _tags(frontmatter: CommentedMap) -> tuple[str, ...]:

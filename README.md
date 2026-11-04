@@ -73,11 +73,11 @@ $ tskmngr done m2p
 
 | Command | What it does |
 | ------- | ------------ |
-| `add TITLE` | Add a task and print its ID. Options: `-p/--priority low\|normal\|high` (default `normal`), `-d/--due YYYY-MM-DD`, `-t/--tag TAG` (repeat for more tags) |
+| `add TITLE` | Add a task and print its ID. Options: `-p/--priority low\|normal\|high` (default `normal`), `-d/--due YYYY-MM-DD`, `--repeat RULE` to make it [recurring](#recurring-tasks), `-t/--tag TAG` (repeat for more tags) |
 | `list [WORD ...]` | List tasks, by default the ones not done yet, soonest due first. Words are searched in titles and notes; a task needs all of them. Options: `-s/--status` (repeat for more), `-a/--all` to include done tasks, `-p/--priority` (repeat for more), `-t/--tag` (repeat to require more tags), `--sort due\|priority\|created\|updated` (default: the config file's `sort`, else `due`), `-r/--reverse` to reverse that order |
 | `show ID` | Show all fields of a task, including its subtasks done and total, then its notes |
-| `edit ID` | Change the given fields: `--title`, `-s/--status`, `-p/--priority`, `-d/--due` or `--no-due`, `-t/--tag` to add a tag, `--untag` to remove one or `--clear-tags` to remove all (each tag option can be repeated) |
-| `done ID` | Mark a task as done |
+| `edit ID` | Change the given fields: `--title`, `-s/--status`, `-p/--priority`, `-d/--due` or `--no-due`, `--repeat RULE` or `--no-repeat`, `-t/--tag` to add a tag, `--untag` to remove one or `--clear-tags` to remove all (each tag option can be repeated) |
+| `done ID` | Mark a task as done. If it [repeats](#recurring-tasks), its next occurrence is added and its ID and due date printed |
 | `delete ID` | Move a task's file into `.trash/` (see [Deleted tasks](#deleted-tasks)) after asking; `-y/--yes` skips the question, and is required when there's no terminal to ask on |
 
 `ID` can be any unique prefix of a task's ID, in any case: `m2p` above is
@@ -183,6 +183,8 @@ Notes go here, in **Markdown**.
 | `status` | `todo`, `doing` or `done` | `todo` |
 | `priority` | `low`, `normal` or `high` | `normal` |
 | `due` | A date, like `2026-11-01` | No due date |
+| `repeat` | A [repeat rule](#recurring-tasks), like `weekly` or `every 2 weeks` | Doesn't repeat |
+| `repeat_from` | A date a monthly or yearly rule counts from, set by tskmngr (see [recurring tasks](#recurring-tasks)) | Counts from `due` |
 | `tags` | A list, like `[errands, home]`; tags can't contain spaces and are case-insensitive | No tags |
 | `created`, `updated` | A time with a timezone, like `2026-10-28T09:15:00Z` | The file's modification time |
 
@@ -224,6 +226,36 @@ Checking or unchecking a subtask in the TUI's detail view also updates the
 task's status: checking the last open subtask marks the task done, and
 unchecking one of a done task moves it back to doing. Editing the notes never
 changes the status.
+
+### Recurring tasks
+
+A task with a `repeat` rule comes back when it's done. The rule is `daily`,
+`weekly`, `monthly`, `yearly`, or `every N days`, `weeks`, `months` or `years`,
+like `every 2 weeks`. Set it with `tskmngr add --repeat` or `tskmngr edit
+--repeat`, or in the file:
+
+```markdown
+---
+title: Pay rent
+due: 2026-01-31
+repeat: monthly
+---
+```
+
+Marking it done with `tskmngr done`, or `tskmngr edit --status done`, adds the
+next occurrence as a new task: same title, priority, tags, notes and rule,
+with every subtask unchecked, status `todo` and the next due date. The done
+task stays as it is, without the rule, so reopening it doesn't create another
+one.
+
+The next due date is one interval after the old one, skipping any that are
+already past, so it's always after today. Without a due date, it's one
+interval after the day the task is done. Monthly and yearly rules keep the
+day of the month: Jan 31 is followed by Feb 28, then Mar 31. To remember the
+31st, the Feb 28 task gets `repeat_from: 2026-01-31`, which is left out again
+once the day fits.
+
+The TUI doesn't create the next occurrence yet; that's planned next.
 
 ### Where the files live
 

@@ -83,6 +83,7 @@ src/tskmngr/
   editor.py     # find $VISUAL/$EDITOR and run it on a file
   models.py     # Task dataclass and enums (status, priority)
   query.py      # filter, search, sort, ID-prefix lookup; shared by CLI and TUI
+  recurrence.py # next due date of a repeating task, and its next occurrence
   storage.py    # read/write task files in the tasks directory
   subtasks.py   # find and toggle the checklist items in a task's notes
   taskfile.py   # convert tasks to and from Markdown with frontmatter (no I/O)
@@ -91,7 +92,8 @@ tests/          # mirrors src/ layout; test_<module>.py
 ```
 
 Keep the layers separate: `models`, `taskfile`, `storage`, `query`,
-`subtasks`, `display`, `editor` and `config` must not import Textual, so they can be tested without a
+`subtasks`, `recurrence`, `display`, `editor` and `config` must not import
+Textual, so they can be tested without a
 UI.
 
 ## Task storage format
@@ -106,6 +108,7 @@ title: Buy milk
 status: todo          # todo | doing | done
 priority: normal      # low | normal | high
 due: 2026-11-01       # optional, ISO date
+repeat: weekly        # optional, see below
 tags: [errands]
 created: 2026-10-28T09:15:00Z
 updated: 2026-10-28T09:15:00Z
@@ -141,6 +144,23 @@ Notes go here, in **Markdown**.
   open subtask marks the task done, and unchecking one of a done task moves it
   back to doing. Editing the notes by hand or in the form never changes the
   status.
+- `repeat` makes a task recurring: `daily`, `weekly`, `monthly`, `yearly` or
+  `every N days|weeks|months|years` (N ≥ 1, case and extra spaces ignored;
+  written back in that shortest form when changed). When a task with a rule
+  is marked done (not when it already was), a new task with a fresh ID is
+  created as the next occurrence: same title, priority, tags and rule, the
+  notes with every subtask unchecked, status `todo`, and the next due date.
+  The rule moves to it: the done task loses `repeat` and `repeat_from`, so it
+  stays as history and reopening it doesn't repeat it again. Unknown
+  frontmatter keys aren't copied.
+- The next due date steps from the old due date by the rule's interval until
+  it's after today, so missed occurrences are skipped. A task without a due
+  date counts from the day it's done. Monthly and yearly rules keep the day of
+  the month: a day the month doesn't have becomes its last day (Jan 31 →
+  Feb 28), and the next occurrence then gets `repeat_from` (an ISO date, the
+  date the schedule counts from) so the one after is back on the 31st;
+  `repeat_from` is left out once the day fits again. Daily and weekly rules
+  ignore it.
 
 ## Config file
 
