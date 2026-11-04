@@ -83,6 +83,7 @@ COLUMN_LABELS = {
     Column.CREATED: "Created",
     Column.UPDATED: "Updated",
     Column.TITLE: "Title",
+    Column.TAGS: "Tags",
 }
 
 # The column of each sort key.
@@ -140,11 +141,14 @@ def task_row(
 ) -> tuple[Text, ...]:
     """The table cells for a task, matching `column_labels`.
 
-    The title is followed by `↻` if the task repeats, its subtasks done and
-    total, like `[1/3]`, if it has any, and then its tags as `#tag`.
+    The title is followed by `↻` if the task repeats, and its subtasks done
+    and total, like `[1/3]`, if it has any. Tags have their own column, as
+    `a, b`; without one, they follow the title as `#tag`.
     """
+    shown = shown_columns(sort_key, columns)
+    tags_in_title = Column.TAGS not in shown
     return tuple(
-        Text(task_cell(task, column)) for column in shown_columns(sort_key, columns)
+        Text(task_cell(task, column, tags_in_title=tags_in_title)) for column in shown
     )
 
 

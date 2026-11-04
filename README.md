@@ -134,16 +134,18 @@ words and `-t` the same way. `Enter`
 goes back to the list and keeps the filter. Filter and sort last until the app
 exits; the list starts with the config file's sort.
 
-The list has the columns ID, Status, Priority, Due and Title; sorting by
+The list has the columns ID, Status, Priority, Due, Title and Tags; sorting by
 created or updated adds that column at the far right while it lasts. `columns` in
 the [config file](#config-file) changes which columns are shown and in which
 order. Tasks with [subtasks](#subtasks) show how many are done after the
 title, like `Plan trip [1/3]`, and [repeating](#recurring-tasks) tasks are
-marked with `↻`, like `Pay rent ↻`. Tags follow as `#tag`.
+marked with `↻`, like `Pay rent ↻`. The Tags column lists a task's tags
+separated by commas, like `errands, home`; without it, they follow the title
+as `#tag`.
 
 Below the list, the bottom quarter of the screen shows the
-[deleted tasks](#deleted-tasks), newest delete first, with their title, delete
-time and ID. Files in `.trash/` that can't be loaded are named above them.
+[deleted tasks](#deleted-tasks), newest delete first, with their title, tags,
+delete time and ID. Files in `.trash/` that can't be loaded are named above them.
 The view only lists them: it never takes the cursor, so the keys above always
 act on the task list, and it scrolls with the mouse. `t` hides and shows it
 until the app exits; `show_trash` in the [config file](#config-file) sets
@@ -329,10 +331,12 @@ with every setting except `tasks_dir` at its default:
     "status",
     "priority",
     "due",
-    "title"
+    "title",
+    "tags"
   ],
   "trash_columns": [
     "title",
+    "tags",
     "deleted",
     "id"
   ],
@@ -358,8 +362,8 @@ sort           due
 reverse        false
 theme          textual-dark
 poll_interval  2
-columns        ["id", "status", "priority", "due", "title"]
-trash_columns  ["title", "deleted", "id"]
+columns        ["id", "status", "priority", "due", "title", "tags"]
+trash_columns  ["title", "tags", "deleted", "id"]
 show_trash     true
 keybindings    {}
 ```
@@ -399,8 +403,8 @@ exists, tskmngr warns about it on every run: move your settings to
 | `reverse` | `true` reverses that order | `false` |
 | `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |
 | `poll_interval` | Seconds between the TUI's checks for task files changed on disk; `0` turns them off | `2` |
-| `columns` | The TUI task list's columns, in the order shown, from `id`, `status`, `priority`, `due`, `created`, `updated` and `title`; the ones left out are hidden (see below) | `["id", "status", "priority", "due", "title"]` |
-| `trash_columns` | The TUI's deleted tasks view's columns, in the order shown: the `columns` names and `deleted`, the delete time; the ones left out are hidden | `["title", "deleted", "id"]` |
+| `columns` | The TUI task list's columns, in the order shown, from `id`, `status`, `priority`, `due`, `created`, `updated`, `title` and `tags`; the ones left out are hidden (see below) | `["id", "status", "priority", "due", "title", "tags"]` |
+| `trash_columns` | The TUI's deleted tasks view's columns, in the order shown: the `columns` names and `deleted`, the delete time; the ones left out are hidden | `["title", "tags", "deleted", "id"]` |
 | `show_trash` | `false` starts the TUI with the deleted tasks view hidden; `t` shows it | `true` |
 | `keybindings` | New keys for the TUI, an object of binding ids and their keys (see below) | the keys under [TUI keys](#tui-keys) |
 
@@ -413,7 +417,9 @@ guessing. A theme name or binding id that doesn't exist only stops the TUI.
 or updated shows that column even when `columns` leaves it out, last, at the
 far right, as long as that sort lasts. A hidden due
 date or priority column stays hidden when the list is sorted by it. The title
-column also holds the repeat marker, the subtasks done and the tags.
+column also holds the repeat marker and the subtasks done, and the tags while
+`tags` isn't listed, so a config file written before the tags column existed
+still shows them; add `tags` to show them in their own column.
 `trash_columns` follows the same rules, with `deleted` as one more name; the
 deleted tasks are always newest delete first.
 

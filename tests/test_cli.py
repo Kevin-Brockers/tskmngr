@@ -1744,8 +1744,8 @@ def test_config_prints_the_path_and_the_default_settings(
         "reverse        false\n"
         "theme          textual-dark\n"
         "poll_interval  2\n"
-        'columns        ["id", "status", "priority", "due", "title"]\n'
-        'trash_columns  ["title", "deleted", "id"]\n'
+        'columns        ["id", "status", "priority", "due", "title", "tags"]\n'
+        'trash_columns  ["title", "tags", "deleted", "id"]\n'
         "show_trash     true\n"
         "keybindings    {}\n"
     )
@@ -1770,7 +1770,7 @@ def test_config_marks_the_settings_the_file_leaves_out(
         "theme          textual-dark (default)",
         "poll_interval  0.5",
         'columns        ["title"]',
-        'trash_columns  ["title", "deleted", "id"] (default)',
+        'trash_columns  ["title", "tags", "deleted", "id"] (default)',
         "show_trash     true (default)",
         'keybindings    {"task_list.new": "a"}',
     ]

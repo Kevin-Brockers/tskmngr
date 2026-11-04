@@ -232,13 +232,13 @@ the step IDs keep their numbers.
   them (created, updated) go last, at the far right, instead of before
   Title; update the README and `AGENTS.md` to match ·
   `feature/sort_column_last` · [#60](https://github.com/Kevin-Brockers/tskmngr/pull/60)
-- [ ] **M9.3** Tags column in the TUI: `tags` joins the column names of
+- [x] **M9.3** Tags column in the TUI: `tags` joins the column names of
   `columns` and `trash_columns` and shows a task's tags separated by commas;
   the defaults gain it after `title` (`["id", "status", "priority", "due",
   "title", "tags"]` and `["title", "tags", "deleted", "id"]`), and while it
   isn't shown the title keeps its `#tags`, so config files without it still
   show them; document it in the README and update `AGENTS.md` to match ·
-  `feature/tags_column` · depends on M9.2
+  `feature/tags_column` · #TBD
 
 ### M7 · Config home and synced tasks
 

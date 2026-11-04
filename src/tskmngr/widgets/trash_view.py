@@ -32,6 +32,7 @@ TRASH_COLUMN_LABELS = {
     TrashColumn.CREATED: "Created",
     TrashColumn.UPDATED: "Updated",
     TrashColumn.TITLE: "Title",
+    TrashColumn.TAGS: "Tags",
     TrashColumn.DELETED: "Deleted",
 }
 
@@ -49,13 +50,17 @@ def trash_row(
     """The table cells for a deleted task, matching `trash_labels`.
 
     The delete time is written like `created` and `updated`; the other
-    columns are as in the task list.
+    columns are as in the task list, tags following the title as `#tag` only
+    without a tags column.
     """
+    tags_in_title = TrashColumn.TAGS not in columns
     return tuple(
         Text(
             format_timestamp(entry.deleted)
             if column is TrashColumn.DELETED
-            else task_cell(entry.task, Column(column.value))
+            else task_cell(
+                entry.task, Column(column.value), tags_in_title=tags_in_title
+            )
         )
         for column in columns
     )
