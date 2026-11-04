@@ -167,14 +167,29 @@ the maintainer before starting, and `AGENTS.md` updated to match.
     rule in the detail view, and the next occurrence created by `s`, the form
     and the subtask auto-done · `feature/recurring_tasks_tui` · [#40](https://github.com/Kevin-Brockers/tskmngr/pull/40)
 
-### M6 · Config home and synced tasks
+### M6 · Settings
+
+Goal: the TUI's task list columns can be arranged, and the config file can be viewed and edited from the CLI.
+
+- [ ] **M6.1** Order of the TUI task list columns: a `columns` config key,
+  a list of column names whose order is the display order, with columns
+  left out hidden; document it in the README and update `AGENTS.md` to
+  match · `feature/tui_column_order` · depends on M6.1
+- [ ] **M6.2** `tskmngr config` prints the config file's path and its
+  settings, `tskmngr config get <key>` prints one setting, and
+  `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`, then checks it
+  the way loading does and reports any error naming the key; document the
+  command in the README and update `AGENTS.md` to match ·
+  `feature/cli_config` · depends on M6.1
+
+### M7 · Config home and synced tasks
 
 Goal: settings live in `~/.tskmngr/`, and the tasks directory can be kept in a
 separate, usually private, git repository. How that repository is set up and
-synced must be agreed with the maintainer before starting M6.2, and
+synced must be agreed with the maintainer before starting M7.2, and
 `AGENTS.md` updated to match.
 
-- [x] **M6.1** Config file at `~/.tskmngr/config.json` only: drop
+- [x] **M7.1** Config file at `~/.tskmngr/config.json` only: drop
   `~/.config/tskmngr/config.json` and `TSKMNGR_CONFIG`; on first run, if the
   file doesn't exist, write a default config there (never overwriting an
   existing one); the config's `tasks_dir` comes first for the tasks
@@ -183,11 +198,11 @@ synced must be agreed with the maintainer before starting M6.2, and
   location, that it's created on first run, what the default file contains
   and the tasks directory order in the README, and update `AGENTS.md` to
   match · `feature/config_home` · [#42](https://github.com/Kevin-Brockers/tskmngr/pull/42)
-- [ ] **M6.2** Tasks directory in a separate git repository, through the `git`
+- [ ] **M7.2** Tasks directory in a separate git repository, through the `git`
   CLI (`subprocess`, no new dependency): commit after every change, pull when
   tskmngr starts, push after each commit, and `tskmngr sync` to sync by hand ·
   `feature/git_sync` · depends on M6.1. Split into:
-  - [ ] **M6.2a** Core and CLI: a `tasks_repo` config key with the
+  - [ ] **M7.2a** Core and CLI: a `tasks_repo` config key with the
     repository's HTTPS URL, cloned into the tasks directory if that isn't a
     git repository yet; a fine-grained access token read from the
     `TSKMNGR_GIT_TOKEN` env var and handed to git per command, never written
@@ -195,22 +210,6 @@ synced must be agreed with the maintainer before starting M6.2, and
     and `tskmngr sync`; a failed or offline sync is reported and catches up
     on the next one, and a pull conflict is reported, never resolved by
     overwriting a task · `feature/git_sync_core`
-  - [ ] **M6.2b** TUI: pull at start, commit and push after each change, a
+  - [ ] **M7.2b** TUI: pull at start, commit and push after each change, a
     sync key, and sync errors and conflicts shown to the user ·
     `feature/git_sync_tui` · depends on M6.2a
-
-### M7 · Settings
-
-Goal: the config file can be viewed and edited from the CLI, and the TUI's
-task list columns can be arranged.
-
-- [ ] **M7.1** `tskmngr config` prints the config file's path and its
-  settings, `tskmngr config get <key>` prints one setting, and
-  `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`, then checks it
-  the way loading does and reports any error naming the key; document the
-  command in the README and update `AGENTS.md` to match ·
-  `feature/cli_config` · depends on M6.1
-- [ ] **M7.2** Order of the TUI task list columns: a `columns` config key,
-  a list of column names whose order is the display order, with columns
-  left out hidden; document it in the README and update `AGENTS.md` to
-  match · `feature/tui_column_order` · depends on M6.1
