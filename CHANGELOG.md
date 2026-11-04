@@ -165,7 +165,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   one setting; `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`,
   even if it can't be used, and then checks it like the TUI does, naming the
   key of any problem
-- #TBD - Roadmap milestone M8: a view of the deleted tasks below the TUI's
+- [#53](https://github.com/Kevin-Brockers/tskmngr/pull/53) - Roadmap milestone M8: a view of the deleted tasks below the TUI's
   task list, which `t` hides and shows, with its columns and whether it starts
   shown set in the config file. Listed before M7 and built first; step IDs
   are unchanged
