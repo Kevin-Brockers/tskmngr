@@ -183,7 +183,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `["title", "deleted", "id"]`), and `show_trash`, whether the view starts
   shown (default `true`); both are in the default config file and shown by
   `tskmngr config`
-- #TBD - Roadmap milestone M9: prefixes and typo-tolerant words in the
+- [#57](https://github.com/Kevin-Brockers/tskmngr/pull/57) - Roadmap milestone M9: prefixes and typo-tolerant words in the
   filter (TUI and `tskmngr list`), the TUI's sort-only columns at the far
   right, and a tags column. Listed before M7 and built first; step IDs are
   unchanged
