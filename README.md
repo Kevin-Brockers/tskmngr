@@ -80,7 +80,7 @@ $ tskmngr done m2p
 | `done ID` | Mark a task as done. If it [repeats](#recurring-tasks), its next occurrence is added and its ID and due date printed |
 | `delete ID` | Move a task's file into `.trash/` (see [Deleted tasks](#deleted-tasks)) after asking; `-y/--yes` skips the question, and is required when there's no terminal to ask on |
 | `config` | Print the [config file](#config-file)'s path and every setting in use; a setting the file leaves out is marked `(default)`, or `(TSKMNGR_DIR)` for a tasks directory that comes from it |
-| `config get KEY` | Print the value in use of one setting: `tasks_dir` as the full path of the tasks directory, `columns` and `keybindings` as JSON, the rest as plain text |
+| `config get KEY` | Print the value in use of one setting: `tasks_dir` as the full path of the tasks directory, `columns`, `trash_columns` and `keybindings` as JSON, the rest as plain text |
 | `config edit` | Open the config file in `$VISUAL` or `$EDITOR`, even if it can't be used, then check it like the TUI does and name the key of any problem |
 
 `ID` can be any unique prefix of a task's ID, in any case: `m2p` above is
@@ -130,6 +130,15 @@ the [config file](#config-file) changes which columns are shown and in which
 order. Tasks with [subtasks](#subtasks) show how many are done after the
 title, like `Plan trip [1/3]`, and [repeating](#recurring-tasks) tasks are
 marked with `↻`, like `Pay rent ↻`. Tags follow as `#tag`.
+
+Below the list, the bottom quarter of the screen shows the
+[deleted tasks](#deleted-tasks), newest delete first, with their title, delete
+time and ID. Files in `.trash/` that can't be loaded are named above them.
+The view only lists them: it never takes the cursor, so the keys above always
+act on the task list, and it scrolls with the mouse. `t` hides and shows it
+until the app exits; `show_trash` in the [config file](#config-file) sets
+whether it starts shown, and `trash_columns` its columns. It's updated when
+you delete a task and when files in `.trash/` change.
 
 **Detail view**
 
@@ -290,7 +299,8 @@ The directory is created when the first task is saved.
 Deleting a task moves its file into `.trash/` inside the tasks directory,
 renamed to `<id>.<delete time>.md` in UTC, for example
 `01JB3K7Q2X.2026-10-30T12-00-05Z.md`. To restore the task, move the file back
-as `<id>.md`. tskmngr never empties `.trash/`.
+as `<id>.md`. tskmngr never empties `.trash/`. The TUI lists the deleted tasks
+below the task list (see [TUI keys](#tui-keys)).
 
 ## Config file
 
@@ -311,6 +321,12 @@ with every setting except `tasks_dir` at its default:
     "due",
     "title"
   ],
+  "trash_columns": [
+    "title",
+    "deleted",
+    "id"
+  ],
+  "show_trash": true,
   "keybindings": {}
 }
 ```
@@ -333,6 +349,8 @@ reverse        false
 theme          textual-dark
 poll_interval  2
 columns        ["id", "status", "priority", "due", "title"]
+trash_columns  ["title", "deleted", "id"]
+show_trash     true
 keybindings    {}
 ```
 
@@ -353,6 +371,8 @@ A file with every setting looks like this:
   "theme": "nord",
   "poll_interval": 2,
   "columns": ["id", "due", "title"],
+  "trash_columns": ["title", "deleted"],
+  "show_trash": false,
   "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
 }
 ```
@@ -370,6 +390,8 @@ exists, tskmngr warns about it on every run: move your settings to
 | `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |
 | `poll_interval` | Seconds between the TUI's checks for task files changed on disk; `0` turns them off | `2` |
 | `columns` | The TUI task list's columns, in the order shown, from `id`, `status`, `priority`, `due`, `created`, `updated` and `title`; the ones left out are hidden (see below) | `["id", "status", "priority", "due", "title"]` |
+| `trash_columns` | The TUI's deleted tasks view's columns, in the order shown: the `columns` names and `deleted`, the delete time; the ones left out are hidden | `["title", "deleted", "id"]` |
+| `show_trash` | `false` starts the TUI with the deleted tasks view hidden; `t` shows it | `true` |
 | `keybindings` | New keys for the TUI, an object of binding ids and their keys (see below) | the keys under [TUI keys](#tui-keys) |
 
 `tskmngr list --sort` replaces `sort` and `reverse`; `--reverse` reverses the
@@ -382,6 +404,8 @@ or updated shows that column even when `columns` leaves it out, before Title
 (or last, if Title is hidden too), as long as that sort lasts. A hidden due
 date or priority column stays hidden when the list is sorted by it. The title
 column also holds the repeat marker, the subtasks done and the tags.
+`trash_columns` follows the same rules, with `deleted` as one more name; the
+deleted tasks are always newest delete first.
 
 ### Keybindings
 

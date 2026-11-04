@@ -13,13 +13,17 @@ wrong type) is a `ConfigError`, so nothing runs with a half-read config.
       "theme": "nord",
       "poll_interval": 2,
       "columns": ["id", "due", "title"],
+      "trash_columns": ["title", "deleted"],
+      "show_trash": false,
       "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
     }
 
 `tasks_dir` may start with `~`; a relative path is read from the config
 file's folder. It comes before `TSKMNGR_DIR` (see `storage.tasks_dir`).
 `columns` names the TUI task list's columns in display order (see
-`display.Column`); the ones left out are hidden.
+`display.Column`); the ones left out are hidden. `trash_columns` does the same
+for the deleted tasks view (`display.TrashColumn`), and `show_trash` says
+whether that view starts shown.
 `keybindings` maps binding ids to keys, as Textual's keymap does. The theme
 and the binding ids are checked by the TUI, which knows the theme names and
 the bindings.
@@ -33,9 +37,10 @@ import os
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
-from tskmngr.display import DEFAULT_COLUMNS, Column
+from tskmngr.display import DEFAULT_COLUMNS, DEFAULT_TRASH_COLUMNS, Column, TrashColumn
 from tskmngr.query import SortKey
 
 DEFAULT_PATH = Path(".tskmngr", "config.json")
@@ -56,6 +61,8 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "theme": DEFAULT_THEME,
     "poll_interval": 2,
     "columns": [column.value for column in DEFAULT_COLUMNS],
+    "trash_columns": [column.value for column in DEFAULT_TRASH_COLUMNS],
+    "show_trash": True,
     "keybindings": {},
 }
 
@@ -84,6 +91,10 @@ class Config:
     poll_interval: float = DEFAULT_POLL_INTERVAL
     # The TUI task list's columns, in display order.
     columns: tuple[Column, ...] = DEFAULT_COLUMNS
+    # The TUI's deleted tasks view: its columns in display order, and whether
+    # it starts shown.
+    trash_columns: tuple[TrashColumn, ...] = DEFAULT_TRASH_COLUMNS
+    show_trash: bool = True
     # Binding id to its keys, comma-separated, like Textual's keymap.
     keybindings: dict[str, str] = field(default_factory=dict)
     # The keys the file sets; the other settings are at their defaults. Not
@@ -209,7 +220,7 @@ def _sort(value: object, path: Path) -> SortKey:
     return SortKey(value)
 
 
-def _reverse(value: object, path: Path) -> bool:
+def _boolean(value: object, path: Path) -> bool:
     if not isinstance(value, bool):
         raise _BadValue(f"expected true or false, got {_describe(value)}")
     return value
@@ -232,16 +243,25 @@ def _poll_interval(value: object, path: Path) -> float:
 
 
 def _columns(value: object, path: Path) -> tuple[Column, ...]:
-    names = ", ".join(column.value for column in Column)
+    return _column_names(value, Column)
+
+
+def _trash_columns(value: object, path: Path) -> tuple[TrashColumn, ...]:
+    return _column_names(value, TrashColumn)
+
+
+def _column_names[C: StrEnum](value: object, kind: type[C]) -> tuple[C, ...]:
+    """A non-empty list of names of `kind`, each once, as `kind` members."""
+    names = ", ".join(column.value for column in kind)
     if not isinstance(value, list):
         raise _BadValue(f"expected a list of column names, got {_describe(value)}")
     if not value:
         raise _BadValue(f"expected at least one of {names}, got an empty list")
-    columns: list[Column] = []
+    columns: list[C] = []
     for name in value:
-        if not isinstance(name, str) or name not in set(Column):
+        if not isinstance(name, str) or name not in set(kind):
             raise _BadValue(f"expected names from {names}, got {_describe(name)}")
-        column = Column(name)
+        column = kind(name)
         if column in columns:
             raise _BadValue(f"{name!r} is listed twice")
         columns.append(column)
@@ -271,10 +291,12 @@ def _keybindings(value: object, path: Path) -> dict[str, str]:
 _READERS: dict[str, Callable[[object, Path], object]] = {
     "tasks_dir": _tasks_dir,
     "sort": _sort,
-    "reverse": _reverse,
+    "reverse": _boolean,
     "theme": _theme,
     "poll_interval": _poll_interval,
     "columns": _columns,
+    "trash_columns": _trash_columns,
+    "show_trash": _boolean,
     "keybindings": _keybindings,
 }
 

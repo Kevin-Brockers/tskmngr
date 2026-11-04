@@ -286,7 +286,8 @@ def _parser() -> argparse.ArgumentParser:
         help="print one setting",
         description=(
             "Print the value in use of one setting: tasks_dir as the full path "
-            "of the tasks directory, columns and keybindings as JSON."
+            "of the tasks directory, columns, trash_columns and keybindings as "
+            "JSON."
         ),
     )
     get.add_argument(
@@ -518,7 +519,8 @@ def setting_value(config: Config, key: str) -> str:
     """The value in use of the setting `key`, as `config get` prints it.
 
     Text, numbers and booleans are plain, `tasks_dir` is the tasks directory
-    used, and `columns` and `keybindings` are JSON on one line.
+    used, and `columns`, `trash_columns` and `keybindings` are JSON on one
+    line.
     """
     match key:
         case "tasks_dir":
@@ -534,6 +536,10 @@ def setting_value(config: Config, key: str) -> str:
             return str(int(seconds)) if seconds.is_integer() else str(seconds)
         case "columns":
             return json.dumps([column.value for column in config.columns])
+        case "trash_columns":
+            return json.dumps([column.value for column in config.trash_columns])
+        case "show_trash":
+            return json.dumps(config.show_trash)
         case "keybindings":
             return json.dumps(config.keybindings)
     raise ValueError(f"unknown setting {key!r}")

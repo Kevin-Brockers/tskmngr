@@ -200,12 +200,12 @@ moving its file back by hand.
   `task_list.toggle_trash`, remappable through `keybindings`) shows or hides
   it until the app exits, and it starts shown · `feature/tui_trash_view` ·
   [#55](https://github.com/Kevin-Brockers/tskmngr/pull/55)
-- [ ] **M8.3** Config keys `trash_columns`, the view's columns in display
+- [x] **M8.3** Config keys `trash_columns`, the view's columns in display
   order from the `columns` names plus `deleted` (the delete time), checked
   like `columns`, default `["title", "deleted", "id"]`; and `show_trash`,
   whether the view starts shown, default `true`; both in the default config
   file; document them and the view in the README and update `AGENTS.md` to
-  match · `feature/trash_view_config` · depends on M8.2
+  match · `feature/trash_view_config` · #TBD
 
 ### M7 · Config home and synced tasks
 
