@@ -184,8 +184,9 @@ Textual's keymap. All are optional.
 - On every run (any CLI command or the TUI), if nothing is at that path, the
   app writes the default config there: every key except `tasks_dir`, at its
   default (`sort` `due`, `reverse` false, `theme` `textual-dark`,
-  `poll_interval` 2, `columns` `["id", "status", "priority", "due", "title"]`,
-  `trash_columns` `["title", "deleted", "id"]`, `show_trash` true,
+  `poll_interval` 2, `columns`
+  `["id", "status", "priority", "due", "title", "tags"]`, `trash_columns`
+  `["title", "tags", "deleted", "id"]`, `show_trash` true,
   `keybindings` `{}`). The write is atomic and never
   overwrites an existing file; otherwise the app only reads the file. If it
   can't be written, the CLI and the TUI stop with an error naming the file.
@@ -194,8 +195,9 @@ Textual's keymap. All are optional.
 - `tasks_dir` comes first for the tasks directory, then `TSKMNGR_DIR`, then
   the default. A relative `tasks_dir` is read from the config file's folder.
 - `columns` sets the TUI task list's columns in display order, from `id`,
-  `status`, `priority`, `due`, `created`, `updated` and `title`; the ones
-  left out are hidden. Sorting by `created` or `updated` still shows that
+  `status`, `priority`, `due`, `created`, `updated`, `title` and `tags`; the
+  ones left out are hidden. `tags` lists a task's tags separated by commas;
+  while a table has no tags column, its title ends in the `#tags` instead. Sorting by `created` or `updated` still shows that
   column, last (at the far right), while that sort lasts. An empty list, an
   unknown name or a name listed twice stops the CLI and the TUI.
 - `trash_columns` sets the TUI's deleted tasks view's columns in display
