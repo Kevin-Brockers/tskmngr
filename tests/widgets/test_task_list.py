@@ -7,11 +7,11 @@ from rich.text import Text
 from textual.widgets import Button, DataTable, Input, Static
 
 from tskmngr.app import TskmngrApp
-from tskmngr.models import Priority, Status, Task
+from tskmngr.models import Priority, Repeat, Status, Task, Unit
 from tskmngr.query import SortKey
 from tskmngr.storage import BadFile, load_tasks, save_task
 from tskmngr.taskfile import MalformedTaskError
-from tskmngr.widgets import task_list
+from tskmngr.widgets import saving, task_list
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen, delete_question
 from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_list import (
@@ -387,7 +387,7 @@ async def test_s_write_error_is_shown(
     def fail(*_: object) -> None:
         raise PermissionError(13, "Permission denied")
 
-    monkeypatch.setattr(task_list, "save_task", fail)
+    monkeypatch.setattr(saving, "save_task", fail)
 
     app = TskmngrApp(tmp_path)
     messages = record_notifications(app)
@@ -1131,3 +1131,93 @@ async def test_a_file_broken_and_fixed_on_disk_comes_and_goes_in_the_warning(
 
         assert warning_text(screen) is None
         assert [row[0] for row in table_rows(screen)] == ["AAAA"]
+
+
+# Recurring tasks
+
+
+def test_task_row_marks_a_repeating_task_after_the_title() -> None:
+    task = make_task(
+        "A",
+        "Water plants",
+        repeat=Repeat(1, Unit.WEEKS),
+        tags=("home",),
+        notes="- [x] Kitchen\n- [ ] Office\n",
+    )
+
+    assert task_row(task)[-1].plain == "Water plants ↻ [1/2] #home"
+
+
+@pytest.mark.asyncio
+async def test_s_to_done_adds_the_next_occurrence_of_a_repeating_task(
+    tmp_path: Path,
+) -> None:
+    save_task(
+        tmp_path,
+        make_task(
+            "AAAA",
+            "Water plants",
+            status=Status.DOING,
+            due=date(2099, 3, 1),
+            repeat=Repeat(1, Unit.WEEKS),
+        ),
+        None,
+    )
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("s")
+
+        tasks = loaded(tmp_path)
+        done = tasks.pop("AAAA")
+        [following] = tasks.values()
+        assert done.status is Status.DONE
+        assert done.repeat is None
+        assert following.due == date(2099, 3, 8)
+        assert following.repeat == Repeat(1, Unit.WEEKS)
+        assert messages == [f"Next occurrence: {following.id}, due 2099-03-08"]
+        # Both are listed, and the cursor stays on the task that was changed.
+        assert {row[0] for row in table_rows(app.screen)} == {"AAAA", following.id}
+        assert cursor_task_id(app) == "AAAA"
+
+
+@pytest.mark.asyncio
+async def test_s_to_todo_or_doing_adds_no_occurrence(tmp_path: Path) -> None:
+    save_task(
+        tmp_path, make_task("AAAA", "Water plants", repeat=Repeat(1, Unit.WEEKS)), None
+    )
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("s")
+
+        assert list(loaded(tmp_path)) == ["AAAA"]
+        assert loaded(tmp_path)["AAAA"].status is Status.DOING
+        assert messages == []
+
+
+@pytest.mark.asyncio
+async def test_s_shows_a_next_due_date_that_cant_be_computed(tmp_path: Path) -> None:
+    task = make_task(
+        "AAAA",
+        "Water plants",
+        status=Status.DOING,
+        due=date(9999, 12, 1),
+        repeat=Repeat(1, Unit.MONTHS),
+    )
+    save_task(tmp_path, task, None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("s")
+
+        assert messages == [
+            (
+                "Can't add the next occurrence: the next occurrence of monthly "
+                "would be after the year 9999. The status wasn't changed."
+            )
+        ]
+        assert loaded(tmp_path) == {"AAAA": task}

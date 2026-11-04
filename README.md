@@ -105,7 +105,7 @@ panel above the list.
 | `Enter` | Open the task under the cursor in the detail view |
 | `n` | New task |
 | `e` | Edit the task under the cursor |
-| `s` | Move the task to the next status (todo → doing → done → todo) and save it |
+| `s` | Move the task to the next status (todo → doing → done → todo) and save it; a [repeating](#recurring-tasks) task that becomes done gets its next occurrence |
 | `d` | Delete the task, after asking (`y` deletes, `n` or `Escape` doesn't) |
 | `o` | Open the task's file in `$VISUAL` or `$EDITOR`; the task is reloaded when the editor exits |
 | `/` | Filter the list (see below) |
@@ -120,7 +120,8 @@ goes back to the list and keeps the filter. Filter and sort last until the app
 exits; the list starts with the config file's sort.
 
 Tasks with [subtasks](#subtasks) show how many are done after the title, like
-`Plan trip [1/3]`.
+`Plan trip [1/3]`, and [repeating](#recurring-tasks) tasks are marked with `↻`,
+like `Pay rent ↻`.
 
 **Detail view**
 
@@ -134,7 +135,7 @@ Tasks with [subtasks](#subtasks) show how many are done after the title, like
 The detail view lists the task's subtasks above its notes, with the cursor on
 them, so the arrow keys move between them; `Tab` moves to the notes.
 
-**Task form** (title, status, priority, due date, tags and notes)
+**Task form** (title, status, priority, due date, repeat rule, tags and notes)
 
 | Key | Action |
 | --- | ------ |
@@ -231,8 +232,8 @@ changes the status.
 
 A task with a `repeat` rule comes back when it's done. The rule is `daily`,
 `weekly`, `monthly`, `yearly`, or `every N days`, `weeks`, `months` or `years`,
-like `every 2 weeks`. Set it with `tskmngr add --repeat` or `tskmngr edit
---repeat`, or in the file:
+like `every 2 weeks`. Set it in the TUI's form, with `tskmngr add --repeat` or
+`tskmngr edit --repeat`, or in the file:
 
 ```markdown
 ---
@@ -242,8 +243,9 @@ repeat: monthly
 ---
 ```
 
-Marking it done with `tskmngr done`, or `tskmngr edit --status done`, adds the
-next occurrence as a new task: same title, priority, tags, notes and rule,
+Marking it done adds the next occurrence as a new task, whether with
+`tskmngr done` or `tskmngr edit --status done`, or in the TUI with `s`, by
+saving the form with status done or by checking its last open subtask: same title, priority, tags, notes and rule,
 with every subtask unchecked, status `todo` and the next due date. The done
 task stays as it is, without the rule, so reopening it doesn't create another
 one.
@@ -254,8 +256,6 @@ interval after the day the task is done. Monthly and yearly rules keep the
 day of the month: Jan 31 is followed by Feb 28, then Mar 31. To remember the
 31st, the Feb 28 task gets `repeat_from: 2026-01-31`, which is left out again
 once the day fits.
-
-The TUI doesn't create the next occurrence yet; that's planned next.
 
 ### Where the files live
 

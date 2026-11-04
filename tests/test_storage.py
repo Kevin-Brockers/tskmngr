@@ -529,3 +529,25 @@ def test_save_completed_leaves_the_task_if_the_next_one_cant_be_written(
 
 def load_one_by_id(directory: Path, task_id: str) -> TaskFile:
     return next(s for s in load_tasks(directory).tasks if s.task.id == task_id)
+
+
+def test_save_completed_saves_a_new_task_and_its_next_occurrence(
+    tmp_path: Path,
+) -> None:
+    done = make_task(status=Status.DONE)
+
+    saved, written = save_completed(tmp_path, done, None, make_task(id="NEXT"))
+
+    assert saved.task == done
+    assert written is not None
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["01JB3K7Q2X.md", "NEXT.md"]
+
+
+def test_save_completed_refuses_a_new_task_whose_file_exists(tmp_path: Path) -> None:
+    write(tmp_path, "01JB3K7Q2X.md")
+
+    with pytest.raises(ConflictError) as excinfo:
+        save_completed(tmp_path, make_task(), None, make_task(id="NEXT"))
+
+    assert excinfo.value.reason is ConflictReason.EXISTS
+    assert not (tmp_path / "NEXT.md").exists()

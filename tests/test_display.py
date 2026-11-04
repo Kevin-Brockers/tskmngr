@@ -1,6 +1,11 @@
 from datetime import UTC, date, datetime, timedelta, timezone
 
-from tskmngr.display import format_repeat, format_timestamp, task_fields
+from tskmngr.display import (
+    format_next_occurrence,
+    format_repeat,
+    format_timestamp,
+    task_fields,
+)
 from tskmngr.models import Priority, Repeat, Status, Task, Unit
 
 CREATED = datetime(2026, 10, 28, 9, 15, tzinfo=UTC)
@@ -83,3 +88,9 @@ def test_format_repeat_shows_the_date_a_rule_counts_from() -> None:
 
 def test_format_repeat_without_a_rule() -> None:
     assert format_repeat(make_task("A", "Read")) == "-"
+
+
+def test_format_next_occurrence() -> None:
+    task = make_task("BBBB", "Water plants", due=date(2026, 11, 11))
+
+    assert format_next_occurrence(task) == "Next occurrence: BBBB, due 2026-11-11"

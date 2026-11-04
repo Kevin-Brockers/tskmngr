@@ -7,9 +7,9 @@ from rich.text import Text
 from textual.widgets import DataTable, Input, Select, Static, TextArea
 
 from tskmngr.app import TskmngrApp
-from tskmngr.models import Priority, Status, Task
+from tskmngr.models import Priority, Repeat, Status, Task, Unit
 from tskmngr.storage import load_tasks, save_task
-from tskmngr.widgets import task_form
+from tskmngr.widgets import saving, task_form
 from tskmngr.widgets.confirm_discard import ConfirmDiscardScreen
 from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_form import (
@@ -682,7 +682,7 @@ async def test_a_write_error_keeps_the_form_open(
     def fail(*_: object) -> None:
         raise PermissionError(13, "Permission denied")
 
-    monkeypatch.setattr(task_form, "save_task", fail)
+    monkeypatch.setattr(saving, "save_task", fail)
 
     app = TskmngrApp(tmp_path)
     messages = record_notifications(app)
@@ -836,3 +836,234 @@ async def test_a_file_that_cant_be_checked_shows_nothing_yet(
 
         assert app.screen is screen
         assert messages == []
+
+
+# Repeat rules
+
+
+@pytest.mark.asyncio
+async def test_the_form_shows_the_repeat_rule_in_its_shortest_form(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "AAAA.md").write_text(
+        "---\ntitle: Water plants\nrepeat: Every 2  Weeks\n---\n", encoding="utf-8"
+    )
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+
+        assert screen.query_one("#repeat", Input).value == "every 2 weeks"
+        # Unchanged, so saving leaves the file as written.
+        await pilot.press("ctrl+s")
+
+    assert "repeat: Every 2  Weeks\n" in (tmp_path / "AAAA.md").read_text()
+
+
+@pytest.mark.asyncio
+async def test_a_new_task_form_has_an_empty_repeat_field(tmp_path: Path) -> None:
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("n")
+
+        assert app.screen.query_one("#repeat", Input).value == ""
+
+
+@pytest.mark.asyncio
+async def test_setting_a_repeat_rule_saves_it(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "Water plants"), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        fill(screen, repeat="  Every 3 days ")
+        await pilot.press("ctrl+s")
+
+        assert isinstance(app.screen, TaskListScreen)
+    task = loaded(tmp_path)["AAAA"]
+    assert task.repeat == Repeat(3, Unit.DAYS)
+    assert task.updated > CREATED
+
+
+@pytest.mark.asyncio
+async def test_an_invalid_repeat_rule_is_shown_and_nothing_is_saved(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "Water plants"), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        fill(screen, repeat="fortnightly")
+        await pilot.press("ctrl+s")
+
+        assert app.screen is screen
+        assert error_text(screen, "repeat") == (
+            "Expected daily, weekly, monthly, yearly or every N days, weeks, months "
+            "or years, got 'fortnightly'"
+        )
+        assert screen.focused is screen.query_one("#repeat")
+    assert loaded(tmp_path)["AAAA"].repeat is None
+
+
+@pytest.mark.asyncio
+async def test_clearing_the_rule_removes_repeat_and_repeat_from(tmp_path: Path) -> None:
+    task = make_task(
+        "AAAA",
+        "Pay rent",
+        repeat=Repeat(1, Unit.MONTHS),
+        repeat_from=date(2026, 1, 31),
+    )
+    save_task(tmp_path, task, None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        fill(app.screen, repeat="")
+        await pilot.press("ctrl+s")
+
+    assert "repeat" not in (tmp_path / "AAAA.md").read_text()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("rule", "repeat_from"),
+    [("Monthly", date(2026, 1, 31)), ("every 2 months", None)],
+)
+async def test_repeat_from_is_kept_only_with_the_same_rule(
+    tmp_path: Path, rule: str, repeat_from: date | None
+) -> None:
+    task = make_task(
+        "AAAA",
+        "Pay rent",
+        repeat=Repeat(1, Unit.MONTHS),
+        repeat_from=date(2026, 1, 31),
+    )
+    save_task(tmp_path, task, None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        fill(app.screen, repeat=rule, title="Pay the rent")
+        await pilot.press("ctrl+s")
+
+    assert loaded(tmp_path)["AAAA"].repeat_from == repeat_from
+
+
+@pytest.mark.asyncio
+async def test_changing_only_the_rule_asks_before_discarding(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "Water plants"), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        fill(app.screen, repeat="weekly")
+        await pilot.press("escape")
+
+        assert isinstance(app.screen, ConfirmDiscardScreen)
+
+
+@pytest.mark.asyncio
+async def test_saving_a_repeating_task_as_done_adds_the_next_occurrence(
+    tmp_path: Path,
+) -> None:
+    task = make_task(
+        "AAAA", "Water plants", due=date(2099, 3, 1), repeat=Repeat(1, Unit.WEEKS)
+    )
+    save_task(tmp_path, task, None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        screen.query_one("#status", Select).value = Status.DONE
+        fill(screen, title="Water all plants")
+        await pilot.press("ctrl+s")
+
+        assert isinstance(app.screen, TaskListScreen)
+        tasks = loaded(tmp_path)
+        done = tasks.pop("AAAA")
+        [following] = tasks.values()
+        assert done.status is Status.DONE
+        assert done.repeat is None
+        assert following.title == "Water all plants"
+        assert following.due == date(2099, 3, 8)
+        assert messages == [f"Next occurrence: {following.id}, due 2099-03-08"]
+        assert cursor_task_id(app) == "AAAA"
+
+
+@pytest.mark.asyncio
+async def test_a_new_task_saved_as_done_with_a_rule_adds_the_next_occurrence(
+    tmp_path: Path,
+) -> None:
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("n")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        fill(screen, title="Water plants", due="2099-03-01", repeat="weekly")
+        screen.query_one("#status", Select).value = Status.DONE
+        await pilot.press("ctrl+s")
+
+        tasks = loaded(tmp_path)
+        assert len(tasks) == 2
+        done = next(t for t in tasks.values() if t.status is Status.DONE)
+        following = next(t for t in tasks.values() if t.status is Status.TODO)
+        assert done.repeat is None
+        assert done.due == date(2099, 3, 1)
+        assert following.repeat == Repeat(1, Unit.WEEKS)
+        assert following.due == date(2099, 3, 8)
+        assert messages == [f"Next occurrence: {following.id}, due 2099-03-08"]
+
+
+@pytest.mark.asyncio
+async def test_saving_a_done_repeating_task_again_adds_nothing(tmp_path: Path) -> None:
+    task = make_task(
+        "AAAA", "Water plants", status=Status.DONE, repeat=Repeat(1, Unit.WEEKS)
+    )
+    save_task(tmp_path, task, None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        fill(app.screen, title="Water all plants")
+        await pilot.press("ctrl+s")
+
+    assert list(loaded(tmp_path)) == ["AAAA"]
+
+
+@pytest.mark.asyncio
+async def test_a_next_due_date_that_cant_be_computed_keeps_the_form_open(
+    tmp_path: Path,
+) -> None:
+    task = make_task(
+        "AAAA", "Water plants", due=date(9999, 12, 1), repeat=Repeat(1, Unit.MONTHS)
+    )
+    save_task(tmp_path, task, None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("e")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        screen.query_one("#status", Select).value = Status.DONE
+        await pilot.press("ctrl+s")
+
+        assert app.screen is screen
+        assert messages == [
+            (
+                "Can't add the next occurrence: the next occurrence of monthly "
+                "would be after the year 9999"
+            )
+        ]
+    assert loaded(tmp_path) == {"AAAA": task}

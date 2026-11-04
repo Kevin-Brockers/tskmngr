@@ -1,8 +1,9 @@
 """The task form: create a task or edit the fields of one.
 
-Title, status, priority, due date, tags and the notes, which are edited as
-plain text in a text area. Input is checked on save and each problem is shown
-under its field. A save that hits a conflict (the file changed or was deleted
+Title, status, priority, due date, repeat rule, tags and the notes, which are
+edited as plain text in a text area. Input is checked on save and each problem
+is shown under its field. Saving a repeating task as done (a new one, or one
+that wasn't done) also adds its next occurrence, see `tskmngr.recurrence`. A save that hits a conflict (the file changed or was deleted
 on disk) is shown as an error and the form closes without saving, so the
 caller reloads from disk. Cancelling a form with changes asks before
 discarding them.
@@ -28,25 +29,29 @@ from textual.screen import Screen
 from textual.widgets import Footer, Header, Input, Label, Select, Static, TextArea
 
 from tskmngr.models import (
+    REPEAT_HINT,
     Priority,
+    Repeat,
     Status,
     Task,
     TaskValidationError,
     new_task,
     parse_due,
+    parse_repeat,
 )
+from tskmngr.recurrence import RecurrenceError
 from tskmngr.storage import (
     ConflictError,
     check_unchanged,
     load_tasks,
-    save_task,
     task_path,
 )
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.confirm_discard import ConfirmDiscardScreen
+from tskmngr.widgets.saving import notify_next, save_task_and_next
 from tskmngr.widgets.tasks_changed import TasksChanged
 
-FIELDS = ("title", "status", "priority", "due", "tags", "notes")
+FIELDS = ("title", "status", "priority", "due", "repeat", "tags", "notes")
 
 TAG_SEPARATORS = re.compile(r"[\s,]+")
 
@@ -144,6 +149,12 @@ class TaskFormScreen(Screen[str | None]):
             due = task.due.isoformat() if task and task.due else ""
             yield Input(due, placeholder="YYYY-MM-DD, empty for none", id="due")
             yield from self._error("due")
+            yield Label("Repeat", classes="field-label")
+            repeat = str(task.repeat) if task and task.repeat else ""
+            yield Input(
+                repeat, placeholder=f"{REPEAT_HINT}; empty for none", id="repeat"
+            )
+            yield from self._error("repeat")
             yield Label("Tags", classes="field-label")
             tags = format_tags(task.tags) if task else ""
             yield Input(tags, placeholder="separated by spaces or commas", id="tags")
@@ -170,6 +181,7 @@ class TaskFormScreen(Screen[str | None]):
             self.query_one("#status", Select).value,
             self.query_one("#priority", Select).value,
             self.query_one("#due", Input).value,
+            self.query_one("#repeat", Input).value,
             self.query_one("#tags", Input).value,
             self.query_one("#notes", TextArea).text,
         )
@@ -220,7 +232,7 @@ class TaskFormScreen(Screen[str | None]):
             self.dismiss(task.id)
             return
         try:
-            save_task(self.directory, task, self.source)
+            following = save_task_and_next(self.directory, task, self.source)
         except ConflictError as error:
             self.notify(
                 f"{error.path.name} {error.reason}. It was reloaded from disk; "
@@ -240,6 +252,16 @@ class TaskFormScreen(Screen[str | None]):
                 markup=False,
             )
             return
+        except RecurrenceError as error:
+            # The task can be saved once the due date or rule is changed.
+            self.notify(
+                f"Can't add the next occurrence: {error}",
+                title="Not saved",
+                severity="error",
+                markup=False,
+            )
+            return
+        notify_next(self, following)
         self.dismiss(task.id)
 
     def _task_from_fields(self) -> Task | None:
@@ -255,6 +277,13 @@ class TaskFormScreen(Screen[str | None]):
                 due = parse_due(due_text)
             except TaskValidationError as error:
                 errors["due"] = error.message
+        repeat_text = self.query_one("#repeat", Input).value.strip()
+        repeat = None
+        if repeat_text:
+            try:
+                repeat = parse_repeat(repeat_text)
+            except TaskValidationError as error:
+                errors["repeat"] = error.message
         task = None
         try:
             # Built even with a bad due date, so a bad title shows up too.
@@ -263,6 +292,7 @@ class TaskFormScreen(Screen[str | None]):
                 status=self.query_one("#status", Select).value,
                 priority=self.query_one("#priority", Select).value,
                 due=due,
+                repeat=repeat,
                 tags=parse_tags(self.query_one("#tags", Input).value),
                 notes=self._notes(),
             )
@@ -299,6 +329,7 @@ class TaskFormScreen(Screen[str | None]):
         status: Status,
         priority: Priority,
         due: date | None,
+        repeat: Repeat | None,
         tags: list[str],
         notes: str,
     ) -> Task:
@@ -309,6 +340,7 @@ class TaskFormScreen(Screen[str | None]):
                 status=status,
                 priority=priority,
                 due=due,
+                repeat=repeat,
                 tags=tags,
                 notes=notes,
             )
@@ -319,6 +351,9 @@ class TaskFormScreen(Screen[str | None]):
             status=status,
             priority=priority,
             due=due,
+            repeat=repeat,
+            # The day of the month it kept belongs to the old rule.
+            repeat_from=old.repeat_from if repeat == old.repeat else None,
             tags=tags,
             notes=notes,
         )
@@ -327,7 +362,7 @@ class TaskFormScreen(Screen[str | None]):
         return replace(task, updated=datetime.now(UTC).replace(microsecond=0))
 
     def _show_errors(self, errors: dict[str, str]) -> None:
-        for field in ("title", "due", "tags"):
+        for field in ("title", "due", "repeat", "tags"):
             message = errors.get(field, "")
             error = self.query_one(f"#{field}-error", Static)
             error.update(Text(message[:1].upper() + message[1:]))

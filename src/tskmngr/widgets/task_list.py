@@ -4,7 +4,8 @@ Task files that can't be loaded are named in a warning panel above the table,
 so they're never hidden. The tasks directory is shown in the header. Enter
 opens the task under the cursor in the detail screen, `n` creates a task and
 `e` edits the one under the cursor. `s` moves the task under the cursor to the
-next status (todo → doing → done → todo) and saves it right away; `d` asks
+next status (todo → doing → done → todo) and saves it right away; a repeating
+task that becomes done gets its next occurrence (see `tskmngr.recurrence`); `d` asks
 whether to delete it and moves its file to `.trash/`; `o` opens its file in
 `$VISUAL` or `$EDITOR`. The list is reloaded from disk after each of these, and
 a save or delete that hits a conflict is shown instead of overwriting the file.
@@ -40,18 +41,19 @@ from textual.widgets import DataTable, Footer, Header, Input, Static
 from tskmngr.display import format_timestamp
 from tskmngr.models import Task, next_status
 from tskmngr.query import SortKey, TaskFilter, parse_filter, sort_tasks
+from tskmngr.recurrence import RecurrenceError
 from tskmngr.storage import (
     BadFile,
     ConflictError,
     delete_task,
     load_tasks,
-    save_task,
     task_path,
 )
 from tskmngr.subtasks import parse_subtasks, progress
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
 from tskmngr.widgets.external_editor import edit_in_editor
+from tskmngr.widgets.saving import notify_next, save_task_and_next
 from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_form import TaskFormScreen
 from tskmngr.widgets.tasks_changed import TasksChanged
@@ -93,8 +95,8 @@ def column_labels(sort_key: SortKey, reverse: bool) -> tuple[str, ...]:
 def task_row(task: Task, sort_key: SortKey = SortKey.DUE) -> tuple[Text, ...]:
     """The table cells for a task.
 
-    The title is followed by its subtasks done and total, like `[1/3]`, if it
-    has any, and then its tags as `#tag`.
+    The title is followed by `↻` if the task repeats, its subtasks done and
+    total, like `[1/3]`, if it has any, and then its tags as `#tag`.
 
     Matches `column_labels(sort_key, ...)`: sorting by created or updated adds
     that time before the title.
@@ -108,7 +110,11 @@ def task_row(task: Task, sort_key: SortKey = SortKey.DUE) -> tuple[Text, ...]:
     if sort_key in TIME_SORT_KEYS:
         cells.append(format_timestamp(getattr(task, sort_key.value)))
     done = progress(parse_subtasks(task.notes))
-    title = [task.title, *([f"[{done}]"] if done else [])]
+    title = [
+        task.title,
+        *(["↻"] if task.repeat else []),
+        *([f"[{done}]"] if done else []),
+    ]
     cells.append(" ".join([*title, *(f"#{tag}" for tag in task.tags)]))
     return tuple(Text(cell) for cell in cells)
 
@@ -426,11 +432,16 @@ class TaskListScreen(Screen):
             updated=datetime.now(UTC).replace(microsecond=0),
         )
         try:
-            save_task(self.directory, task, source)
+            following = save_task_and_next(self.directory, task, source)
         except ConflictError as error:
             self._notify_error(
                 f"{error.path.name} {error.reason}. It was reloaded from disk; "
                 "the status wasn't changed.",
+                "Not saved",
+            )
+        except RecurrenceError as error:
+            self._notify_error(
+                f"Can't add the next occurrence: {error}. The status wasn't changed.",
                 "Not saved",
             )
         except OSError as error:
@@ -438,6 +449,8 @@ class TaskListScreen(Screen):
                 f"Can't save the task in {self.directory}: {error.strerror or error}",
                 "Not saved",
             )
+        else:
+            notify_next(self, following)
         self.reload(task.id)
 
     def action_delete_task(self) -> None:
