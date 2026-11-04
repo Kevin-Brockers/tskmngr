@@ -20,8 +20,11 @@ table and keeps the filter; Escape clears it.
 `S` sorts by the next key (due → priority → created → updated → due), each in
 its default direction (see `query.sort_tasks`), and `R` reverses the order. The
 header of the sorted column gets ▲ when the smallest value is at the top
-(earliest date, lowest priority) and ▼ when it's at the bottom. Created and
-updated have a column only while the list is sorted by them.
+(earliest date, lowest priority) and ▼ when it's at the bottom.
+
+The config file's `columns` sets which columns are shown, in which order (see
+`shown_columns`). By default created and updated have a column only while the
+list is sorted by them.
 """
 
 from collections.abc import Sequence
@@ -38,7 +41,7 @@ from textual.binding import Binding, BindingType
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
-from tskmngr.display import format_timestamp
+from tskmngr.display import DEFAULT_COLUMNS, Column, format_timestamp
 from tskmngr.models import Task, next_status
 from tskmngr.query import SortKey, TaskFilter, parse_filter, sort_tasks
 from tskmngr.recurrence import RecurrenceError
@@ -61,62 +64,103 @@ from tskmngr.widgets.tasks_changed import TasksChanged
 # The order `S` steps through.
 SORT_KEYS = (SortKey.DUE, SortKey.PRIORITY, SortKey.CREATED, SortKey.UPDATED)
 
-# The header of each sort key's column.
-SORT_COLUMNS = {
-    SortKey.DUE: "Due",
-    SortKey.PRIORITY: "Priority",
-    SortKey.CREATED: "Created",
-    SortKey.UPDATED: "Updated",
+# The header of each column.
+COLUMN_LABELS = {
+    Column.ID: "ID",
+    Column.STATUS: "Status",
+    Column.PRIORITY: "Priority",
+    Column.DUE: "Due",
+    Column.CREATED: "Created",
+    Column.UPDATED: "Updated",
+    Column.TITLE: "Title",
 }
 
-# Shown only while sorting by them, before the title.
+# The column of each sort key.
+SORT_COLUMNS = {
+    SortKey.DUE: Column.DUE,
+    SortKey.PRIORITY: Column.PRIORITY,
+    SortKey.CREATED: Column.CREATED,
+    SortKey.UPDATED: Column.UPDATED,
+}
+
+# Their column is shown while sorting by them, even if `columns` leaves it out.
 TIME_SORT_KEYS = (SortKey.CREATED, SortKey.UPDATED)
 
 
-def column_labels(sort_key: SortKey, reverse: bool) -> tuple[str, ...]:
-    """The column headers, with ▲ or ▼ on the one the list is sorted by.
+def shown_columns(
+    sort_key: SortKey, columns: Sequence[Column] = DEFAULT_COLUMNS
+) -> tuple[Column, ...]:
+    """The columns shown: `columns`, the config file's, in their order.
+
+    Sorting by created or updated also shows that column if `columns` leaves
+    it out: before Title, or last if Title is hidden too. Other hidden
+    columns stay hidden while the list is sorted by them.
+    """
+    shown = list(columns)
+    sorted_column = SORT_COLUMNS[sort_key]
+    if sort_key in TIME_SORT_KEYS and sorted_column not in shown:
+        at = shown.index(Column.TITLE) if Column.TITLE in shown else len(shown)
+        shown.insert(at, sorted_column)
+    return tuple(shown)
+
+
+def column_labels(
+    sort_key: SortKey, reverse: bool, columns: Sequence[Column] = DEFAULT_COLUMNS
+) -> tuple[str, ...]:
+    """The headers of `shown_columns`, with ▲ or ▼ on the sorted one.
 
     ▲ means the smallest value is at the top: the earliest date or the lowest
-    priority. Sorting by created or updated adds that column before Title.
+    priority. A hidden sorted column means no arrow.
     """
-    labels = ["ID", "Status", "Priority", "Due"]
-    if sort_key in TIME_SORT_KEYS:
-        labels.append(SORT_COLUMNS[sort_key])
-    labels.append("Title")
     # Priority sorts highest first by default, the others smallest first.
     descending = (sort_key is SortKey.PRIORITY) != reverse
     arrow = "▼" if descending else "▲"
-    sorted_label = SORT_COLUMNS[sort_key]
+    sorted_column = SORT_COLUMNS[sort_key]
     return tuple(
-        f"{label} {arrow}" if label == sorted_label else label for label in labels
+        f"{COLUMN_LABELS[column]} {arrow}"
+        if column is sorted_column
+        else COLUMN_LABELS[column]
+        for column in shown_columns(sort_key, columns)
     )
 
 
-def task_row(task: Task, sort_key: SortKey = SortKey.DUE) -> tuple[Text, ...]:
-    """The table cells for a task.
+def task_row(
+    task: Task,
+    sort_key: SortKey = SortKey.DUE,
+    columns: Sequence[Column] = DEFAULT_COLUMNS,
+) -> tuple[Text, ...]:
+    """The table cells for a task, matching `column_labels`.
 
     The title is followed by `↻` if the task repeats, its subtasks done and
     total, like `[1/3]`, if it has any, and then its tags as `#tag`.
-
-    Matches `column_labels(sort_key, ...)`: sorting by created or updated adds
-    that time before the title.
     """
-    cells = [
-        task.id,
-        task.status.value,
-        task.priority.value,
-        task.due.isoformat() if task.due else "",
-    ]
-    if sort_key in TIME_SORT_KEYS:
-        cells.append(format_timestamp(getattr(task, sort_key.value)))
-    done = progress(parse_subtasks(task.notes))
-    title = [
-        task.title,
-        *(["↻"] if task.repeat else []),
-        *([f"[{done}]"] if done else []),
-    ]
-    cells.append(" ".join([*title, *(f"#{tag}" for tag in task.tags)]))
-    return tuple(Text(cell) for cell in cells)
+    return tuple(
+        Text(_cell(task, column)) for column in shown_columns(sort_key, columns)
+    )
+
+
+def _cell(task: Task, column: Column) -> str:
+    match column:
+        case Column.ID:
+            return task.id
+        case Column.STATUS:
+            return task.status.value
+        case Column.PRIORITY:
+            return task.priority.value
+        case Column.DUE:
+            return task.due.isoformat() if task.due else ""
+        case Column.CREATED:
+            return format_timestamp(task.created)
+        case Column.UPDATED:
+            return format_timestamp(task.updated)
+        case Column.TITLE:
+            done = progress(parse_subtasks(task.notes))
+            title = [
+                task.title,
+                *(["↻"] if task.repeat else []),
+                *([f"[{done}]"] if done else []),
+            ]
+            return " ".join([*title, *(f"#{tag}" for tag in task.tags)])
 
 
 def bad_files_warning(directory: Path, bad_files: Sequence[BadFile]) -> Text:
@@ -142,7 +186,8 @@ class TaskListScreen(Screen):
     """All tasks in `directory`, done ones included, soonest due first.
 
     `sort_key` and `reverse` set the starting sort (the config file's). It can
-    be changed with `S` and `R`; that lasts until the app exits.
+    be changed with `S` and `R`; that lasts until the app exits. `columns` are
+    the table's columns, in order (see `shown_columns`).
     """
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -212,6 +257,7 @@ class TaskListScreen(Screen):
         *,
         sort_key: SortKey = SortKey.DUE,
         reverse: bool = False,
+        columns: Sequence[Column] = DEFAULT_COLUMNS,
     ) -> None:
         super().__init__()
         self.directory = directory
@@ -224,6 +270,7 @@ class TaskListScreen(Screen):
         self.task_filter = TaskFilter()
         self.sort_key = sort_key
         self.sort_reverse = reverse
+        self.columns = tuple(columns)
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -236,7 +283,7 @@ class TaskListScreen(Screen):
         )
         yield Static(id="filter-error")
         table: DataTable[Text] = DataTable(id="task-table", cursor_type="row")
-        table.add_columns(*column_labels(self.sort_key, self.sort_reverse))
+        table.add_columns(*self._column_labels())
         yield table
         yield Static(Text("No tasks."), id="no-tasks")
         yield Footer()
@@ -268,18 +315,24 @@ class TaskListScreen(Screen):
         """Show the loaded tasks that match the filter."""
         self.tasks = self.task_filter.apply(self.loaded)
         table = self.query_one("#task-table", DataTable)
-        labels = column_labels(self.sort_key, self.sort_reverse)
+        labels = self._column_labels()
         # Rebuilt only when the sort changes, so reloads keep the scroll position.
         if [column.label.plain for column in table.columns.values()] != list(labels):
             table.clear(columns=True)
             table.add_columns(*labels)
         table.clear()
         for source in self.tasks:
-            table.add_row(*task_row(source.task, self.sort_key), key=source.task.id)
+            table.add_row(
+                *task_row(source.task, self.sort_key, self.columns),
+                key=source.task.id,
+            )
         no_tasks = self.query_one("#no-tasks", Static)
         hidden = bool(self.loaded) and not self.tasks
         no_tasks.update(Text("No tasks match the filter." if hidden else "No tasks."))
         no_tasks.set_class(not self.tasks, "-shown")
+
+    def _column_labels(self) -> tuple[str, ...]:
+        return column_labels(self.sort_key, self.sort_reverse, self.columns)
 
     def reload(self, task_id: str | None) -> None:
         """Reload from disk, keeping the cursor on `task_id` if it's still shown.

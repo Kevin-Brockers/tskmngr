@@ -12,11 +12,14 @@ wrong type) is a `ConfigError`, so nothing runs with a half-read config.
       "reverse": false,
       "theme": "nord",
       "poll_interval": 2,
+      "columns": ["id", "due", "title"],
       "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
     }
 
 `tasks_dir` may start with `~`; a relative path is read from the config
 file's folder. It comes before `TSKMNGR_DIR` (see `storage.tasks_dir`).
+`columns` names the TUI task list's columns in display order (see
+`display.Column`); the ones left out are hidden.
 `keybindings` maps binding ids to keys, as Textual's keymap does. The theme
 and the binding ids are checked by the TUI, which knows the theme names and
 the bindings.
@@ -32,6 +35,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from tskmngr.display import DEFAULT_COLUMNS, Column
 from tskmngr.query import SortKey
 
 DEFAULT_PATH = Path(".tskmngr", "config.json")
@@ -51,6 +55,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "reverse": False,
     "theme": DEFAULT_THEME,
     "poll_interval": 2,
+    "columns": [column.value for column in DEFAULT_COLUMNS],
     "keybindings": {},
 }
 
@@ -77,6 +82,8 @@ class Config:
     # None means Textual's default theme.
     theme: str | None = None
     poll_interval: float = DEFAULT_POLL_INTERVAL
+    # The TUI task list's columns, in display order.
+    columns: tuple[Column, ...] = DEFAULT_COLUMNS
     # Binding id to its keys, comma-separated, like Textual's keymap.
     keybindings: dict[str, str] = field(default_factory=dict)
 
@@ -221,6 +228,23 @@ def _poll_interval(value: object, path: Path) -> float:
     return float(value)  # type: ignore[arg-type]
 
 
+def _columns(value: object, path: Path) -> tuple[Column, ...]:
+    names = ", ".join(column.value for column in Column)
+    if not isinstance(value, list):
+        raise _BadValue(f"expected a list of column names, got {_describe(value)}")
+    if not value:
+        raise _BadValue(f"expected at least one of {names}, got an empty list")
+    columns: list[Column] = []
+    for name in value:
+        if not isinstance(name, str) or name not in set(Column):
+            raise _BadValue(f"expected names from {names}, got {_describe(name)}")
+        column = Column(name)
+        if column in columns:
+            raise _BadValue(f"{name!r} is listed twice")
+        columns.append(column)
+    return tuple(columns)
+
+
 def _keybindings(value: object, path: Path) -> dict[str, str]:
     if not isinstance(value, dict):
         raise _BadValue(
@@ -247,6 +271,7 @@ _READERS: dict[str, Callable[[object, Path], object]] = {
     "reverse": _reverse,
     "theme": _theme,
     "poll_interval": _poll_interval,
+    "columns": _columns,
     "keybindings": _keybindings,
 }
 

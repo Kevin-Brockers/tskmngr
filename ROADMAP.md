@@ -171,10 +171,10 @@ the maintainer before starting, and `AGENTS.md` updated to match.
 
 Goal: the TUI's task list columns can be arranged, and the config file can be viewed and edited from the CLI.
 
-- [ ] **M6.1** Order of the TUI task list columns: a `columns` config key,
+- [x] **M6.1** Order of the TUI task list columns: a `columns` config key,
   a list of column names whose order is the display order, with columns
   left out hidden; document it in the README and update `AGENTS.md` to
-  match · `feature/tui_column_order` · depends on M6.1
+  match · `feature/tui_column_order` · [#50](https://github.com/Kevin-Brockers/tskmngr/pull/50)
 - [ ] **M6.2** `tskmngr config` prints the config file's path and its
   settings, `tskmngr config get <key>` prints one setting, and
   `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`, then checks it

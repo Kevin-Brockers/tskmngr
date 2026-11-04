@@ -85,7 +85,8 @@ src/tskmngr/
   app.py        # Textual App (the TUI)
   cli.py        # `tskmngr` entry point; no arguments launches the TUI
   config.py     # config file (JSON)
-  display.py    # format task fields for display; shared by CLI and TUI
+  display.py    # format task fields for display, and the task list's column
+                #   names (`Column`); shared by CLI and TUI
   editor.py     # find $VISUAL/$EDITOR and run it on a file
   models.py     # Task dataclass and enums (status, priority)
   query.py      # filter, search, sort, ID-prefix lookup; shared by CLI and TUI
@@ -172,20 +173,26 @@ Notes go here, in **Markdown**.
 
 A JSON object (read with `json`) at `~/.tskmngr/config.json`, the only
 place it's read from, with the keys `tasks_dir`, `sort`, `reverse`, `theme`,
-`poll_interval` and `keybindings`. All are flat values except `keybindings`,
-an object mapping TUI binding ids to keys as in Textual's keymap. All are
-optional.
+`poll_interval`, `columns` and `keybindings`. All are flat values except
+`columns`, a list of task list column names, and `keybindings`, an object
+mapping TUI binding ids to keys as in Textual's keymap. All are optional.
 
 - On every run (any CLI command or the TUI), if nothing is at that path, the
   app writes the default config there: every key except `tasks_dir`, at its
   default (`sort` `due`, `reverse` false, `theme` `textual-dark`,
-  `poll_interval` 2, `keybindings` `{}`). The write is atomic and never
+  `poll_interval` 2, `columns` `["id", "status", "priority", "due", "title"]`,
+  `keybindings` `{}`). The write is atomic and never
   overwrites an existing file; otherwise the app only reads the file. If it
   can't be written, the CLI and the TUI stop with an error naming the file.
   `--help` and usage errors exit before this, so they don't write the file
   (or print the warning below).
 - `tasks_dir` comes first for the tasks directory, then `TSKMNGR_DIR`, then
   the default. A relative `tasks_dir` is read from the config file's folder.
+- `columns` sets the TUI task list's columns in display order, from `id`,
+  `status`, `priority`, `due`, `created`, `updated` and `title`; the ones
+  left out are hidden. Sorting by `created` or `updated` still shows that
+  column, before Title (or last), while that sort lasts. An empty list, an
+  unknown name or a name listed twice stops the CLI and the TUI.
 - The old `~/.config/tskmngr/config.json` and `TSKMNGR_CONFIG` aren't read.
   While the old file exists, every run prints a warning on stderr; the file
   is never moved or changed.

@@ -5,9 +5,33 @@ show the same fields in the same way.
 """
 
 from datetime import datetime, timedelta
+from enum import StrEnum
 
 from tskmngr.models import Task
 from tskmngr.subtasks import parse_subtasks, progress
+
+
+class Column(StrEnum):
+    """A column of the TUI's task list, by the name the config file uses."""
+
+    ID = "id"
+    STATUS = "status"
+    PRIORITY = "priority"
+    DUE = "due"
+    CREATED = "created"
+    UPDATED = "updated"
+    TITLE = "title"
+
+
+# The task list's columns when the config file doesn't set `columns`. Created
+# and updated aren't among them; the list shows one only while sorting by it.
+DEFAULT_COLUMNS: tuple[Column, ...] = (
+    Column.ID,
+    Column.STATUS,
+    Column.PRIORITY,
+    Column.DUE,
+    Column.TITLE,
+)
 
 
 def task_fields(task: Task) -> list[tuple[str, str]]:
