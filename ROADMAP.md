@@ -205,7 +205,7 @@ moving its file back by hand.
   like `columns`, default `["title", "deleted", "id"]`; and `show_trash`,
   whether the view starts shown, default `true`; both in the default config
   file; document them and the view in the README and update `AGENTS.md` to
-  match · `feature/trash_view_config` · #TBD
+  match · `feature/trash_view_config` · [#56](https://github.com/Kevin-Brockers/tskmngr/pull/56)
 
 ### M7 · Config home and synced tasks
 

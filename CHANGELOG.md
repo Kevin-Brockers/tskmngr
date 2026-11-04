@@ -178,7 +178,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   their title, delete time and ID; files there that can't be loaded are
   named. `t` hides and shows it until the app exits, and it's reloaded when
   files in `.trash/` change on disk
-- #TBD - Config keys `trash_columns`, the deleted tasks view's columns in
+- [#56](https://github.com/Kevin-Brockers/tskmngr/pull/56) - Config keys `trash_columns`, the deleted tasks view's columns in
   display order (the `columns` names plus `deleted`, default
   `["title", "deleted", "id"]`), and `show_trash`, whether the view starts
   shown (default `true`); both are in the default config file and shown by
