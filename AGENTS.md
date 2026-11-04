@@ -84,13 +84,14 @@ src/tskmngr/
   models.py     # Task dataclass and enums (status, priority)
   query.py      # filter, search, sort, ID-prefix lookup; shared by CLI and TUI
   storage.py    # read/write task files in the tasks directory
+  subtasks.py   # find and toggle the checklist items in a task's notes
   taskfile.py   # convert tasks to and from Markdown with frontmatter (no I/O)
   widgets/      # Textual widgets and screens
 tests/          # mirrors src/ layout; test_<module>.py
 ```
 
-Keep the layers separate: `models`, `taskfile`, `storage`, `query`, `display`,
-`editor` and `config` must not import Textual, so they can be tested without a
+Keep the layers separate: `models`, `taskfile`, `storage`, `query`,
+`subtasks`, `display`, `editor` and `config` must not import Textual, so they can be tested without a
 UI.
 
 ## Task storage format
@@ -131,6 +132,15 @@ Notes go here, in **Markdown**.
   and a malformed file is reported to the user, never silently deleted or
   overwritten. A value of the wrong type counts as malformed (YAML reads
   `title: 1.10` as a number); the report suggests quoting it.
+- Subtasks are the Markdown checklist items in the notes, with no frontmatter
+  key: a line with a list marker (`-`, `*`, `+`, `1.` or `1)`), then `[ ]`
+  (open) or `[x]`/`[X]` (done), then the subtask's text, e.g.
+  `- [ ] Book hotel`. Items at any indent count, as one flat list; lines in
+  fenced code blocks don't. Toggling one rewrites only the character between
+  its brackets. Toggling in the TUI also sets the status: checking the last
+  open subtask marks the task done, and unchecking one of a done task moves it
+  back to doing. Editing the notes by hand or in the form never changes the
+  status.
 
 ## Config file
 

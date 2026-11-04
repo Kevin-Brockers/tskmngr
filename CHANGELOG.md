@@ -133,6 +133,12 @@ its commit for changes that reached `dev` or `main` without a pull request.
   keymap and shown in the footer. An unknown binding id, or two bindings on
   one screen sharing a key (or taking `Ctrl+Q` or `Ctrl+C`), stops the TUI with
   an error naming the file and the binding
+- [#38](https://github.com/Kevin-Brockers/tskmngr/pull/38) - Subtasks: the checklist items (`- [ ]`, `- [x]`) in a task's notes.
+  The TUI's task list shows their progress after the title, like `[1/3]`, and
+  `tskmngr show` and the detail view show it as a `Subtasks` field. In the
+  detail view, Space, Enter or a click checks or unchecks one and saves the
+  task; checking the last open one marks the task done, and unchecking one of
+  a done task moves it back to doing
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

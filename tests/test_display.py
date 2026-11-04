@@ -27,6 +27,7 @@ def test_task_fields_lists_every_field() -> None:
         ("Priority", "high"),
         ("Due", "2026-11-01"),
         ("Tags", "errands, shop"),
+        ("Subtasks", "-"),
         ("Created", "2026-10-28T09:15:00Z"),
         ("Updated", "2026-10-28T09:15:00Z"),
     ]
@@ -37,6 +38,13 @@ def test_task_fields_shows_missing_values_as_a_dash() -> None:
 
     assert fields["Due"] == "-"
     assert fields["Tags"] == "-"
+    assert fields["Subtasks"] == "-"
+
+
+def test_task_fields_shows_subtasks_done_and_total() -> None:
+    task = make_task("A", "Plan trip", notes="- [x] Book flights\n- [ ] Pack\n")
+
+    assert dict(task_fields(task))["Subtasks"] == "1/2"
 
 
 def test_task_fields_keeps_a_non_utc_offset() -> None:

@@ -75,7 +75,7 @@ $ tskmngr done m2p
 | ------- | ------------ |
 | `add TITLE` | Add a task and print its ID. Options: `-p/--priority low\|normal\|high` (default `normal`), `-d/--due YYYY-MM-DD`, `-t/--tag TAG` (repeat for more tags) |
 | `list [WORD ...]` | List tasks, by default the ones not done yet, soonest due first. Words are searched in titles and notes; a task needs all of them. Options: `-s/--status` (repeat for more), `-a/--all` to include done tasks, `-p/--priority` (repeat for more), `-t/--tag` (repeat to require more tags), `--sort due\|priority\|created\|updated` (default: the config file's `sort`, else `due`), `-r/--reverse` to reverse that order |
-| `show ID` | Show all fields of a task, then its notes |
+| `show ID` | Show all fields of a task, including its subtasks done and total, then its notes |
 | `edit ID` | Change the given fields: `--title`, `-s/--status`, `-p/--priority`, `-d/--due` or `--no-due`, `-t/--tag` to add a tag, `--untag` to remove one or `--clear-tags` to remove all (each tag option can be repeated) |
 | `done ID` | Mark a task as done |
 | `delete ID` | Move a task's file into `.trash/` (see [Deleted tasks](#deleted-tasks)) after asking; `-y/--yes` skips the question, and is required when there's no terminal to ask on |
@@ -119,13 +119,20 @@ repeat them for any of several, as in `status:todo status:doing`. `Enter`
 goes back to the list and keeps the filter. Filter and sort last until the app
 exits; the list starts with the config file's sort.
 
+Tasks with [subtasks](#subtasks) show how many are done after the title, like
+`Plan trip [1/3]`.
+
 **Detail view**
 
 | Key | Action |
 | --- | ------ |
+| `Space` | Check or uncheck the subtask under the cursor and save the task (`Enter` or a click works too) |
 | `e` | Edit the task |
 | `o` | Open the task's file in `$VISUAL` or `$EDITOR` |
 | `Escape` | Back to the list |
+
+The detail view lists the task's subtasks above its notes, with the cursor on
+them, so the arrow keys move between them; `Tab` moves to the notes.
 
 **Task form** (title, status, priority, due date, tags and notes)
 
@@ -195,6 +202,28 @@ The files are meant to be edited by hand too:
   fault when known, and never changed or deleted.
 - Saves are atomic, and a save is refused if the file changed on disk since
   it was loaded.
+
+### Subtasks
+
+A task's subtasks are the checklist items in its notes, so you add, rename,
+reorder and remove them by editing the notes, in the form or in your editor:
+
+```markdown
+Some notes.
+
+- [x] Book flights
+- [ ] Book hotel
+  - [ ] Pack
+```
+
+A checklist item is a list item (`-`, `*`, `+`, `1.` or `1)`) starting with
+`[ ]`, or `[x]` or `[X]` when it's done, followed by its text. Indented items
+count too, and items in fenced code blocks don't.
+
+Checking or unchecking a subtask in the TUI's detail view also updates the
+task's status: checking the last open subtask marks the task done, and
+unchecking one of a done task moves it back to doing. Editing the notes never
+changes the status.
 
 ### Where the files live
 
@@ -268,6 +297,7 @@ are Textual key names, like `a`, `A`, `f2`, `ctrl+s`, `escape` or `slash`
 | `task_detail.close` | `Escape` | Back to the list |
 | `task_detail.edit` | `e` | Edit the task |
 | `task_detail.external_editor` | `o` | Open the task's file in `$EDITOR` |
+| `task_detail.toggle_subtask` | `Space` | Check or uncheck the subtask |
 | `task_form.save` | `Ctrl+S` | Save the task |
 | `task_form.cancel` | `Escape` | Cancel |
 | `confirm_delete.yes` | `y` | Delete, in the delete question |

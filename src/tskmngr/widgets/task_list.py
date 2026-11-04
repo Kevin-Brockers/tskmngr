@@ -48,6 +48,7 @@ from tskmngr.storage import (
     save_task,
     task_path,
 )
+from tskmngr.subtasks import parse_subtasks, progress
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
 from tskmngr.widgets.external_editor import edit_in_editor
@@ -90,7 +91,10 @@ def column_labels(sort_key: SortKey, reverse: bool) -> tuple[str, ...]:
 
 
 def task_row(task: Task, sort_key: SortKey = SortKey.DUE) -> tuple[Text, ...]:
-    """The table cells for a task; tags follow the title as `#tag`.
+    """The table cells for a task.
+
+    The title is followed by its subtasks done and total, like `[1/3]`, if it
+    has any, and then its tags as `#tag`.
 
     Matches `column_labels(sort_key, ...)`: sorting by created or updated adds
     that time before the title.
@@ -103,7 +107,9 @@ def task_row(task: Task, sort_key: SortKey = SortKey.DUE) -> tuple[Text, ...]:
     ]
     if sort_key in TIME_SORT_KEYS:
         cells.append(format_timestamp(getattr(task, sort_key.value)))
-    cells.append(" ".join([task.title, *(f"#{tag}" for tag in task.tags)]))
+    done = progress(parse_subtasks(task.notes))
+    title = [task.title, *([f"[{done}]"] if done else [])]
+    cells.append(" ".join([*title, *(f"#{tag}" for tag in task.tags)]))
     return tuple(Text(cell) for cell in cells)
 
 

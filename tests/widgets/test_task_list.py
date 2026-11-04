@@ -63,6 +63,14 @@ def test_task_row_has_id_status_priority_due_and_title_with_tags() -> None:
     ]
 
 
+def test_task_row_shows_subtask_progress_after_the_title() -> None:
+    task = make_task(
+        "A", "Plan trip", tags=("travel",), notes="- [x] Flights\n- [ ] Pack\n"
+    )
+
+    assert task_row(task)[-1].plain == "Plan trip [1/2] #travel"
+
+
 def test_task_row_leaves_due_empty_without_a_due_date() -> None:
     assert task_row(make_task("A", "Read"))[3].plain == ""
 
