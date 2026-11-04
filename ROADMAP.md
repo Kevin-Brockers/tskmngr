@@ -195,3 +195,19 @@ synced must be agreed with the maintainer before starting M6.2, and
   - [ ] **M6.2b** TUI: pull at start, commit and push after each change, a
     sync key, and sync errors and conflicts shown to the user ·
     `feature/git_sync_tui` · depends on M6.2a
+
+### M7 · Settings
+
+Goal: the config file can be viewed and edited from the CLI, and the TUI's
+task list columns can be arranged.
+
+- [ ] **M7.1** `tskmngr config` prints the config file's path and its
+  settings, `tskmngr config get <key>` prints one setting, and
+  `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`, then checks it
+  the way loading does and reports any error naming the key; document the
+  command in the README and update `AGENTS.md` to match ·
+  `feature/cli_config`
+- [ ] **M7.2** Order of the TUI task list columns: a `columns` config key,
+  a list of column names whose order is the display order, with columns
+  left out hidden; document it in the README and update `AGENTS.md` to
+  match · `feature/tui_column_order`
