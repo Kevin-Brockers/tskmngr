@@ -79,6 +79,9 @@ $ tskmngr done m2p
 | `edit ID` | Change the given fields: `--title`, `-s/--status`, `-p/--priority`, `-d/--due` or `--no-due`, `--repeat RULE` or `--no-repeat`, `-t/--tag` to add a tag, `--untag` to remove one or `--clear-tags` to remove all (each tag option can be repeated) |
 | `done ID` | Mark a task as done. If it [repeats](#recurring-tasks), its next occurrence is added and its ID and due date printed |
 | `delete ID` | Move a task's file into `.trash/` (see [Deleted tasks](#deleted-tasks)) after asking; `-y/--yes` skips the question, and is required when there's no terminal to ask on |
+| `config` | Print the [config file](#config-file)'s path and every setting in use; a setting the file leaves out is marked `(default)`, or `(TSKMNGR_DIR)` for a tasks directory that comes from it |
+| `config get KEY` | Print the value in use of one setting: `tasks_dir` as the full path of the tasks directory, `columns` and `keybindings` as JSON, the rest as plain text |
+| `config edit` | Open the config file in `$VISUAL` or `$EDITOR`, even if it can't be used, then check it like the TUI does and name the key of any problem |
 
 `ID` can be any unique prefix of a task's ID, in any case: `m2p` above is
 `M2PT707MDG`. Sorting by priority puts the highest first, by created or updated
@@ -87,7 +90,8 @@ reports task files it can't load on stderr and lists the rest.
 
 Commands exit with 0 on success, 2 for invalid arguments and 1 for any other
 error: no task or several tasks match the ID, a task file can't be loaded,
-saved or deleted, or a delete isn't confirmed.
+saved or deleted, a delete isn't confirmed, or `config edit` leaves a config
+file that can't be used.
 
 ## TUI keys
 
@@ -313,6 +317,30 @@ with every setting except `tasks_dir` at its default:
 After that tskmngr only reads the file and never changes it; edit it to
 change your settings. Every setting is optional, so you can also remove the
 ones you don't need. If the file can't be created, tskmngr says why and exits.
+
+`tskmngr config` shows where the file is and the settings in use, and
+`tskmngr config get KEY` prints one of them, for example
+`cd "$(tskmngr config get tasks_dir)"`:
+
+```console
+$ tskmngr config
+Config file: /home/me/.tskmngr/config.json
+
+tasks_dir      /home/me/.local/share/tskmngr/tasks (default)
+sort           due
+reverse        false
+theme          textual-dark
+poll_interval  2
+columns        ["id", "status", "priority", "due", "title"]
+keybindings    {}
+```
+
+`tskmngr config edit` opens the file in `$VISUAL` or `$EDITOR`. When the
+editor exits, it checks the file the way the TUI does, theme and keybindings
+included, and names the key of the first problem it finds; the file is kept
+as you saved it, so run `config edit` again to fix it. It's the one command
+that still runs when the file can't be used. If the editor exits with an
+error, it says so and exits with 1, after checking the file.
 
 A file with every setting looks like this:
 

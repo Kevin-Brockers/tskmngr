@@ -1,6 +1,7 @@
 """The `tskmngr` entry point. With no arguments it launches the TUI."""
 
 import argparse
+import json
 import os
 import sys
 from collections.abc import Collection, Sequence
@@ -10,6 +11,8 @@ from pathlib import Path
 
 from tskmngr.app import TskmngrApp
 from tskmngr.config import (
+    DEFAULT_THEME,
+    SETTING_KEYS,
     Config,
     ConfigError,
     config_path,
@@ -18,6 +21,7 @@ from tskmngr.config import (
     old_config_path,
 )
 from tskmngr.display import format_next_occurrence, task_fields
+from tskmngr.editor import EditorSettingError, editor_command, run_editor
 from tskmngr.models import (
     Priority,
     Repeat,
@@ -31,6 +35,7 @@ from tskmngr.models import (
 from tskmngr.query import SortKey, filter_tasks, match_id_prefix, sort_tasks
 from tskmngr.recurrence import RecurrenceError, complete
 from tskmngr.storage import (
+    ENV_VAR,
     ConflictError,
     LoadResult,
     delete_task,
@@ -60,7 +65,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     `argv` defaults to the command-line arguments. Usage errors exit with 2
     (through argparse); a config file that can't be used and errors while
     reading or saving tasks return 1. Writes the default config file if there
-    is none, and warns on stderr while the old one still exists.
+    is none, and warns on stderr while the old one still exists. Only
+    `config edit` runs with a config file that can't be used, to fix it.
     """
     parser = _parser()
     args, extra = parser.parse_known_args(argv)
@@ -84,17 +90,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     try:
         create_default_config(path)
-        config = load_config(path)
-        if args.command is None:
-            app = TskmngrApp(config=config)
+        if getattr(args, "loads_config", True):
+            config = load_config(path)
+            if args.command is None:
+                app = TskmngrApp(config=config)
+            args.config = config
+            args.directory = tasks_dir(config.tasks_dir)
     except ConfigError as error:
         print(f"tskmngr: error: config file {error}", file=sys.stderr)
         return 1
     if args.command is None:
         app.run()
         return 0
-    args.config = config
-    args.directory = tasks_dir(config.tasks_dir)
+    args.config_path = path
     try:
         return args.handler(args)
     except CommandError as error:
@@ -262,6 +270,40 @@ def _parser() -> argparse.ArgumentParser:
         "-y", "--yes", action="store_true", help="delete without asking"
     )
     delete.set_defaults(handler=_delete, parser=delete)
+
+    config = commands.add_parser(
+        "config",
+        help="show or edit the config file",
+        description=(
+            "Print the config file's path and every setting in use. A setting "
+            "the file leaves out is marked with where its value comes from."
+        ),
+    )
+    config.set_defaults(handler=_config_show, parser=config)
+    config_commands = config.add_subparsers(dest="config_command", title="commands")
+    get = config_commands.add_parser(
+        "get",
+        help="print one setting",
+        description=(
+            "Print the value in use of one setting: tasks_dir as the full path "
+            "of the tasks directory, columns and keybindings as JSON."
+        ),
+    )
+    get.add_argument(
+        "key", choices=SETTING_KEYS, metavar="KEY", help=", ".join(SETTING_KEYS)
+    )
+    get.set_defaults(handler=_config_get, parser=get)
+    config_edit = config_commands.add_parser(
+        "edit",
+        help="open the config file in your editor",
+        description=(
+            "Open the config file in $VISUAL or $EDITOR, even if it can't be "
+            "used, and check it once the editor exits."
+        ),
+    )
+    config_edit.set_defaults(
+        handler=_config_edit, parser=config_edit, loads_config=False
+    )
     return parser
 
 
@@ -411,6 +453,90 @@ def _delete(args: argparse.Namespace) -> int:
         ) from error
     print(f"Moved {task.id} to {trashed}")
     return 0
+
+
+def _config_show(args: argparse.Namespace) -> int:
+    print("\n".join(format_config(args.config, args.config_path)))
+    return 0
+
+
+def _config_get(args: argparse.Namespace) -> int:
+    print(setting_value(args.config, args.key))
+    return 0
+
+
+def _config_edit(args: argparse.Namespace) -> int:
+    """Open the config file in the editor, then check it like the TUI does.
+
+    The file is left as the editor saved it. Returns 1 if the editor failed
+    or the file can't be used, naming the problem.
+    """
+    path = args.config_path
+    try:
+        command = editor_command()
+    except EditorSettingError as error:
+        raise CommandError(str(error)) from error
+    if command is None:
+        raise CommandError("set $VISUAL or $EDITOR to edit the config file")
+    try:
+        status = run_editor(command, path)
+    except FileNotFoundError as error:
+        raise CommandError(f"editor not found: {command[0]}") from error
+    except OSError as error:
+        raise CommandError(f"can't start {command[0]}: {_reason(error)}") from error
+    if status != 0:
+        print(
+            f"tskmngr: warning: {command[0]} exited with status {status}",
+            file=sys.stderr,
+        )
+    try:
+        # The TUI checks the theme and keybindings too.
+        TskmngrApp(config=load_config(path))
+    except ConfigError as error:
+        raise CommandError(f"config file {error}") from error
+    return 0 if status == 0 else 1
+
+
+def format_config(config: Config, path: Path) -> list[str]:
+    """The config file's path, then each setting in use, one per line.
+
+    A setting the file leaves out is followed by where its value comes from:
+    `(default)`, or `(TSKMNGR_DIR)` for a tasks directory set by it.
+    """
+    width = max(len(key) for key in SETTING_KEYS)
+    lines = [f"Config file: {path}", ""]
+    for key in SETTING_KEYS:
+        value = setting_value(config, key)
+        if key not in config.keys:
+            from_env = key == "tasks_dir" and os.environ.get(ENV_VAR)
+            value += " (TSKMNGR_DIR)" if from_env else " (default)"
+        lines.append(f"{key:<{width}}  {value}")
+    return lines
+
+
+def setting_value(config: Config, key: str) -> str:
+    """The value in use of the setting `key`, as `config get` prints it.
+
+    Text, numbers and booleans are plain, `tasks_dir` is the tasks directory
+    used, and `columns` and `keybindings` are JSON on one line.
+    """
+    match key:
+        case "tasks_dir":
+            return str(tasks_dir(config.tasks_dir))
+        case "sort":
+            return config.sort.value
+        case "reverse":
+            return json.dumps(config.reverse)
+        case "theme":
+            return config.theme or DEFAULT_THEME
+        case "poll_interval":
+            seconds = config.poll_interval
+            return str(int(seconds)) if seconds.is_integer() else str(seconds)
+        case "columns":
+            return json.dumps([column.value for column in config.columns])
+        case "keybindings":
+            return json.dumps(config.keybindings)
+    raise ValueError(f"unknown setting {key!r}")
 
 
 def _confirm(prompt: str) -> bool:

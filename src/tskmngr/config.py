@@ -86,6 +86,9 @@ class Config:
     columns: tuple[Column, ...] = DEFAULT_COLUMNS
     # Binding id to its keys, comma-separated, like Textual's keymap.
     keybindings: dict[str, str] = field(default_factory=dict)
+    # The keys the file sets; the other settings are at their defaults. Not
+    # compared, so a config equals another with the same settings.
+    keys: frozenset[str] = field(default=frozenset(), compare=False)
 
 
 def config_path() -> Path:
@@ -185,7 +188,7 @@ def parse_config(text: str, path: Path) -> Config:
             values[key] = _READERS[key](value, path)
         except _BadValue as error:
             raise ConfigError(path, f"{key}: {error}") from None
-    return Config(path=path, **values)  # type: ignore[arg-type]
+    return Config(path=path, keys=frozenset(data), **values)  # type: ignore[arg-type]
 
 
 class _BadValue(Exception):
@@ -274,6 +277,10 @@ _READERS: dict[str, Callable[[object, Path], object]] = {
     "columns": _columns,
     "keybindings": _keybindings,
 }
+
+
+# Every key the file may have, in the order the docs list them.
+SETTING_KEYS: tuple[str, ...] = tuple(_READERS)
 
 
 def _describe(value: object) -> str:

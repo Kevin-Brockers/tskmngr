@@ -160,6 +160,11 @@ its commit for changes that reached `dev` or `main` without a pull request.
   their order, from `id`, `status`, `priority`, `due`, `created`, `updated`
   and `title`; the ones left out are hidden, and the default config file
   lists the default columns
+- #TBD - `tskmngr config` prints the config file's path and every setting in
+  use, marking the ones the file leaves out; `tskmngr config get KEY` prints
+  one setting; `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`,
+  even if it can't be used, and then checks it like the TUI does, naming the
+  key of any problem
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

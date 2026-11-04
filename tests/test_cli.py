@@ -1,4 +1,5 @@
 import io
+import sys
 from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -1632,3 +1633,340 @@ def test_show_prints_the_repeat_rule(
     assert cli.main(["show", "6"]) == 0
 
     assert "Repeat:    monthly from 2026-01-31\n" in capsys.readouterr().out
+
+
+# tskmngr config (M6.2)
+
+
+@pytest.fixture
+def no_tasks_dir_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TSKMNGR_DIR", raising=False)
+
+
+def fake_editor(
+    monkeypatch: pytest.MonkeyPatch, text: str | None, status: int = 0
+) -> list[tuple[list[str], Path]]:
+    """Make `config edit` run a fake editor that writes `text` (None: nothing).
+
+    Returns the list of runs, each the command and the path it got.
+    """
+    monkeypatch.delenv("VISUAL", raising=False)
+    monkeypatch.setenv("EDITOR", "fake-editor --wait")
+    runs: list[tuple[list[str], Path]] = []
+
+    def run_editor(command: list[str], path: Path) -> int:
+        runs.append((command, path))
+        if text is not None:
+            path.write_text(text, encoding="utf-8")
+        return status
+
+    monkeypatch.setattr(cli, "run_editor", run_editor)
+    return runs
+
+
+@pytest.mark.usefixtures("no_tasks_dir_env")
+def test_config_prints_the_path_and_the_default_settings(
+    user_home: Path, config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["config"]) == 0
+
+    tasks = user_home / ".local" / "share" / "tskmngr" / "tasks"
+    assert capsys.readouterr().out == (
+        f"Config file: {config_file}\n"
+        "\n"
+        f"tasks_dir      {tasks} (default)\n"
+        "sort           due\n"
+        "reverse        false\n"
+        "theme          textual-dark\n"
+        "poll_interval  2\n"
+        'columns        ["id", "status", "priority", "due", "title"]\n'
+        "keybindings    {}\n"
+    )
+
+
+@pytest.mark.usefixtures("no_tasks_dir_env")
+def test_config_marks_the_settings_the_file_leaves_out(
+    config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_config(
+        config_file,
+        '{"tasks_dir": "tasks", "poll_interval": 0.5, "columns": ["title"],'
+        ' "keybindings": {"task_list.new": "a"}}',
+    )
+
+    assert cli.main(["config"]) == 0
+
+    assert capsys.readouterr().out.splitlines()[2:] == [
+        f"tasks_dir      {config_file.parent / 'tasks'}",
+        "sort           due (default)",
+        "reverse        false (default)",
+        "theme          textual-dark (default)",
+        "poll_interval  0.5",
+        'columns        ["title"]',
+        'keybindings    {"task_list.new": "a"}',
+    ]
+
+
+def test_config_says_when_tskmngr_dir_sets_the_tasks_directory(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["config"]) == 0
+
+    assert f"tasks_dir      {tasks} (TSKMNGR_DIR)\n" in capsys.readouterr().out
+
+
+def test_the_config_files_tasks_dir_comes_before_tskmngr_dir(
+    tasks: Path, tmp_path: Path, config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_config(config_file, f'{{"tasks_dir": "{tmp_path / "mine"}"}}')
+
+    assert cli.main(["config", "get", "tasks_dir"]) == 0
+
+    assert capsys.readouterr().out == f"{tmp_path / 'mine'}\n"
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("sort", "priority"),
+        ("reverse", "true"),
+        ("theme", "nord"),
+        ("poll_interval", "0"),
+        ("columns", '["due", "title"]'),
+        ("keybindings", '{"task_list.new": "a", "task_form.save": "ctrl+s,f2"}'),
+    ],
+)
+def test_config_get_prints_one_setting(
+    key: str, value: str, config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_config(
+        config_file,
+        """{
+          "sort": "priority",
+          "reverse": true,
+          "theme": "nord",
+          "poll_interval": 0,
+          "columns": ["due", "title"],
+          "keybindings": {"task_list.new": "a", "task_form.save": " ctrl+s, f2"}
+        }""",
+    )
+
+    assert cli.main(["config", "get", key]) == 0
+
+    assert capsys.readouterr().out == f"{value}\n"
+
+
+@pytest.mark.usefixtures("no_tasks_dir_env")
+def test_config_get_prints_defaults_without_a_mark(
+    user_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["config", "get", "tasks_dir"]) == 0
+    assert cli.main(["config", "get", "theme"]) == 0
+
+    tasks = user_home / ".local" / "share" / "tskmngr" / "tasks"
+    assert capsys.readouterr().out == f"{tasks}\ntextual-dark\n"
+
+
+def test_config_get_an_unknown_key_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    error = usage_error(["config", "get", "colour"], capsys)
+
+    assert error.startswith("usage: tskmngr config get [-h] KEY\n")
+    assert "invalid choice: 'colour'" in error
+    assert "poll_interval" in error
+
+
+def test_config_get_needs_a_key(capsys: pytest.CaptureFixture[str]) -> None:
+    assert "the following arguments are required: KEY" in usage_error(
+        ["config", "get"], capsys
+    )
+
+
+@pytest.mark.parametrize("argv", [["config"], ["config", "get", "sort"]])
+def test_config_and_config_get_stop_on_a_broken_file(
+    argv: list[str], config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_config(config_file, '{"sort": "size"}')
+
+    assert cli.main(argv) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith(f"tskmngr: error: config file {config_file}: sort:")
+
+
+def test_config_edit_opens_the_file_and_accepts_a_good_edit(
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runs = fake_editor(monkeypatch, '{"sort": "priority"}')
+
+    assert cli.main(["config", "edit"]) == 0
+
+    assert runs == [(["fake-editor", "--wait"], config_file)]
+    assert capsys.readouterr() == ("", "")
+    assert config_file.read_text(encoding="utf-8") == '{"sort": "priority"}'
+
+
+def test_config_edit_opens_the_default_file_on_the_first_run(
+    config_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[str] = []
+    fake_editor(monkeypatch, None)
+    monkeypatch.setattr(
+        cli,
+        "run_editor",
+        lambda command, path: seen.append(path.read_text(encoding="utf-8")) or 0,
+    )
+
+    assert cli.main(["config", "edit"]) == 0
+
+    assert seen == [default_config_text()]
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ('{"sort": "due" "reverse": true}', "line 1, column 16: Expecting ','"),
+        ('{"colour": "red"}', "unknown key 'colour'; the known keys are "),
+        ('{"columns": ["id", "id"]}', "columns: 'id' is listed twice"),
+        ('{"theme": "neon"}', "theme: unknown theme 'neon'; the themes are "),
+        (
+            '{"keybindings": {"task_list.nwe": "a"}}',
+            "keybindings: unknown binding 'task_list.nwe'; the bindings are ",
+        ),
+    ],
+)
+def test_config_edit_reports_what_the_edit_broke_and_keeps_it(
+    text: str,
+    message: str,
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake_editor(monkeypatch, text)
+
+    assert cli.main(["config", "edit"]) == 1
+
+    assert capsys.readouterr().err.startswith(
+        f"tskmngr: error: config file {config_file}: {message}"
+    )
+    assert config_file.read_text(encoding="utf-8") == text
+
+
+def test_config_edit_opens_a_broken_file_so_it_can_be_fixed(
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    write_config(config_file, "not json")
+    runs = fake_editor(monkeypatch, '{"reverse": true}')
+
+    assert cli.main(["config", "edit"]) == 0
+
+    assert len(runs) == 1
+    assert capsys.readouterr().err == ""
+    assert cli.main(["config", "get", "reverse"]) == 0
+    assert capsys.readouterr().out == "true\n"
+
+
+def test_config_edit_reports_a_file_left_broken(
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    write_config(config_file, "not json")
+    fake_editor(monkeypatch, None)
+
+    assert cli.main(["config", "edit"]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: config file {config_file}: line 1, column 1: "
+        "Expecting value\n"
+    )
+
+
+def test_config_edit_warns_when_the_editor_fails_and_still_checks(
+    config_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake_editor(monkeypatch, '{"sort": "size"}', status=3)
+
+    assert cli.main(["config", "edit"]) == 1
+
+    err = capsys.readouterr().err.splitlines()
+    assert err[0] == "tskmngr: warning: fake-editor exited with status 3"
+    assert err[1].startswith(f"tskmngr: error: config file {config_file}: sort:")
+
+
+def test_config_edit_returns_1_when_the_editor_fails_on_a_good_file(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_editor(monkeypatch, None, status=1)
+
+    assert cli.main(["config", "edit"]) == 1
+
+    assert capsys.readouterr().err == (
+        "tskmngr: warning: fake-editor exited with status 1\n"
+    )
+
+
+def test_config_edit_needs_an_editor(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runs = fake_editor(monkeypatch, None)
+    monkeypatch.setenv("EDITOR", " ")
+
+    assert cli.main(["config", "edit"]) == 1
+
+    assert runs == []
+    assert capsys.readouterr().err == (
+        "tskmngr: error: set $VISUAL or $EDITOR to edit the config file\n"
+    )
+
+
+def test_config_edit_reports_an_editor_setting_it_cant_read(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runs = fake_editor(monkeypatch, None)
+    monkeypatch.setenv("VISUAL", "'vi")
+
+    assert cli.main(["config", "edit"]) == 1
+
+    assert runs == []
+    assert capsys.readouterr().err.startswith(
+        "tskmngr: error: $VISUAL can't be read as a command ("
+    )
+
+
+def test_config_edit_reports_a_missing_editor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("VISUAL", raising=False)
+    monkeypatch.setenv("EDITOR", str(tmp_path / "no-such-editor"))
+
+    assert cli.main(["config", "edit"]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: editor not found: {tmp_path / 'no-such-editor'}\n"
+    )
+
+
+def test_config_edit_runs_the_real_editor_on_the_file(
+    tmp_path: Path, config_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = tmp_path / "editor.py"
+    script.write_text(
+        "import sys\n"
+        "open(sys.argv[1], 'w', encoding='utf-8').write('{\"theme\": \"nord\"}')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("VISUAL", raising=False)
+    monkeypatch.setenv("EDITOR", f'"{sys.executable}" "{script}"')
+
+    assert cli.main(["config", "edit"]) == 0
+
+    assert config_file.read_text(encoding="utf-8") == '{"theme": "nord"}'
