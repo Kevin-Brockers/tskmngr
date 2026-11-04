@@ -238,7 +238,7 @@ the step IDs keep their numbers.
   "title", "tags"]` and `["title", "tags", "deleted", "id"]`), and while it
   isn't shown the title keeps its `#tags`, so config files without it still
   show them; document it in the README and update `AGENTS.md` to match ·
-  `feature/tags_column` · #TBD
+  `feature/tags_column` · [#61](https://github.com/Kevin-Brockers/tskmngr/pull/61)
 
 ### M7 · Config home and synced tasks
 
