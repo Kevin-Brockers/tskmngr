@@ -178,6 +178,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
   exist, never overwriting one; `~/.config/tskmngr/config.json` and
   `TSKMNGR_CONFIG` are no longer read, with a warning on stderr while the old
   file exists. The config's `tasks_dir` now comes before `TSKMNGR_DIR`
+- #TBD - Roadmap M4.2 describes the config file as it works now: at
+  `~/.tskmngr/config.json`, with its `tasks_dir` before `TSKMNGR_DIR`
 
 ### Fixed
 

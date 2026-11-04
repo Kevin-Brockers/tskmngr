@@ -138,11 +138,10 @@ Goal: the app stays in sync with hand-edited files and can be configured.
 - [x] **M4.1** Detect task files changed, added or removed on disk while the
   app runs, by polling the tasks directory's file times and sizes on a timer,
   and reload them · `feature/watch_tasks_dir` · [#35](https://github.com/Kevin-Brockers/tskmngr/pull/35)
-- [x] **M4.2** Config file (JSON via `json`) at
-  `~/.config/tskmngr/config.json` (`TSKMNGR_CONFIG` overrides the path): tasks
-  directory (`TSKMNGR_DIR` first, then the config file, then the default),
-  default sort, theme, and how often M4.1 polls the tasks directory (a fixed
-  interval until then) · `feature/config_file` · [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36)
+- [x] **M4.2** Config file (JSON via `json`) at `~/.tskmngr/config.json`:
+  tasks directory (the config's `tasks_dir` first, then `TSKMNGR_DIR`, then
+  the default), default sort, theme, and how often M4.1 polls the tasks
+  directory · `feature/config_file` · [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36)
 - [x] **M4.3** Custom keybindings from the config file, applied through
   Textual's keymap · `feature/custom_keybindings` · [#37](https://github.com/Kevin-Brockers/tskmngr/pull/37)
 
