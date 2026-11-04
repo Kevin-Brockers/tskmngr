@@ -34,6 +34,27 @@ DEFAULT_COLUMNS: tuple[Column, ...] = (
 )
 
 
+class TrashColumn(StrEnum):
+    """A column of the TUI's deleted tasks view: a task list column, or when."""
+
+    ID = "id"
+    STATUS = "status"
+    PRIORITY = "priority"
+    DUE = "due"
+    CREATED = "created"
+    UPDATED = "updated"
+    TITLE = "title"
+    # When the task was deleted.
+    DELETED = "deleted"
+
+
+DEFAULT_TRASH_COLUMNS: tuple[TrashColumn, ...] = (
+    TrashColumn.TITLE,
+    TrashColumn.DELETED,
+    TrashColumn.ID,
+)
+
+
 def task_fields(task: Task) -> list[tuple[str, str]]:
     """Every field of a task as `(label, value)`; missing values are `-`.
 
@@ -74,3 +95,32 @@ def format_timestamp(value: datetime) -> str:
     if value.utcoffset() == timedelta(0):
         text = text.removesuffix("+00:00") + "Z"
     return text
+
+
+def task_cell(task: Task, column: Column) -> str:
+    """A task's text in one of the task list's columns.
+
+    The title is followed by `↻` if the task repeats, its subtasks done and
+    total, like `[1/3]`, if it has any, and then its tags as `#tag`.
+    """
+    match column:
+        case Column.ID:
+            return task.id
+        case Column.STATUS:
+            return task.status.value
+        case Column.PRIORITY:
+            return task.priority.value
+        case Column.DUE:
+            return task.due.isoformat() if task.due else ""
+        case Column.CREATED:
+            return format_timestamp(task.created)
+        case Column.UPDATED:
+            return format_timestamp(task.updated)
+        case Column.TITLE:
+            done = progress(parse_subtasks(task.notes))
+            title = [
+                task.title,
+                *(["↻"] if task.repeat else []),
+                *([f"[{done}]"] if done else []),
+            ]
+            return " ".join([*title, *(f"#{tag}" for tag in task.tags)])

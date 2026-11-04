@@ -22,6 +22,7 @@ from tskmngr.storage import (
     save_completed,
     save_task,
     scan_tasks_dir,
+    scan_trash,
     tasks_dir,
 )
 from tskmngr.taskfile import TaskFile
@@ -541,6 +542,19 @@ def test_load_trash_raises_if_the_trash_cannot_be_listed(
 
 
 # Polling for changes
+
+
+def test_scan_trash_has_each_file_load_trash_would_list(tmp_path: Path) -> None:
+    write(tmp_path, "a.md")
+    target = delete_task(tmp_path, load_one(tmp_path), now=DELETED)
+    write(tmp_path / ".trash", ".hidden.md")
+    write(tmp_path / ".trash", "notes.txt")
+
+    stamps = scan_trash(tmp_path)
+
+    stat = target.stat()
+    assert stamps == {target.name: (stat.st_mtime_ns, stat.st_size)}
+    assert scan_trash(tmp_path / "missing") == {}
 
 
 def test_scan_has_time_and_size_of_each_task_file(tmp_path: Path) -> None:

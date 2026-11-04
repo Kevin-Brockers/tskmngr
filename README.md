@@ -116,6 +116,7 @@ panel above the list.
 | `Escape` | Clear the filter |
 | `S` | Sort by the next key: due date, priority, created, updated |
 | `R` | Reverse the sort order |
+| `t` | Hide or show the deleted tasks below the list |
 
 The filter narrows the list as you type. Words are searched in titles and
 notes, `#tag` needs a tag, and `status:` and `priority:` restrict to a value;
@@ -401,6 +402,7 @@ are Textual key names, like `a`, `A`, `f2`, `ctrl+s`, `escape` or `slash`
 | `task_list.reverse_sort` | `R` | Reverse the sort order |
 | `task_list.filter` | `/` | Filter the list |
 | `task_list.clear_filter` | `Escape` | Clear the filter |
+| `task_list.toggle_trash` | `t` | Hide or show the deleted tasks |
 | `task_detail.close` | `Escape` | Back to the list |
 | `task_detail.edit` | `e` | Edit the task |
 | `task_detail.external_editor` | `o` | Open the task's file in `$EDITOR` |
