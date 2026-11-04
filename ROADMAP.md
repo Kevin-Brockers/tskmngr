@@ -220,7 +220,7 @@ the step IDs keep their numbers.
     (`#err` finds `errands`), and `status:` and `priority:` take the start of
     a value (`status:do` finds doing and done, `priority:hi` finds high); a
     value nothing starts with is still an error · `feature/filter_prefixes` ·
-    #TBD
+    [#58](https://github.com/Kevin-Brockers/tskmngr/pull/58)
   - [ ] **M9.1b** Typo-tolerant words: a word also matches a word in the
     title or notes that's close to it (`mlik` finds milk), using the
     standard library's `difflib`, no new dependency; how close counts must
