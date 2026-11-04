@@ -192,6 +192,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#45](https://github.com/Kevin-Brockers/tskmngr/pull/45) - Agents change `AGENTS.md` and `ROADMAP.md` only after the
   maintainer explicitly approves, except for marking the step they implement
   done and replacing `#TBD` with the pull request's link
+- [#46](https://github.com/Kevin-Brockers/tskmngr/pull/46) - `AGENTS.md` describes the config file as it works: `--help` and
+  usage errors don't write the default config or warn about the old one, and
+  only the TUI checks `theme` and `keybindings`. In `ROADMAP.md`, M6.2 names
+  its branch like the other split steps, and M7.1 and M7.2 depend on M6.1
 
 ### Removed
 

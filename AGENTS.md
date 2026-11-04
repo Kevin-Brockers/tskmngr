@@ -182,13 +182,18 @@ optional.
   `poll_interval` 2, `keybindings` `{}`). The write is atomic and never
   overwrites an existing file; otherwise the app only reads the file. If it
   can't be written, the CLI and the TUI stop with an error naming the file.
+  `--help` and usage errors exit before this, so they don't write the file
+  (or print the warning below).
 - `tasks_dir` comes first for the tasks directory, then `TSKMNGR_DIR`, then
   the default. A relative `tasks_dir` is read from the config file's folder.
 - The old `~/.config/tskmngr/config.json` and `TSKMNGR_CONFIG` aren't read.
   While the old file exists, every run prints a warning on stderr; the file
   is never moved or changed.
-- Invalid JSON, an unknown key or a value that can't be used stops the CLI
-  and the TUI with an error naming the file and the key.
+- Invalid JSON, an unknown key or a value of the wrong type stops the CLI
+  and the TUI with an error naming the file and the key. Only the TUI checks
+  `theme` (a theme Textual has) and `keybindings` (known binding ids, no two
+  bindings on one screen sharing a key, none taking the app's own keys), and
+  stops on a problem; CLI commands don't use those keys and run anyway.
 
 ## Working conventions
 

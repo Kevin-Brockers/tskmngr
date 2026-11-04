@@ -186,7 +186,7 @@ synced must be agreed with the maintainer before starting M6.2, and
 - [ ] **M6.2** Tasks directory in a separate git repository, through the `git`
   CLI (`subprocess`, no new dependency): commit after every change, pull when
   tskmngr starts, push after each commit, and `tskmngr sync` to sync by hand ·
-  depends on M6.1. Split into:
+  `feature/git_sync` · depends on M6.1. Split into:
   - [ ] **M6.2a** Core and CLI: a `tasks_repo` config key with the
     repository's HTTPS URL, cloned into the tasks directory if that isn't a
     git repository yet; a fine-grained access token read from the
@@ -209,8 +209,8 @@ task list columns can be arranged.
   `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`, then checks it
   the way loading does and reports any error naming the key; document the
   command in the README and update `AGENTS.md` to match ·
-  `feature/cli_config`
+  `feature/cli_config` · depends on M6.1
 - [ ] **M7.2** Order of the TUI task list columns: a `columns` config key,
   a list of column names whose order is the display order, with columns
   left out hidden; document it in the README and update `AGENTS.md` to
-  match · `feature/tui_column_order`
+  match · `feature/tui_column_order` · depends on M6.1
