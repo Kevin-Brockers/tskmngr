@@ -237,4 +237,4 @@ synced must be agreed with the maintainer before starting M7.2, and
     overwriting a task · `feature/git_sync_core`
   - [ ] **M7.2b** TUI: pull at start, commit and push after each change, a
     sync key, and sync errors and conflicts shown to the user ·
-    `feature/git_sync_tui` · depends on M6.2a
+    `feature/git_sync_tui` · depends on M7.2a

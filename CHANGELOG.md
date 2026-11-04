@@ -212,6 +212,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#49](https://github.com/Kevin-Brockers/tskmngr/pull/49) - Roadmap order: M7.2 (task list column order) comes next, then M7.1
   (`tskmngr config`), and M6.2 (git-synced tasks) moves to the end, with the
   M6 milestone now listed after M7. Step IDs are unchanged
+- [#53](https://github.com/Kevin-Brockers/tskmngr/pull/53) - Roadmap step M7.2b depends on M7.2a, not on the
+  M6.2a that doesn't exist
 
 ### Removed
 
