@@ -1,13 +1,29 @@
 """The Textual app (the TUI)."""
 
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from textual.app import App
+from textual.binding import Binding, BindingType
+from textual.screen import Screen
 
 from tskmngr.config import Config, ConfigError
 from tskmngr.storage import FileStamp, scan_tasks_dir, tasks_dir
+from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
+from tskmngr.widgets.confirm_discard import ConfirmDiscardScreen
+from tskmngr.widgets.task_detail import TaskDetailScreen
+from tskmngr.widgets.task_form import TaskFormScreen
 from tskmngr.widgets.task_list import TaskListScreen
 from tskmngr.widgets.tasks_changed import TasksChanged
+
+# Every screen with key bindings; the config's `keybindings` can remap these.
+BINDING_SCREENS: tuple[type[Screen], ...] = (
+    TaskListScreen,
+    TaskDetailScreen,
+    TaskFormScreen,
+    ConfirmDeleteScreen,
+    ConfirmDiscardScreen,
+)
 
 
 class TskmngrApp(App):
@@ -31,7 +47,8 @@ class TskmngrApp(App):
         `directory` is the tasks directory; by default `storage.tasks_dir()`
         with the config's `tasks_dir`. `poll_interval` overrides the config's;
         0 turns polling off. Raises `ConfigError` for a theme Textual doesn't
-        have.
+        have, or keybindings that name an unknown binding or give two bindings
+        on one screen the same key.
         """
         super().__init__()
         self.config = config if config is not None else Config()
@@ -50,6 +67,13 @@ class TskmngrApp(App):
                     f"{names}",
                 )
             self.theme = self.config.theme
+        if self.config.keybindings:
+            problem = keymap_problem(self.config.keybindings)
+            if problem is not None:
+                raise ConfigError(
+                    self.config.path or Path("config"), f"keybindings: {problem}"
+                )
+            self.set_keymap(dict(self.config.keybindings))
         # The task files as last seen; None if the directory couldn't be read.
         self._stamps: dict[str, FileStamp] | None = None
 
@@ -86,3 +110,52 @@ class TskmngrApp(App):
         except OSError:
             # The list shows the error when it reloads; check again later.
             return None
+
+
+def binding_ids() -> list[str]:
+    """The ids of the bindings the config's `keybindings` can remap."""
+    return [
+        binding.id
+        for screen in BINDING_SCREENS
+        for binding in _bindings(screen.BINDINGS)
+        if binding.id is not None
+    ]
+
+
+def keymap_problem(keymap: Mapping[str, str]) -> str | None:
+    """What's wrong with `keymap`, binding ids to keys, or None if it's fine.
+
+    An id must be one of `binding_ids()`. With the keymap applied, no two
+    bindings on one screen may share a key, nor take one of the app's own
+    keys (`Ctrl+Q` quits on every screen).
+    """
+    known = binding_ids()
+    for binding_id in keymap:
+        if binding_id not in known:
+            return (
+                f"unknown binding {binding_id!r}; the bindings are {', '.join(known)}"
+            )
+    app_bindings = list(_bindings(TskmngrApp.BINDINGS))
+    for screen in BINDING_SCREENS:
+        users: dict[str, list[str]] = {}
+        for binding in [*_bindings(screen.BINDINGS), *app_bindings]:
+            keys = keymap.get(binding.id, binding.key) if binding.id else binding.key
+            name = binding.id or f"Textual's {binding.action!r}"
+            for key in _keys(keys):
+                if name not in users.setdefault(key, []):
+                    users[key].append(name)
+        for key, names in users.items():
+            if len(names) > 1:
+                return f"{names[0]} and {names[1]} both use the key {key!r}"
+    return None
+
+
+def _bindings(bindings: Iterable[BindingType]) -> Iterable[Binding]:
+    """`bindings` as `Binding`s, one per binding as written (not per key)."""
+    for binding in bindings:
+        yield binding if isinstance(binding, Binding) else Binding(*binding)
+
+
+def _keys(keys: str) -> list[str]:
+    """The keys in `keys`, comma-separated, in the names Textual matches on."""
+    return [binding.key for binding in Binding.make_bindings([Binding(keys, "")])]

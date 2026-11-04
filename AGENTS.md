@@ -135,8 +135,10 @@ Notes go here, in **Markdown**.
 ## Config file
 
 A JSON object (read with `json`) at `~/.config/tskmngr/config.json`,
-overridable via `TSKMNGR_CONFIG`, with flat keys: `tasks_dir`, `sort`,
-`reverse`, `theme`, `poll_interval`. All are optional; a missing file means
+overridable via `TSKMNGR_CONFIG`, with the keys `tasks_dir`, `sort`,
+`reverse`, `theme`, `poll_interval` and `keybindings`. All are flat values
+except `keybindings`, an object mapping TUI binding ids to keys as in Textual's
+keymap. All are optional; a missing file means
 the defaults, and the app never creates or writes it. A relative `tasks_dir` is
 read from the config file's folder, and `TSKMNGR_DIR` comes before it. Invalid
 JSON, an unknown key or a value that can't be used stops the CLI and the TUI

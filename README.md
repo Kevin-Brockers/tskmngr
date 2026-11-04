@@ -14,11 +14,11 @@ in short:
   delete tasks from the shell
 - **TUI** (done): the full app, with a task list, detail view, forms, a notes
   editor, editing in `$EDITOR`, filtering and sorting
-- **External edits and configuration** (in progress): the TUI picks up
-  changes made to the files while it runs, and a config file sets the tasks
-  directory, the default sort, the theme and how often the TUI checks the
-  files
-- **Next**: custom keybindings, subtasks and recurring tasks
+- **External edits and configuration** (done): the TUI picks up changes
+  made to the files while it runs, and a config file sets the tasks
+  directory, the default sort, the theme, how often the TUI checks the files
+  and the TUI's keys
+- **Next**: subtasks and recurring tasks
 
 The core, the command-line interface and the TUI together make the first
 usable release. [`CHANGELOG.md`](CHANGELOG.md) lists what has changed so far.
@@ -93,6 +93,8 @@ saved or deleted, or a delete isn't confirmed.
 
 The TUI opens on a list of all tasks, done ones included, soonest due first.
 The footer shows the keys of the current screen; `Ctrl+Q` quits from anywhere.
+The keys below are the defaults; `keybindings` in the
+[config file](#config-file) changes them.
 Task files that can't be loaded are named, with their error, in a warning
 panel above the list.
 
@@ -225,7 +227,8 @@ the file tskmngr uses the defaults. tskmngr never creates or changes it.
   "sort": "priority",
   "reverse": false,
   "theme": "nord",
-  "poll_interval": 2
+  "poll_interval": 2,
+  "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
 }
 ```
 
@@ -236,11 +239,48 @@ the file tskmngr uses the defaults. tskmngr never creates or changes it.
 | `reverse` | `true` reverses that order | `false` |
 | `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |
 | `poll_interval` | Seconds between the TUI's checks for task files changed on disk; `0` turns them off | `2` |
+| `keybindings` | New keys for the TUI, an object of binding ids and their keys (see below) | the keys under [TUI keys](#tui-keys) |
 
 `tskmngr list --sort` replaces `sort` and `reverse`; `--reverse` reverses the
 configured order. If the file isn't valid JSON, has a key tskmngr doesn't know
 or a value it can't use, tskmngr says what's wrong and exits instead of
-guessing. A theme name that doesn't exist only stops the TUI.
+guessing. A theme name or binding id that doesn't exist only stops the TUI.
+
+### Keybindings
+
+Each entry in `keybindings` replaces the keys of one TUI binding. The keys
+are Textual key names, like `a`, `A`, `f2`, `ctrl+s`, `escape` or `slash`
+(a single character such as `/` works too); separate several with commas, as in
+`"ctrl+s,f2"`. The footer shows the new keys.
+
+| Binding id | Default | Action |
+| ---------- | ------- | ------ |
+| `task_list.open` | `Enter` | Open the task in the detail view |
+| `task_list.new` | `n` | New task |
+| `task_list.edit` | `e` | Edit the task |
+| `task_list.cycle_status` | `s` | Move the task to the next status |
+| `task_list.delete` | `d` | Delete the task |
+| `task_list.external_editor` | `o` | Open the task's file in `$EDITOR` |
+| `task_list.sort` | `S` | Sort by the next key |
+| `task_list.reverse_sort` | `R` | Reverse the sort order |
+| `task_list.filter` | `/` | Filter the list |
+| `task_list.clear_filter` | `Escape` | Clear the filter |
+| `task_detail.close` | `Escape` | Back to the list |
+| `task_detail.edit` | `e` | Edit the task |
+| `task_detail.external_editor` | `o` | Open the task's file in `$EDITOR` |
+| `task_form.save` | `Ctrl+S` | Save the task |
+| `task_form.cancel` | `Escape` | Cancel |
+| `confirm_delete.yes` | `y` | Delete, in the delete question |
+| `confirm_delete.no` | `n`, `Escape` | Don't delete |
+| `confirm_discard.yes` | `y` | Discard the changes, when cancelling a changed form |
+| `confirm_discard.no` | `n`, `Escape` | Keep editing |
+
+Two bindings on the same screen can't share a key, and none can take
+`Ctrl+Q` (quit) or `Ctrl+C`; swapping two keys is fine. Textual's own keys,
+like `Ctrl+Q`, and `Tab` and the arrow keys in forms and lists, can't be
+changed, and only those two are checked: a binding moved to `Tab` takes it
+over on its screen. tskmngr doesn't check the key names either: a misspelled
+key, like `ctlr+s`, never fires.
 
 ## Development
 
