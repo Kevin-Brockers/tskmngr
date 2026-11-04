@@ -1680,6 +1680,8 @@ def test_config_prints_the_path_and_the_default_settings(
         "theme          textual-dark\n"
         "poll_interval  2\n"
         'columns        ["id", "status", "priority", "due", "title"]\n'
+        'trash_columns  ["title", "deleted", "id"]\n'
+        "show_trash     true\n"
         "keybindings    {}\n"
     )
 
@@ -1703,6 +1705,8 @@ def test_config_marks_the_settings_the_file_leaves_out(
         "theme          textual-dark (default)",
         "poll_interval  0.5",
         'columns        ["title"]',
+        'trash_columns  ["title", "deleted", "id"] (default)',
+        "show_trash     true (default)",
         'keybindings    {"task_list.new": "a"}',
     ]
 
@@ -1733,6 +1737,8 @@ def test_the_config_files_tasks_dir_comes_before_tskmngr_dir(
         ("theme", "nord"),
         ("poll_interval", "0"),
         ("columns", '["due", "title"]'),
+        ("trash_columns", '["deleted", "id"]'),
+        ("show_trash", "false"),
         ("keybindings", '{"task_list.new": "a", "task_form.save": "ctrl+s,f2"}'),
     ],
 )
@@ -1747,6 +1753,8 @@ def test_config_get_prints_one_setting(
           "theme": "nord",
           "poll_interval": 0,
           "columns": ["due", "title"],
+          "trash_columns": ["deleted", "id"],
+          "show_trash": false,
           "keybindings": {"task_list.new": "a", "task_form.save": " ctrl+s, f2"}
         }""",
     )

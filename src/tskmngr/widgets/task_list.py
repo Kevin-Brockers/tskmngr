@@ -45,7 +45,13 @@ from textual.binding import Binding, BindingType
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
-from tskmngr.display import DEFAULT_COLUMNS, Column, task_cell
+from tskmngr.display import (
+    DEFAULT_COLUMNS,
+    DEFAULT_TRASH_COLUMNS,
+    Column,
+    TrashColumn,
+    task_cell,
+)
 from tskmngr.models import Task, next_status
 from tskmngr.query import SortKey, TaskFilter, parse_filter, sort_tasks
 from tskmngr.recurrence import RecurrenceError
@@ -167,9 +173,9 @@ class TaskListScreen(Screen):
 
     `sort_key` and `reverse` set the starting sort (the config file's). It can
     be changed with `S` and `R`; that lasts until the app exits. `columns` are
-    the table's columns, in order (see `shown_columns`). `show_trash` is
-    whether the deleted tasks view starts shown; `t` toggles it until the app
-    exits.
+    the table's columns, in order (see `shown_columns`), and `trash_columns`
+    the deleted tasks view's. `show_trash` is whether that view starts shown;
+    `t` toggles it until the app exits.
     """
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -248,6 +254,7 @@ class TaskListScreen(Screen):
         sort_key: SortKey = SortKey.DUE,
         reverse: bool = False,
         columns: Sequence[Column] = DEFAULT_COLUMNS,
+        trash_columns: Sequence[TrashColumn] = DEFAULT_TRASH_COLUMNS,
         show_trash: bool = True,
     ) -> None:
         super().__init__()
@@ -262,6 +269,7 @@ class TaskListScreen(Screen):
         self.sort_key = sort_key
         self.sort_reverse = reverse
         self.columns = tuple(columns)
+        self.trash_columns = tuple(trash_columns)
         self.show_trash = show_trash
 
     def compose(self) -> ComposeResult:
@@ -278,7 +286,7 @@ class TaskListScreen(Screen):
         table.add_columns(*self._column_labels())
         yield table
         yield Static(Text("No tasks."), id="no-tasks")
-        trash = TrashView(self.directory, id="trash-view")
+        trash = TrashView(self.directory, columns=self.trash_columns, id="trash-view")
         trash.set_class(not self.show_trash, "-hidden")
         yield trash
         yield Footer()

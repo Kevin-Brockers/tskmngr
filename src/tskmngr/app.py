@@ -85,6 +85,8 @@ class TskmngrApp(App):
                 sort_key=self.config.sort,
                 reverse=self.config.reverse,
                 columns=self.config.columns,
+                trash_columns=self.config.trash_columns,
+                show_trash=self.config.show_trash,
             )
         )
         if self.poll_interval > 0:

@@ -6,6 +6,7 @@ from rich.text import Text
 from textual.widgets import DataTable, Static
 
 from tskmngr.app import TskmngrApp
+from tskmngr.config import Config
 from tskmngr.display import TrashColumn
 from tskmngr.models import Priority, Repeat, Status, Task, Unit
 from tskmngr.storage import BadFile, DeletedTask, delete_task, load_tasks, save_task
@@ -252,6 +253,31 @@ async def test_the_view_can_start_hidden(tmp_path: Path) -> None:
         await pilot.pause()
 
         assert not trash_view(app).display
+
+
+@pytest.mark.asyncio
+async def test_the_columns_come_from_the_config(tmp_path: Path) -> None:
+    delete(tmp_path, make_task("AAAA", "Old idea", priority=Priority.HIGH), DELETED)
+    config = Config(
+        trash_columns=(TrashColumn.ID, TrashColumn.PRIORITY, TrashColumn.DELETED)
+    )
+
+    app = TskmngrApp(tmp_path, config=config, poll_interval=0)
+    async with app.run_test():
+        assert trash_headers(app) == ["ID", "Priority", "Deleted"]
+        assert trash_rows(app) == [["AAAA", "high", "2026-10-30T12:00:05Z"]]
+
+
+@pytest.mark.asyncio
+async def test_the_config_can_start_the_view_hidden(tmp_path: Path) -> None:
+    app = TskmngrApp(tmp_path, config=Config(show_trash=False), poll_interval=0)
+    async with app.run_test() as pilot:
+        assert not trash_view(app).display
+
+        await pilot.press("t")
+        await pilot.pause()
+
+        assert trash_view(app).display
 
 
 @pytest.mark.asyncio

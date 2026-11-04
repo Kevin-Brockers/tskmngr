@@ -85,8 +85,9 @@ src/tskmngr/
   app.py        # Textual App (the TUI)
   cli.py        # `tskmngr` entry point; no arguments launches the TUI
   config.py     # config file (JSON)
-  display.py    # format task fields for display, and the task list's column
-                #   names (`Column`); shared by CLI and TUI
+  display.py    # format task fields for display, and the column names of the
+                #   task list (`Column`) and the deleted tasks view
+                #   (`TrashColumn`); shared by CLI and TUI
   editor.py     # find $VISUAL/$EDITOR and run it on a file
   models.py     # Task dataclass and enums (status, priority)
   query.py      # filter, search, sort, ID-prefix lookup; shared by CLI and TUI
@@ -136,8 +137,10 @@ Notes go here, in **Markdown**.
 - Deleting a task moves its file into `.trash/` inside the tasks directory,
   renamed to `<id>.<delete time>.md` in UTC (e.g.
   `01JB3K7Q2X.2026-10-30T12-00-05Z.md`) so earlier deletes are kept. Files
-  there aren't loaded, moving one back as `<id>.md` restores the task, and the
-  app never empties the folder.
+  there aren't loaded as tasks; the TUI only lists them, read-only, in its
+  deleted tasks view (a file whose name has no delete time is reported as
+  malformed). Moving one back as `<id>.md` restores the task, and the app
+  never empties the folder.
 - Tolerate hand-edited files: unknown frontmatter keys are preserved on save,
   and a malformed file is reported to the user, never silently deleted or
   overwritten. A value of the wrong type counts as malformed (YAML reads
@@ -173,14 +176,16 @@ Notes go here, in **Markdown**.
 
 A JSON object (read with `json`) at `~/.tskmngr/config.json`, the only
 place it's read from, with the keys `tasks_dir`, `sort`, `reverse`, `theme`,
-`poll_interval`, `columns` and `keybindings`. All are flat values except
-`columns`, a list of task list column names, and `keybindings`, an object
-mapping TUI binding ids to keys as in Textual's keymap. All are optional.
+`poll_interval`, `columns`, `trash_columns`, `show_trash` and `keybindings`.
+All are flat values except `columns` and `trash_columns`, lists of column
+names, and `keybindings`, an object mapping TUI binding ids to keys as in
+Textual's keymap. All are optional.
 
 - On every run (any CLI command or the TUI), if nothing is at that path, the
   app writes the default config there: every key except `tasks_dir`, at its
   default (`sort` `due`, `reverse` false, `theme` `textual-dark`,
   `poll_interval` 2, `columns` `["id", "status", "priority", "due", "title"]`,
+  `trash_columns` `["title", "deleted", "id"]`, `show_trash` true,
   `keybindings` `{}`). The write is atomic and never
   overwrites an existing file; otherwise the app only reads the file. If it
   can't be written, the CLI and the TUI stop with an error naming the file.
@@ -193,6 +198,11 @@ mapping TUI binding ids to keys as in Textual's keymap. All are optional.
   left out are hidden. Sorting by `created` or `updated` still shows that
   column, before Title (or last), while that sort lasts. An empty list, an
   unknown name or a name listed twice stops the CLI and the TUI.
+- `trash_columns` sets the TUI's deleted tasks view's columns in display
+  order, from the `columns` names plus `deleted` (the delete time), checked
+  like `columns`; the view always lists the newest delete first. `show_trash`
+  sets whether the view starts shown; `t` (`task_list.toggle_trash`) toggles
+  it until the app exits.
 - The old `~/.config/tskmngr/config.json` and `TSKMNGR_CONFIG` aren't read.
   While the old file exists, every run prints a warning on stderr; the file
   is never moved or changed.

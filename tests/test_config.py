@@ -20,7 +20,7 @@ from tskmngr.config import (
     old_config_path,
     parse_config,
 )
-from tskmngr.display import DEFAULT_COLUMNS, Column
+from tskmngr.display import DEFAULT_COLUMNS, DEFAULT_TRASH_COLUMNS, Column, TrashColumn
 from tskmngr.query import SortKey
 
 PATH = Path("/home/me/.tskmngr/config.json")
@@ -29,6 +29,8 @@ SORT = "sort: expected one of due, priority, created, updated, got "
 POLL = "poll_interval: expected a number of seconds, 0 or more, got "
 NAMES = "id, status, priority, due, created, updated, title"
 COLUMNS = f"columns: expected names from {NAMES}, got "
+TRASH_NAMES = NAMES + ", deleted"
+TRASH_COLUMNS = f"trash_columns: expected names from {TRASH_NAMES}, got "
 KEYS = (
     "keybindings: task_list.new: expected one or more keys, separated by commas, got "
 )
@@ -70,6 +72,8 @@ def test_the_default_file_has_every_setting_but_tasks_dir() -> None:
         "theme",
         "poll_interval",
         "columns",
+        "trash_columns",
+        "show_trash",
         "keybindings",
     }
 
@@ -96,6 +100,12 @@ def test_the_default_file_is_indented_json() -> None:
         '    "due",\n'
         '    "title"\n'
         "  ],\n"
+        '  "trash_columns": [\n'
+        '    "title",\n'
+        '    "deleted",\n'
+        '    "id"\n'
+        "  ],\n"
+        '  "show_trash": true,\n'
         '  "keybindings": {}\n'
         "}\n"
     )
@@ -209,6 +219,8 @@ def test_missing_file_gives_the_defaults(tmp_path: Path) -> None:
     assert config.theme is None
     assert config.poll_interval == DEFAULT_POLL_INTERVAL == 2.0
     assert config.columns == DEFAULT_COLUMNS
+    assert config.trash_columns == DEFAULT_TRASH_COLUMNS
+    assert config.show_trash is True
 
 
 def test_load_reads_the_file_at_config_path() -> None:
@@ -228,6 +240,8 @@ def test_every_setting_is_read() -> None:
           "theme": "nord",
           "poll_interval": 0.5,
           "columns": ["title", "due"],
+          "trash_columns": ["deleted", "status"],
+          "show_trash": false,
           "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
         }""",
         PATH,
@@ -241,6 +255,8 @@ def test_every_setting_is_read() -> None:
         theme="nord",
         poll_interval=0.5,
         columns=(Column.TITLE, Column.DUE),
+        trash_columns=(TrashColumn.DELETED, TrashColumn.STATUS),
+        show_trash=False,
         keybindings={"task_list.new": "a", "task_form.save": "ctrl+s,f2"},
     )
 
@@ -269,6 +285,8 @@ def test_setting_keys_are_every_known_key_in_the_documented_order() -> None:
         "theme",
         "poll_interval",
         "columns",
+        "trash_columns",
+        "show_trash",
         "keybindings",
     )
 
@@ -295,6 +313,25 @@ def test_default_columns_are_id_status_priority_due_and_title() -> None:
 def test_columns_keep_their_order_and_may_include_created_and_updated() -> None:
     config = parse_config('{"columns": ["updated", "title", "id", "created"]}', PATH)
     assert config.columns == (Column.UPDATED, Column.TITLE, Column.ID, Column.CREATED)
+
+
+def test_default_trash_columns_are_title_deleted_and_id() -> None:
+    assert Config().trash_columns == (
+        TrashColumn.TITLE,
+        TrashColumn.DELETED,
+        TrashColumn.ID,
+    )
+
+
+def test_trash_columns_may_have_every_task_list_column_and_deleted() -> None:
+    names = ["id", "status", "priority", "due", "created", "updated", "title"]
+    config = parse_config(json.dumps({"trash_columns": [*names, "deleted"]}), PATH)
+
+    assert [column.value for column in config.trash_columns] == [*names, "deleted"]
+
+
+def test_deleted_is_only_a_trash_column() -> None:
+    assert error_message('{"columns": ["deleted"]}') == COLUMNS + "the text 'deleted'"
 
 
 def test_tasks_dir_expands_home() -> None:
@@ -336,7 +373,7 @@ def test_the_file_must_hold_an_object(text: str, got: str) -> None:
 def test_unknown_keys_are_refused() -> None:
     assert error_message('{"sort": "due", "colour": "red"}') == (
         "unknown key 'colour'; the known keys are tasks_dir, sort, reverse, "
-        "theme, poll_interval, columns, keybindings"
+        "theme, poll_interval, columns, trash_columns, show_trash, keybindings"
     )
 
 
@@ -370,6 +407,25 @@ def test_unknown_keys_are_refused() -> None:
         ('{"columns": [1]}', COLUMNS + "the number 1"),
         ('{"columns": [["id"]]}', COLUMNS + "a list"),
         ('{"columns": ["id", "due", "id"]}', "columns: 'id' is listed twice"),
+        (
+            '{"trash_columns": "title"}',
+            "trash_columns: expected a list of column names, got the text 'title'",
+        ),
+        (
+            '{"trash_columns": []}',
+            f"trash_columns: expected at least one of {TRASH_NAMES}, got an empty list",
+        ),
+        ('{"trash_columns": ["tags"]}', TRASH_COLUMNS + "the text 'tags'"),
+        ('{"trash_columns": [null]}', TRASH_COLUMNS + "null"),
+        (
+            '{"trash_columns": ["deleted", "deleted"]}',
+            "trash_columns: 'deleted' is listed twice",
+        ),
+        (
+            '{"show_trash": "no"}',
+            "show_trash: expected true or false, got the text 'no'",
+        ),
+        ('{"show_trash": 0}', "show_trash: expected true or false, got the number 0"),
         (
             '{"keybindings": ["task_list.new"]}',
             "keybindings: expected an object of binding ids and keys, got a list",
