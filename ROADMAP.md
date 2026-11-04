@@ -207,6 +207,36 @@ moving its file back by hand.
   file; document them and the view in the README and update `AGENTS.md` to
   match · `feature/trash_view_config` · [#56](https://github.com/Kevin-Brockers/tskmngr/pull/56)
 
+### M9 · Filtering and task list columns
+
+Goal: the filter also finds tasks from partial or misspelled input, and the
+TUI's tables are easier to read. Listed before M7 and built first, after M8;
+the step IDs keep their numbers.
+
+- [ ] **M9.1** Partial matches in the filter, the same in the TUI's filter
+  bar and `tskmngr list` (shared in `query.py`) · `feature/partial_filter`.
+  Split into:
+  - [ ] **M9.1a** Prefixes: `#tag` matches every tag that starts with it
+    (`#err` finds `errands`), and `status:` and `priority:` take the start of
+    a value (`status:do` finds doing and done, `priority:hi` finds high); a
+    value nothing starts with is still an error · `feature/filter_prefixes`
+  - [ ] **M9.1b** Typo-tolerant words: a word also matches a word in the
+    title or notes that's close to it (`mlik` finds milk), using the
+    standard library's `difflib`, no new dependency; how close counts must
+    be agreed with the maintainer before starting · `feature/filter_typos` ·
+    depends on M9.1a
+- [ ] **M9.2** The columns the TUI task list shows only while it's sorted by
+  them (created, updated) go last, at the far right, instead of before
+  Title; update the README and `AGENTS.md` to match ·
+  `feature/sort_column_last`
+- [ ] **M9.3** Tags column in the TUI: `tags` joins the column names of
+  `columns` and `trash_columns` and shows a task's tags separated by commas;
+  the defaults gain it after `title` (`["id", "status", "priority", "due",
+  "title", "tags"]` and `["title", "tags", "deleted", "id"]`), and while it
+  isn't shown the title keeps its `#tags`, so config files without it still
+  show them; document it in the README and update `AGENTS.md` to match ·
+  `feature/tags_column` · depends on M9.2
+
 ### M7 · Config home and synced tasks
 
 Goal: settings live in `~/.tskmngr/`, and the tasks directory can be kept in a
