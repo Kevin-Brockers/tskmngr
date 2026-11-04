@@ -1,11 +1,19 @@
-"""The task detail screen: every field of one task, then its notes.
+"""The task detail screen: every field of one task, its subtasks, then its notes.
 
-The notes are rendered as Markdown. The header shows the task's file, so it's
+The subtasks, the checklist items in the notes (see `tskmngr.subtasks`), are
+listed above the notes; Space, Enter or a click checks or unchecks the one
+under the cursor and saves the task right away. Checking the last open one
+marks the task done, unchecking one of a done task moves it back to doing. A
+save that hits a conflict is shown, and the task reloaded, instead of
+overwriting the file.
+
+The notes are rendered as Markdown, checklist items included. The header shows the task's file, so it's
 easy to find for editing by hand. `e` edits the task in the form and `o` opens
 its file in `$VISUAL` or `$EDITOR`; afterwards it is reloaded from disk. It's
 also reloaded when the app notices task files changed on disk.
 """
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
@@ -17,11 +25,12 @@ from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Markdown, Static
+from textual.widgets import Footer, Header, Markdown, OptionList, Static
 
 from tskmngr.display import task_fields
-from tskmngr.models import Task
-from tskmngr.storage import load_tasks, task_path
+from tskmngr.models import Status, Task
+from tskmngr.storage import ConflictError, load_tasks, save_task, task_path
+from tskmngr.subtasks import Subtask, parse_subtasks, toggle_subtask
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.external_editor import edit_in_editor
 from tskmngr.widgets.task_form import TaskFormScreen
@@ -38,6 +47,12 @@ def fields_table(task: Task) -> Table:
     return table
 
 
+def subtask_prompt(subtask: Subtask) -> Text:
+    """A subtask as a checklist line, indented like in the notes."""
+    mark = "[x]" if subtask.done else "[ ]"
+    return Text(f"{' ' * subtask.indent}{mark} {subtask.title}")
+
+
 class TaskDetailScreen(Screen):
     """One task from `directory`: all its fields and its rendered notes."""
 
@@ -45,6 +60,7 @@ class TaskDetailScreen(Screen):
         Binding("escape", "close", "Back", id="task_detail.close"),
         Binding("e", "edit", "Edit", id="task_detail.edit"),
         Binding("o", "external_editor", "Editor", id="task_detail.external_editor"),
+        Binding("space", "toggle_subtask", "Check", id="task_detail.toggle_subtask"),
     ]
 
     DEFAULT_CSS = """
@@ -53,6 +69,13 @@ class TaskDetailScreen(Screen):
         padding: 1 2;
     }
     TaskDetailScreen #fields {
+        margin-bottom: 1;
+    }
+    TaskDetailScreen #subtasks-label {
+        text-style: bold;
+    }
+    TaskDetailScreen #subtasks {
+        height: auto;
         margin-bottom: 1;
     }
     TaskDetailScreen #no-notes {
@@ -76,9 +99,16 @@ class TaskDetailScreen(Screen):
     def compose(self) -> ComposeResult:
         task = self.source.task
         has_notes = bool(task.notes.strip())
+        subtasks = parse_subtasks(task.notes)
         yield Header()
         with VerticalScroll(id="detail-body"):
             yield Static(fields_table(task), id="fields")
+            label = Static(Text("Subtasks"), id="subtasks-label")
+            label.display = bool(subtasks)
+            yield label
+            checklist = OptionList(*map(subtask_prompt, subtasks), id="subtasks")
+            checklist.display = bool(subtasks)
+            yield checklist
             # Only one of the two is shown.
             notes = Markdown(task.notes, id="notes")
             notes.display = has_notes
@@ -90,8 +120,18 @@ class TaskDetailScreen(Screen):
 
     def on_mount(self) -> None:
         self.sub_title = str(self.path)
-        # Focused so the arrow and page keys scroll long notes.
-        self.query_one("#detail-body").focus()
+        checklist = self.query_one("#subtasks", OptionList)
+        if checklist.display:
+            checklist.focus()
+        else:
+            # Focused so the arrow and page keys scroll long notes.
+            self.query_one("#detail-body").focus()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool:
+        if action == "toggle_subtask":
+            # Only shown in the footer, and only works, in the checklist.
+            return self.focused is self.query_one("#subtasks", OptionList)
+        return True
 
     def action_close(self) -> None:
         self.dismiss()
@@ -100,6 +140,50 @@ class TaskDetailScreen(Screen):
         self.app.push_screen(
             TaskFormScreen(self.directory, self.source), self._form_closed
         )
+
+    async def action_toggle_subtask(self) -> None:
+        index = self.query_one("#subtasks", OptionList).highlighted
+        if index is not None:
+            await self._toggle(index)
+
+    async def on_option_list_option_selected(
+        self, event: OptionList.OptionSelected
+    ) -> None:
+        # Enter or a click on a subtask.
+        event.stop()
+        await self._toggle(event.option_index)
+
+    async def _toggle(self, index: int) -> None:
+        """Check or uncheck subtask `index`, save the task and reload it."""
+        old = self.source.task
+        task = toggle_subtask(old, index, datetime.now(UTC).replace(microsecond=0))
+        try:
+            save_task(self.directory, task, self.source)
+        except ConflictError as error:
+            self._notify_error(
+                f"{error.path.name} {error.reason}. It was reloaded from disk; "
+                "the subtask wasn't changed."
+            )
+        except OSError as error:
+            self._notify_error(
+                f"Can't save the task in {self.directory}: {error.strerror or error}"
+            )
+        else:
+            if task.status is not old.status:
+                reason = (
+                    "All subtasks are done"
+                    if task.status is Status.DONE
+                    else "A subtask is open again"
+                )
+                self.notify(
+                    f"{reason}, so the task is now {task.status.value}.",
+                    title="Status changed",
+                    markup=False,
+                )
+        await self.reload()
+
+    def _notify_error(self, message: str) -> None:
+        self.notify(message, title="Not saved", severity="error", markup=False)
 
     async def action_external_editor(self) -> None:
         """Open the task's file in the user's editor, then reload it."""
@@ -160,10 +244,25 @@ class TaskDetailScreen(Screen):
         task = self.source.task
         has_notes = bool(task.notes.strip())
         self.query_one("#fields", Static).update(fields_table(task))
+        self._show_subtasks(parse_subtasks(task.notes))
         notes = self.query_one("#notes", Markdown)
         await notes.update(task.notes)
         notes.display = has_notes
         self.query_one("#no-notes").display = not has_notes
+
+    def _show_subtasks(self, subtasks: tuple[Subtask, ...]) -> None:
+        """Show `subtasks`, keeping the cursor on the same row if it's there."""
+        checklist = self.query_one("#subtasks", OptionList)
+        highlighted = checklist.highlighted
+        had_focus = self.focused is checklist
+        checklist.clear_options()
+        checklist.add_options(map(subtask_prompt, subtasks))
+        if subtasks and highlighted is not None:
+            checklist.highlighted = min(highlighted, len(subtasks) - 1)
+        checklist.display = bool(subtasks)
+        self.query_one("#subtasks-label").display = bool(subtasks)
+        if had_focus and not subtasks:
+            self.query_one("#detail-body").focus()
 
     def _close_with_error(self, message: str) -> None:
         self.notify(message, title="Task not shown", severity="error", markup=False)

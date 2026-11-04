@@ -511,6 +511,7 @@ def test_show_prints_all_fields_and_the_notes(
             "Priority:  high\n"
             "Due:       2026-11-01\n"
             "Tags:      errands, home\n"
+            "Subtasks:  -\n"
             "Created:   2026-10-28T09:15:00Z\n"
             "Updated:   2026-10-28T09:15:00Z\n"
             "\n"
@@ -530,8 +531,20 @@ def test_show_without_due_date_tags_or_notes(
     assert cli.main(["show", "6ACV1F0HMW"]) == 0
 
     lines = capsys.readouterr().out.splitlines()
-    assert lines[4:6] == ["Due:       -", "Tags:      -"]
+    assert lines[4:7] == ["Due:       -", "Tags:      -", "Subtasks:  -"]
     assert lines[-1].startswith("Updated:")
+
+
+def test_show_prints_subtask_progress_and_the_checklist(
+    tasks: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_task(tasks, "6ACV1F0HMW", "Plan trip", notes="- [x] Book flights\n- [ ] Pack\n")
+
+    assert cli.main(["show", "6"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Subtasks:  1/2\n" in out
+    assert out.endswith("\n\n- [x] Book flights\n- [ ] Pack\n")
 
 
 def test_show_keeps_a_timezone_other_than_utc(

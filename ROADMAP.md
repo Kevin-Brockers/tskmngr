@@ -151,8 +151,8 @@ Goal: the app stays in sync with hand-edited files and can be configured.
 Goal: richer task structure. The storage format for both must be agreed with
 the maintainer before starting, and `AGENTS.md` updated to match.
 
-- [ ] **M5.1** Subtasks as a checklist within a task, shown and toggled in the
-  TUI · `feature/subtasks` · depends on M3.5
+- [x] **M5.1** Subtasks as a checklist within a task, shown and toggled in the
+  TUI · `feature/subtasks` · #TBD
 - [ ] **M5.2** Recurring tasks: a repeat rule, and core logic that creates the
   next occurrence when a task is marked done, used by both `tskmngr done` and
   the TUI · `feature/recurring_tasks` · depends on M2.3, M3.4

@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 from rich.console import Console
-from textual.widgets import DataTable, Input, Markdown
+from textual.widgets import DataTable, Input, Markdown, OptionList
 
 from tskmngr.app import TskmngrApp
-from tskmngr.models import Task
+from tskmngr.models import Status, Task
 from tskmngr.storage import save_task
 from tskmngr.taskfile import TaskFile, render
 from tskmngr.widgets.task_detail import TaskDetailScreen, fields_table
@@ -141,6 +141,7 @@ def test_bindings_have_stable_ids() -> None:
         "task_detail.close",
         "task_detail.edit",
         "task_detail.external_editor",
+        "task_detail.toggle_subtask",
     }
 
 
@@ -283,3 +284,190 @@ async def test_a_task_deleted_under_the_form_closes_the_detail_screen_after(
         assert isinstance(app.screen, TaskListScreen)
         assert [source.task.id for source in app.screen.tasks] == ["BBBB"]
         assert messages[-1] == "AAAA.md is gone."
+
+
+CHECKLIST = "Some notes.\n\n- [x] Book flights\n- [ ] Book hotel\n  - [ ] Pack\n"
+
+
+def checklist_lines(screen: TaskDetailScreen) -> list[str]:
+    checklist = screen.query_one("#subtasks", OptionList)
+    return [
+        checklist.get_option_at_index(index).prompt.plain
+        for index in range(checklist.option_count)
+    ]
+
+
+def file_text(directory: Path, task_id: str) -> str:
+    return (directory / f"{task_id}.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_subtasks_are_listed_above_the_notes_and_focused(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "Plan trip", notes=CHECKLIST), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+
+        checklist = screen.query_one("#subtasks", OptionList)
+        assert checklist.display
+        assert screen.query_one("#subtasks-label").display
+        assert screen.focused is checklist
+        assert checklist_lines(screen) == [
+            "[x] Book flights",
+            "[ ] Book hotel",
+            "  [ ] Pack",
+        ]
+        assert "1/3" in rendered(screen.query_one("#fields").content)
+        # The notes are shown as written, checklist included.
+        assert screen.query_one("#notes", Markdown).display
+        assert screen.check_action("toggle_subtask", ())
+
+
+@pytest.mark.asyncio
+async def test_space_does_nothing_outside_the_checklist(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "Plan trip", notes=CHECKLIST), None)
+    before = file_text(tmp_path, "AAAA")
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("enter", "shift+tab")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+        assert screen.focused is screen.query_one("#detail-body")
+        assert not screen.check_action("toggle_subtask", ())
+
+        await pilot.press("space")
+
+        assert file_text(tmp_path, "AAAA") == before
+
+
+@pytest.mark.asyncio
+async def test_a_task_without_subtasks_hides_the_checklist(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First", notes="- two litres\n"), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+
+        assert not screen.query_one("#subtasks").display
+        assert not screen.query_one("#subtasks-label").display
+        assert screen.focused is screen.query_one("#detail-body")
+        assert not screen.check_action("toggle_subtask", ())
+
+
+@pytest.mark.asyncio
+async def test_space_checks_the_subtask_under_the_cursor_and_saves(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "Plan trip", notes=CHECKLIST), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test() as pilot:
+        await pilot.press("enter", "down", "space")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+
+        text = file_text(tmp_path, "AAAA")
+        assert text.endswith(
+            "Some notes.\n\n- [x] Book flights\n- [x] Book hotel\n  - [ ] Pack\n"
+        )
+        assert screen.source.task.updated > CREATED
+        assert screen.source.task.status is Status.TODO
+        assert checklist_lines(screen)[1] == "[x] Book hotel"
+        # The cursor stays on the same subtask.
+        assert screen.query_one("#subtasks", OptionList).highlighted == 1
+        assert "2/3" in rendered(screen.query_one("#fields").content)
+
+        await pilot.press("space")
+
+        assert "- [ ] Book hotel\n" in file_text(tmp_path, "AAAA")
+
+
+@pytest.mark.asyncio
+async def test_enter_toggles_a_subtask_too(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "Plan trip", notes=CHECKLIST), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("enter", "enter")
+
+        assert isinstance(app.screen, TaskDetailScreen)
+        assert "- [ ] Book flights\n" in file_text(tmp_path, "AAAA")
+
+
+@pytest.mark.asyncio
+async def test_checking_the_last_subtask_marks_the_task_done(tmp_path: Path) -> None:
+    notes = "- [x] Book flights\n- [ ] Book hotel\n"
+    save_task(tmp_path, make_task("AAAA", "Plan trip", notes=notes), None)
+
+    app = TskmngrApp(tmp_path)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("enter", "down", "space")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+
+        assert "status: done\n" in file_text(tmp_path, "AAAA")
+        assert screen.source.task.status is Status.DONE
+        assert messages[-1] == "All subtasks are done, so the task is now done."
+
+        await pilot.press("space")
+
+        assert "status: doing\n" in file_text(tmp_path, "AAAA")
+        assert messages[-1] == "A subtask is open again, so the task is now doing."
+
+
+@pytest.mark.asyncio
+async def test_a_subtask_toggle_doesnt_overwrite_a_file_changed_on_disk(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "Plan trip", notes=CHECKLIST), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    messages = record_notifications(app)
+    async with app.run_test() as pilot:
+        await pilot.press("enter")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+        rename_on_disk(tmp_path, "AAAA", "Book hotel", "Book a hotel")
+
+        await pilot.press("down", "space")
+
+        text = file_text(tmp_path, "AAAA")
+        assert "- [ ] Book a hotel\n" in text
+        assert messages[-1] == (
+            "AAAA.md changed on disk since it was loaded. It was reloaded from "
+            "disk; the subtask wasn't changed."
+        )
+        assert checklist_lines(screen)[1] == "[ ] Book a hotel"
+
+
+@pytest.mark.asyncio
+async def test_subtasks_are_shown_again_after_a_change_on_disk(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "Plan trip", notes=CHECKLIST), None)
+
+    app = TskmngrApp(tmp_path, poll_interval=0)
+    async with app.run_test() as pilot:
+        await pilot.press("enter", "down", "down")
+        screen = app.screen
+        assert isinstance(screen, TaskDetailScreen)
+
+        rename_on_disk(tmp_path, "AAAA", "  - [ ] Pack\n", "")
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        checklist = screen.query_one("#subtasks", OptionList)
+        assert checklist_lines(screen) == ["[x] Book flights", "[ ] Book hotel"]
+        assert checklist.highlighted == 1
+
+        rename_on_disk(tmp_path, "AAAA", "- [x] Book flights\n- [ ] Book hotel\n", "")
+        assert app.check_tasks_dir()
+        await pilot.pause()
+
+        assert not checklist.display
+        assert screen.focused is screen.query_one("#detail-body")
