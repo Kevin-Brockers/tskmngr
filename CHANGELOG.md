@@ -150,6 +150,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   after the title of repeating tasks in the task list, and the next
   occurrence added (and shown in a notification) when `s`, saving the form or
   checking the last open subtask marks a repeating task done
+- [#41](https://github.com/Kevin-Brockers/tskmngr/pull/41) - Roadmap milestone M6: the config file in `~/.tskmngr/`, created on
+  first run, with its `tasks_dir` before `TSKMNGR_DIR`, and the tasks
+  directory in a separate git repository
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

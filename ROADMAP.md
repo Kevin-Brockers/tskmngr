@@ -164,3 +164,35 @@ the maintainer before starting, and `AGENTS.md` updated to match.
   - [x] **M5.2b** TUI: repeat field in the form, a marker in the task list, the
     rule in the detail view, and the next occurrence created by `s`, the form
     and the subtask auto-done · `feature/recurring_tasks_tui` · [#40](https://github.com/Kevin-Brockers/tskmngr/pull/40)
+
+### M6 · Config home and synced tasks
+
+Goal: settings live in `~/.tskmngr/`, and the tasks directory can be kept in a
+separate, usually private, git repository. How that repository is set up and
+synced must be agreed with the maintainer before starting M6.2, and
+`AGENTS.md` updated to match.
+
+- [ ] **M6.1** Config file at `~/.tskmngr/config.json` only: drop
+  `~/.config/tskmngr/config.json` and `TSKMNGR_CONFIG`; on first run, if the
+  file doesn't exist, write a default config there (never overwriting an
+  existing one); the config's `tasks_dir` comes first for the tasks
+  directory, with `TSKMNGR_DIR` only as a fallback when it isn't set, then
+  the default (so the default config leaves `tasks_dir` out); document the
+  location, that it's created on first run, what the default file contains
+  and the tasks directory order in the README, and update `AGENTS.md` to
+  match · `feature/config_home` · depends on M4.2
+- [ ] **M6.2** Tasks directory in a separate git repository, through the `git`
+  CLI (`subprocess`, no new dependency): commit after every change, pull when
+  tskmngr starts, push after each commit, and `tskmngr sync` to sync by hand ·
+  depends on M6.1. Split into:
+  - [ ] **M6.2a** Core and CLI: a `tasks_repo` config key with the
+    repository's HTTPS URL, cloned into the tasks directory if that isn't a
+    git repository yet; a fine-grained access token read from the
+    `TSKMNGR_GIT_TOKEN` env var and handed to git per command, never written
+    to `.git/config`, the remote URL or any output; sync in the CLI commands
+    and `tskmngr sync`; a failed or offline sync is reported and catches up
+    on the next one, and a pull conflict is reported, never resolved by
+    overwriting a task · `feature/git_sync_core`
+  - [ ] **M6.2b** TUI: pull at start, commit and push after each change, a
+    sync key, and sync errors and conflicts shown to the user ·
+    `feature/git_sync_tui` · depends on M6.2a
