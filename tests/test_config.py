@@ -10,6 +10,7 @@ from tskmngr.config import (
     DEFAULT_POLL_INTERVAL,
     DEFAULT_SETTINGS,
     DEFAULT_THEME,
+    SETTING_KEYS,
     Config,
     ConfigError,
     config_path,
@@ -246,6 +247,30 @@ def test_every_setting_is_read() -> None:
 
 def test_an_empty_object_gives_the_defaults() -> None:
     assert parse_config("{}", PATH) == Config(path=PATH)
+
+
+def test_the_keys_the_file_sets_are_kept() -> None:
+    config = parse_config('{"theme": "nord", "sort": "due"}', PATH)
+
+    assert config.keys == {"theme", "sort"}
+    # Not part of the comparison: the settings are the same as the defaults'.
+    assert config == Config(path=PATH, theme="nord")
+
+
+def test_a_missing_file_sets_no_keys(tmp_path: Path) -> None:
+    assert load_config(tmp_path / "config.json").keys == frozenset()
+
+
+def test_setting_keys_are_every_known_key_in_the_documented_order() -> None:
+    assert SETTING_KEYS == (
+        "tasks_dir",
+        "sort",
+        "reverse",
+        "theme",
+        "poll_interval",
+        "columns",
+        "keybindings",
+    )
 
 
 def test_no_keybindings_by_default() -> None:
