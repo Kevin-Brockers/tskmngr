@@ -15,6 +15,7 @@ from tskmngr.query import (
     match_id_prefix,
     parse_filter,
     sort_tasks,
+    values_starting_with,
 )
 from tskmngr.taskfile import TaskFile
 
@@ -95,6 +96,31 @@ def test_filter_by_tags_ignores_case() -> None:
     tasks = [make_task("A", tags=["work"]), make_task("B")]
 
     assert ids(filter_tasks(tasks, tags=["Work"])) == ["A"]
+
+
+def test_filter_by_tags_matches_the_start_of_a_tag() -> None:
+    tasks = [
+        make_task("A", tags=["errands"]),
+        make_task("B", tags=["err"]),
+        make_task("C", tags=["work", "ferry"]),
+        make_task("D"),
+    ]
+
+    assert ids(filter_tasks(tasks, tags=["err"])) == ["A", "B"]
+    assert ids(filter_tasks(tasks, tags=["ERR"])) == ["A", "B"]
+    assert ids(filter_tasks(tasks, tags=["errandsx"])) == []
+
+
+def test_each_tag_prefix_needs_a_tag_starting_with_it() -> None:
+    tasks = [
+        make_task("A", tags=["errands", "phone"]),
+        make_task("B", tags=["errands"]),
+        make_task("C", tags=["phone"]),
+    ]
+
+    assert ids(filter_tasks(tasks, tags=["err", "ph"])) == ["A"]
+    # One tag may start several prefixes.
+    assert ids(filter_tasks(tasks, tags=["e", "err"])) == ["A", "B"]
 
 
 def test_filter_combines_criteria_with_and() -> None:
@@ -199,6 +225,48 @@ def test_parse_filter_ignores_case_of_keys_values_and_tags() -> None:
 def test_parse_filter_searches_other_key_value_words_as_text() -> None:
     # Titles like "Re: invoice" or "10:30 call" are searched as written.
     assert parse_filter("re:invoice 10:30") == (TaskFilter(text="re:invoice 10:30"), [])
+
+
+def test_parse_filter_takes_the_start_of_a_status_or_priority() -> None:
+    task_filter, errors = parse_filter("status:do priority:H #Err")
+
+    assert errors == []
+    assert task_filter == TaskFilter(
+        statuses=(Status.DOING, Status.DONE),
+        priorities=(Priority.HIGH,),
+        tags=("err",),
+    )
+
+
+def test_parse_filter_keeps_each_value_once_when_prefixes_overlap() -> None:
+    task_filter = parse_filter("status:done status:d status:t")[0]
+
+    assert task_filter.statuses == (Status.DONE, Status.DOING, Status.TODO)
+
+
+def test_a_status_prefix_filters_like_its_values() -> None:
+    tasks = [
+        make_task("A", status=Status.TODO),
+        make_task("B", status=Status.DOING),
+        make_task("C", status=Status.DONE),
+    ]
+
+    assert ids(parse_filter("status:do")[0].apply(tasks)) == ["B", "C"]
+
+
+@pytest.mark.parametrize(
+    ("prefix", "values"),
+    [
+        ("do", [Status.DOING, Status.DONE]),
+        ("D", [Status.DOING, Status.DONE]),
+        ("todo", [Status.TODO]),
+        ("todos", []),
+        ("x", []),
+        ("", []),
+    ],
+)
+def test_values_starting_with(prefix: str, values: list[Status]) -> None:
+    assert values_starting_with(Status, prefix) == values
 
 
 def test_parse_filter_takes_everything_after_hash_as_the_tag() -> None:

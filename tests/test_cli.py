@@ -425,10 +425,58 @@ def test_list_sorts(
 
 
 @pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (["-t", "err"], ["TODO000004", "TODO000001"]),
+        (["-t", "PH"], ["TODO000004"]),
+        (["-t", "err", "-t", "ph"], ["TODO000004"]),
+        (["-t", "errandsx"], []),
+        (["-s", "do"], ["DONE000003", "DOING00002"]),
+        (
+            ["-s", "D", "-s", "t"],
+            ["DONE000003", "TODO000004", "DOING00002", "TODO000001"],
+        ),
+        (["-p", "hi"], ["DOING00002"]),
+        (["-p", "l", "-p", "n"], ["TODO000004", "TODO000001"]),
+        (["--status=do", "--priority=h"], ["DOING00002"]),
+    ],
+)
+def test_list_options_take_the_start_of_a_value(
+    mixed: Path,
+    argv: list[str],
+    expected: list[str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert list_ids(argv, capsys) == expected
+
+
+def test_list_help_still_shows_the_choices(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["list", "--help"])
+
+    out = capsys.readouterr().out
+    assert "-s {todo,doing,done}" in out
+    assert "-p {low,normal,high}" in out
+
+
+@pytest.mark.parametrize(
     ("argv", "message"),
     [
-        (["--status", "open"], "invalid choice: 'open'"),
-        (["--priority", "urgent"], "invalid choice: 'urgent'"),
+        (
+            ["--status", "open"],
+            (
+                "argument -s/--status: no status starts with 'open' (choose from "
+                "todo, doing, done)"
+            ),
+        ),
+        (
+            ["--priority", "urgent"],
+            (
+                "argument -p/--priority: no priority starts with 'urgent' (choose "
+                "from low, normal, high)"
+            ),
+        ),
+        (["-s", ""], "no status starts with ''"),
         (["--sort", "title"], "invalid choice: 'title'"),
         (["milk", "--bogus"], "unrecognized arguments: --bogus"),
     ],
