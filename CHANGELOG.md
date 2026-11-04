@@ -186,7 +186,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#58](https://github.com/Kevin-Brockers/tskmngr/pull/58) - The filter takes the start of a tag, status or priority: `#err`
   finds `#errands`, `status:do` finds doing and done and `priority:hi` finds
   high, in the TUI's filter bar and in `tskmngr list`'s `-t`, `-s` and `-p`
-- #TBD - Filter words and tags may have typos, in the TUI's filter bar and in
+- [#59](https://github.com/Kevin-Brockers/tskmngr/pull/59) - Filter words and tags may have typos, in the TUI's filter bar and in
   `tskmngr list`: `mlik` finds milk and `#erands` finds `#errands`. A wrong,
   missing or extra letter or two swapped ones count as one; words of 4 to 7
   letters may have one, longer ones two, and shorter ones must be exact
