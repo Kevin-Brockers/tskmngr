@@ -172,7 +172,7 @@ separate, usually private, git repository. How that repository is set up and
 synced must be agreed with the maintainer before starting M6.2, and
 `AGENTS.md` updated to match.
 
-- [ ] **M6.1** Config file at `~/.tskmngr/config.json` only: drop
+- [x] **M6.1** Config file at `~/.tskmngr/config.json` only: drop
   `~/.config/tskmngr/config.json` and `TSKMNGR_CONFIG`; on first run, if the
   file doesn't exist, write a default config there (never overwriting an
   existing one); the config's `tasks_dir` comes first for the tasks
@@ -180,7 +180,7 @@ synced must be agreed with the maintainer before starting M6.2, and
   the default (so the default config leaves `tasks_dir` out); document the
   location, that it's created on first run, what the default file contains
   and the tasks directory order in the README, and update `AGENTS.md` to
-  match · `feature/config_home` · depends on M4.2
+  match · `feature/config_home` · [#42](https://github.com/Kevin-Brockers/tskmngr/pull/42)
 - [ ] **M6.2** Tasks directory in a separate git repository, through the `git`
   CLI (`subprocess`, no new dependency): commit after every change, pull when
   tskmngr starts, push after each commit, and `tskmngr sync` to sync by hand ·

@@ -9,7 +9,7 @@ from textual.screen import Screen
 
 import tskmngr.widgets
 from tskmngr.app import BINDING_SCREENS, TskmngrApp, binding_ids, keymap_problem
-from tskmngr.config import DEFAULT_POLL_INTERVAL, Config, ConfigError
+from tskmngr.config import DEFAULT_POLL_INTERVAL, DEFAULT_THEME, Config, ConfigError
 from tskmngr.models import Task
 from tskmngr.query import SortKey
 from tskmngr.storage import TRASH, save_task, tasks_dir
@@ -161,7 +161,8 @@ async def test_the_theme_comes_from_the_config(tmp_path: Path) -> None:
 
 
 def test_without_a_theme_textual_picks_its_default(tmp_path: Path) -> None:
-    assert TskmngrApp(tmp_path).theme == "textual-dark"
+    # The default config file names this theme, so it must stay Textual's.
+    assert TskmngrApp(tmp_path).theme == DEFAULT_THEME == "textual-dark"
 
 
 def test_an_unknown_theme_is_a_config_error(tmp_path: Path) -> None:

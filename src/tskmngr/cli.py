@@ -1,6 +1,7 @@
 """The `tskmngr` entry point. With no arguments it launches the TUI."""
 
 import argparse
+import os
 import sys
 from collections.abc import Collection, Sequence
 from dataclasses import replace
@@ -8,7 +9,14 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from tskmngr.app import TskmngrApp
-from tskmngr.config import Config, ConfigError, load_config
+from tskmngr.config import (
+    Config,
+    ConfigError,
+    config_path,
+    create_default_config,
+    load_config,
+    old_config_path,
+)
 from tskmngr.display import format_next_occurrence, task_fields
 from tskmngr.models import (
     Priority,
@@ -51,7 +59,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     `argv` defaults to the command-line arguments. Usage errors exit with 2
     (through argparse); a config file that can't be used and errors while
-    reading or saving tasks return 1.
+    reading or saving tasks return 1. Writes the default config file if there
+    is none, and warns on stderr while the old one still exists.
     """
     parser = _parser()
     args, extra = parser.parse_known_args(argv)
@@ -65,8 +74,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         getattr(args, "parser", parser).error(
             f"unrecognized arguments: {' '.join(extra)}"
         )
+    path = config_path()
+    old_path = old_config_path()
+    if os.path.exists(old_path):
+        print(
+            f"tskmngr: warning: {old_path} is no longer read; "
+            f"settings now go in {path}",
+            file=sys.stderr,
+        )
     try:
-        config = load_config()
+        create_default_config(path)
+        config = load_config(path)
         if args.command is None:
             app = TskmngrApp(config=config)
     except ConfigError as error:

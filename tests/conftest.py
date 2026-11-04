@@ -4,13 +4,16 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def no_user_config(
+def user_home(
     tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ) -> Path:
-    """Point `TSKMNGR_CONFIG` at a missing file, so no test reads the real one.
+    """Point the home folder at an empty temporary one, for every test.
 
-    Tests that need a config file write it here or set the variable themselves.
+    So no test reads or writes the real `~/.tskmngr/config.json` or tasks.
+    `HOME` is what `Path.home()` and `~` use on Linux and macOS,
+    `USERPROFILE` on Windows.
     """
-    path = tmp_path_factory.mktemp("config") / "config.json"
-    monkeypatch.setenv("TSKMNGR_CONFIG", str(path))
-    return path
+    home = tmp_path_factory.mktemp("home")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    return home

@@ -6,6 +6,7 @@ import pytest
 
 from tskmngr import cli, models
 from tskmngr.app import TskmngrApp
+from tskmngr.config import default_config_text
 from tskmngr.models import Priority, Repeat, Status, Task, Unit
 from tskmngr.storage import load_tasks, save_task
 from tskmngr.taskfile import TaskFile
@@ -1116,13 +1117,100 @@ def test_delete_reports_a_trash_that_cant_be_written(
 
 
 @pytest.fixture
-def config_file(no_user_config: Path) -> Path:
+def config_file(user_home: Path) -> Path:
     """Where the CLI looks for its config file in tests; it doesn't exist yet."""
-    return no_user_config
+    return user_home / ".tskmngr" / "config.json"
 
 
 def write_config(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+@pytest.mark.parametrize("argv", [["list"], ["add", "Buy milk"], []])
+def test_the_first_run_writes_the_default_config(
+    tasks: Path,
+    config_file: Path,
+    argv: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    started: list[TskmngrApp] = []
+    monkeypatch.setattr(TskmngrApp, "run", lambda self: started.append(self))
+
+    assert cli.main(argv) == 0
+
+    assert config_file.read_text(encoding="utf-8") == default_config_text()
+    assert capsys.readouterr().err == ""
+    if not argv:
+        [app] = started
+        assert app.config.path == config_file
+        assert app.directory == tasks
+
+
+def test_an_existing_config_file_is_never_overwritten(
+    tasks: Path, config_file: Path
+) -> None:
+    write_config(config_file, '{"sort": "priority"}')
+
+    assert cli.main(["list"]) == 0
+
+    assert config_file.read_text(encoding="utf-8") == '{"sort": "priority"}'
+
+
+@pytest.mark.parametrize("argv", [["list"], ["add", "Buy milk"], []])
+def test_a_config_file_that_cant_be_written_stops_every_command(
+    tasks: Path,
+    config_file: Path,
+    argv: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(TskmngrApp, "run", lambda self: pytest.fail("TUI started"))
+    # A file where the config folder should be.
+    config_file.parent.write_text("", encoding="utf-8")
+
+    assert cli.main(argv) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith(
+        f"tskmngr: error: config file {config_file}: can't be created: "
+    )
+    assert not tasks.exists()
+
+
+def test_the_old_config_file_is_only_warned_about(
+    tasks: Path,
+    user_home: Path,
+    config_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    old = user_home / ".config" / "tskmngr" / "config.json"
+    write_config(old, '{"sort": "size"}')
+
+    assert cli.main(["add", "Buy milk"]) == 0
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: warning: {old} is no longer read; settings now go in {config_file}\n"
+    )
+    assert old.read_text(encoding="utf-8") == '{"sort": "size"}'
+    assert config_file.read_text(encoding="utf-8") == default_config_text()
+    assert len(load_all(tasks)) == 1
+
+
+def test_the_old_config_file_is_warned_about_before_config_errors(
+    user_home: Path, config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    old = user_home / ".config" / "tskmngr" / "config.json"
+    write_config(old, "{}")
+    write_config(config_file, "not json")
+
+    assert cli.main(["list"]) == 1
+
+    warning, error = capsys.readouterr().err.splitlines()
+    assert warning.startswith(f"tskmngr: warning: {old} is no longer read")
+    assert error.startswith(f"tskmngr: error: config file {config_file}: ")
 
 
 @pytest.mark.parametrize(
@@ -1177,15 +1265,34 @@ def test_commands_use_the_tasks_dir_from_the_config_file(
     assert capsys.readouterr().out == f"{source.task.id}\n"
 
 
-def test_tskmngr_dir_comes_before_the_config_file(
+def test_the_config_file_comes_before_tskmngr_dir(
     tasks: Path, tmp_path: Path, config_file: Path
 ) -> None:
-    write_config(config_file, f'{{"tasks_dir": "{tmp_path / "unused"}"}}')
+    write_config(config_file, f'{{"tasks_dir": "{tmp_path / "configured"}"}}')
 
     assert cli.main(["add", "Buy milk"]) == 0
 
+    assert len(load_all(tmp_path / "configured")) == 1
+    assert not tasks.exists()
+
+
+def test_tskmngr_dir_is_used_when_the_config_file_has_no_tasks_dir(
+    tasks: Path, config_file: Path
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+
+    assert "tasks_dir" not in config_file.read_text(encoding="utf-8")
     assert len(load_all(tasks)) == 1
-    assert not (tmp_path / "unused").exists()
+
+
+def test_without_tasks_dir_or_tskmngr_dir_the_default_is_used(
+    user_home: Path, config_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("TSKMNGR_DIR", raising=False)
+
+    assert cli.main(["add", "Buy milk"]) == 0
+
+    assert len(load_all(user_home / ".local" / "share" / "tskmngr" / "tasks")) == 1
 
 
 @pytest.mark.parametrize("argv", [["list"], ["add", "Buy milk"], []])

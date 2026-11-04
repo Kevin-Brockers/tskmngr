@@ -117,8 +117,8 @@ updated: 2026-10-28T09:15:00Z
 Notes go here, in **Markdown**.
 ```
 
-- Files live in a tasks directory (default `~/.local/share/tskmngr/tasks/`,
-  overridable via `TSKMNGR_DIR`).
+- Files live in a tasks directory: the config file's `tasks_dir`, else
+  `TSKMNGR_DIR`, else `~/.local/share/tskmngr/tasks/`.
 - A task's ID is its filename without `.md`; the frontmatter has no `id` key.
   New tasks get a random 10-character Crockford base32 ID, and a copied or
   hand-made file is a new task under its own name.
@@ -164,15 +164,25 @@ Notes go here, in **Markdown**.
 
 ## Config file
 
-A JSON object (read with `json`) at `~/.config/tskmngr/config.json`,
-overridable via `TSKMNGR_CONFIG`, with the keys `tasks_dir`, `sort`,
-`reverse`, `theme`, `poll_interval` and `keybindings`. All are flat values
-except `keybindings`, an object mapping TUI binding ids to keys as in Textual's
-keymap. All are optional; a missing file means
-the defaults, and the app never creates or writes it. A relative `tasks_dir` is
-read from the config file's folder, and `TSKMNGR_DIR` comes before it. Invalid
-JSON, an unknown key or a value that can't be used stops the CLI and the TUI
-with an error naming the file and the key.
+A JSON object (read with `json`) at `~/.tskmngr/config.json`, the only
+place it's read from, with the keys `tasks_dir`, `sort`, `reverse`, `theme`,
+`poll_interval` and `keybindings`. All are flat values except `keybindings`,
+an object mapping TUI binding ids to keys as in Textual's keymap. All are
+optional.
+
+- On every run (any CLI command or the TUI), if nothing is at that path, the
+  app writes the default config there: every key except `tasks_dir`, at its
+  default (`sort` `due`, `reverse` false, `theme` `textual-dark`,
+  `poll_interval` 2, `keybindings` `{}`). The write is atomic and never
+  overwrites an existing file; otherwise the app only reads the file. If it
+  can't be written, the CLI and the TUI stop with an error naming the file.
+- `tasks_dir` comes first for the tasks directory, then `TSKMNGR_DIR`, then
+  the default. A relative `tasks_dir` is read from the config file's folder.
+- The old `~/.config/tskmngr/config.json` and `TSKMNGR_CONFIG` aren't read.
+  While the old file exists, every run prints a warning on stderr; the file
+  is never moved or changed.
+- Invalid JSON, an unknown key or a value that can't be used stops the CLI
+  and the TUI with an error naming the file and the key.
 
 ## Working conventions
 
@@ -180,6 +190,9 @@ with an error naming the file and the key.
 - Every new behavior or bug fix comes with tests. For a bug fix, write a test
   that fails before the fix.
 - Storage tests use pytest's `tmp_path`, never the real tasks directory.
+- Tests never touch the real home folder or config file: `tests/conftest.py`
+  points `HOME` (and `USERPROFILE`) at an empty temporary folder for every
+  test.
 - Run `uv run pytest` before committing; do not commit with failing tests.
 
 ### Review the diff with the maintainer before every commit
