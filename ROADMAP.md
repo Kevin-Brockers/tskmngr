@@ -182,6 +182,31 @@ Goal: the TUI's task list columns can be arranged, and the config file can be vi
   command in the README and update `AGENTS.md` to match ·
   `feature/cli_config` · [#52](https://github.com/Kevin-Brockers/tskmngr/pull/52)
 
+### M8 · Deleted tasks view
+
+Goal: the tasks deleted into `.trash/` can be seen in the TUI, in a view below
+the task list that can be hidden. Listed before M7 and built first; the step
+IDs keep their numbers. The view only lists them: restoring a task stays
+moving its file back by hand.
+
+- [ ] **M8.1** Core: list the deleted tasks in `.trash/`, with the delete
+  time taken from each file's name (`<id>.<delete time>.md`, including the
+  `-N` that tells deletes in the same second apart), newest delete first;
+  each delete of a task is its own entry, and files that can't be read are
+  reported, never hidden; no Textual · `feature/trash_listing`
+- [ ] **M8.2** TUI: a read-only view of the deleted tasks in the bottom
+  quarter of the task list screen's height, newest delete first, reloaded
+  when files in `.trash/` change on disk; `t` (binding id
+  `task_list.toggle_trash`, remappable through `keybindings`) shows or hides
+  it until the app exits, and it starts shown · `feature/tui_trash_view` ·
+  depends on M8.1
+- [ ] **M8.3** Config keys `trash_columns`, the view's columns in display
+  order from the `columns` names plus `deleted` (the delete time), checked
+  like `columns`, default `["title", "deleted", "id"]`; and `show_trash`,
+  whether the view starts shown, default `true`; both in the default config
+  file; document them and the view in the README and update `AGENTS.md` to
+  match · `feature/trash_view_config` · depends on M8.2
+
 ### M7 · Config home and synced tasks
 
 Goal: settings live in `~/.tskmngr/`, and the tasks directory can be kept in a
