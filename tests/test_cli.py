@@ -1317,6 +1317,23 @@ def test_a_broken_config_file_stops_every_command(
     assert not tasks.exists()
 
 
+@pytest.mark.parametrize("argv", [["list"], []])
+def test_unusable_columns_stop_every_command(
+    config_file: Path,
+    argv: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(TskmngrApp, "run", lambda self: pytest.fail("TUI started"))
+    write_config(config_file, '{"columns": ["title", "title"]}')
+
+    assert cli.main(argv) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: config file {config_file}: columns: 'title' is listed twice\n"
+    )
+
+
 def test_an_unknown_theme_stops_the_tui(
     config_file: Path,
     monkeypatch: pytest.MonkeyPatch,

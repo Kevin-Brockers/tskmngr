@@ -7,6 +7,8 @@ from rich.text import Text
 from textual.widgets import Button, DataTable, Input, Static
 
 from tskmngr.app import TskmngrApp
+from tskmngr.config import Config
+from tskmngr.display import Column
 from tskmngr.models import Priority, Repeat, Status, Task, Unit
 from tskmngr.query import SortKey
 from tskmngr.storage import BadFile, load_tasks, save_task
@@ -18,6 +20,7 @@ from tskmngr.widgets.task_list import (
     TaskListScreen,
     bad_files_warning,
     column_labels,
+    shown_columns,
     task_row,
 )
 
@@ -1053,6 +1056,127 @@ async def test_sorting_an_empty_list_changes_the_headers(tmp_path: Path) -> None
 
         assert header_labels(app)[4] == "Created ▼"
         assert app.screen.query_one("#no-tasks").has_class("-shown")
+
+
+# Column order (M6.1)
+
+
+def test_shown_columns_are_the_configured_ones_in_their_order() -> None:
+    columns = (Column.TITLE, Column.UPDATED, Column.ID)
+
+    assert shown_columns(SortKey.DUE, columns) == columns
+    assert shown_columns(SortKey.UPDATED, columns) == columns
+
+
+@pytest.mark.parametrize(
+    ("columns", "shown"),
+    [
+        (
+            (Column.DUE, Column.TITLE, Column.ID),
+            (Column.DUE, Column.CREATED, Column.TITLE, Column.ID),
+        ),
+        ((Column.ID, Column.DUE), (Column.ID, Column.DUE, Column.CREATED)),
+    ],
+)
+def test_sorting_by_a_hidden_time_adds_it_before_the_title_or_last(
+    columns: tuple[Column, ...], shown: tuple[Column, ...]
+) -> None:
+    assert shown_columns(SortKey.CREATED, columns) == shown
+
+
+def test_sorting_by_a_hidden_due_or_priority_leaves_it_hidden() -> None:
+    columns = (Column.ID, Column.TITLE)
+
+    assert shown_columns(SortKey.DUE, columns) == columns
+    assert shown_columns(SortKey.PRIORITY, columns) == columns
+    assert column_labels(SortKey.DUE, False, columns) == ("ID", "Title")
+
+
+def test_column_labels_follow_the_columns_and_mark_the_sorted_one() -> None:
+    columns = (Column.TITLE, Column.CREATED, Column.DUE, Column.STATUS)
+
+    assert column_labels(SortKey.CREATED, True, columns) == (
+        "Title",
+        "Created ▼",
+        "Due",
+        "Status",
+    )
+    assert column_labels(SortKey.UPDATED, False, columns) == (
+        "Updated ▲",
+        "Title",
+        "Created",
+        "Due",
+        "Status",
+    )
+
+
+def test_task_row_follows_the_columns() -> None:
+    task = replace(
+        make_task("A", "Read", tags=("books",), priority=Priority.HIGH),
+        updated=datetime(2026, 10, 30, 12, 0, 5, tzinfo=UTC),
+    )
+    columns = (Column.UPDATED, Column.TITLE, Column.PRIORITY, Column.CREATED)
+
+    assert [cell.plain for cell in task_row(task, SortKey.DUE, columns)] == [
+        "2026-10-30T12:00:05Z",
+        "Read #books",
+        "high",
+        "2026-10-28T09:15:00Z",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_the_table_has_the_configured_columns(tmp_path: Path) -> None:
+    save_sort_tasks(tmp_path)
+    config = Config(columns=(Column.TITLE, Column.DUE, Column.ID))
+
+    app = TskmngrApp(tmp_path, config=config, poll_interval=0)
+    async with app.run_test() as pilot:
+        assert header_labels(app) == ["Title", "Due ▲", "ID"]
+        assert table_rows(app.screen)[0] == ["Task BBBB", "2026-11-01", "BBBB"]
+
+        # Created isn't configured, so it's shown only while sorting by it.
+        await pilot.press("S", "S")
+        assert header_labels(app) == ["Created ▲", "Title", "Due", "ID"]
+        assert table_rows(app.screen)[0] == [
+            "2026-10-01T09:00:00Z",
+            "Task AAAA",
+            "2026-11-03",
+            "AAAA",
+        ]
+
+        await pilot.press("S")
+        assert header_labels(app) == ["Updated ▲", "Title", "Due", "ID"]
+
+        await pilot.press("S")
+        assert header_labels(app) == ["Title", "Due ▲", "ID"]
+
+
+@pytest.mark.asyncio
+async def test_a_configured_time_column_stays_in_its_place(tmp_path: Path) -> None:
+    save_sort_tasks(tmp_path)
+    config = Config(columns=(Column.ID, Column.TITLE, Column.CREATED))
+
+    app = TskmngrApp(tmp_path, config=config, poll_interval=0)
+    async with app.run_test() as pilot:
+        assert header_labels(app) == ["ID", "Title", "Created"]
+
+        await pilot.press("S", "S")
+        assert header_labels(app) == ["ID", "Title", "Created ▲"]
+
+
+@pytest.mark.asyncio
+async def test_actions_work_with_the_id_column_hidden(tmp_path: Path) -> None:
+    save_sort_tasks(tmp_path)
+    config = Config(columns=(Column.TITLE,))
+
+    app = TskmngrApp(tmp_path, config=config, poll_interval=0)
+    async with app.run_test() as pilot:
+        await pilot.press("down", "s")
+
+        assert loaded(tmp_path)["AAAA"].status is Status.DOING
+        assert cursor_task_id(app) == "AAAA"
+        assert table_rows(app.screen) == [["Task BBBB"], ["Task AAAA"], ["Task CCCC"]]
 
 
 # Task files changed on disk

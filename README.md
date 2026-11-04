@@ -119,9 +119,12 @@ repeat them for any of several, as in `status:todo status:doing`. `Enter`
 goes back to the list and keeps the filter. Filter and sort last until the app
 exits; the list starts with the config file's sort.
 
-Tasks with [subtasks](#subtasks) show how many are done after the title, like
-`Plan trip [1/3]`, and [repeating](#recurring-tasks) tasks are marked with `↻`,
-like `Pay rent ↻`.
+The list has the columns ID, Status, Priority, Due and Title; sorting by
+created or updated adds that column before Title while it lasts. `columns` in
+the [config file](#config-file) changes which columns are shown and in which
+order. Tasks with [subtasks](#subtasks) show how many are done after the
+title, like `Plan trip [1/3]`, and [repeating](#recurring-tasks) tasks are
+marked with `↻`, like `Pay rent ↻`. Tags follow as `#tag`.
 
 **Detail view**
 
@@ -296,6 +299,13 @@ with every setting except `tasks_dir` at its default:
   "reverse": false,
   "theme": "textual-dark",
   "poll_interval": 2,
+  "columns": [
+    "id",
+    "status",
+    "priority",
+    "due",
+    "title"
+  ],
   "keybindings": {}
 }
 ```
@@ -313,6 +323,7 @@ A file with every setting looks like this:
   "reverse": false,
   "theme": "nord",
   "poll_interval": 2,
+  "columns": ["id", "due", "title"],
   "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
 }
 ```
@@ -329,12 +340,19 @@ exists, tskmngr warns about it on every run: move your settings to
 | `reverse` | `true` reverses that order | `false` |
 | `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |
 | `poll_interval` | Seconds between the TUI's checks for task files changed on disk; `0` turns them off | `2` |
+| `columns` | The TUI task list's columns, in the order shown, from `id`, `status`, `priority`, `due`, `created`, `updated` and `title`; the ones left out are hidden (see below) | `["id", "status", "priority", "due", "title"]` |
 | `keybindings` | New keys for the TUI, an object of binding ids and their keys (see below) | the keys under [TUI keys](#tui-keys) |
 
 `tskmngr list --sort` replaces `sort` and `reverse`; `--reverse` reverses the
 configured order. If the file isn't valid JSON, has a key tskmngr doesn't know
 or a value it can't use, tskmngr says what's wrong and exits instead of
 guessing. A theme name or binding id that doesn't exist only stops the TUI.
+
+`columns` needs at least one column, and each only once. Sorting by created
+or updated shows that column even when `columns` leaves it out, before Title
+(or last, if Title is hidden too), as long as that sort lasts. A hidden due
+date or priority column stays hidden when the list is sorted by it. The title
+column also holds the repeat marker, the subtasks done and the tags.
 
 ### Keybindings
 

@@ -19,12 +19,15 @@ from tskmngr.config import (
     old_config_path,
     parse_config,
 )
+from tskmngr.display import DEFAULT_COLUMNS, Column
 from tskmngr.query import SortKey
 
 PATH = Path("/home/me/.tskmngr/config.json")
 
 SORT = "sort: expected one of due, priority, created, updated, got "
 POLL = "poll_interval: expected a number of seconds, 0 or more, got "
+NAMES = "id, status, priority, due, created, updated, title"
+COLUMNS = f"columns: expected names from {NAMES}, got "
 KEYS = (
     "keybindings: task_list.new: expected one or more keys, separated by commas, got "
 )
@@ -65,6 +68,7 @@ def test_the_default_file_has_every_setting_but_tasks_dir() -> None:
         "reverse",
         "theme",
         "poll_interval",
+        "columns",
         "keybindings",
     }
 
@@ -84,6 +88,13 @@ def test_the_default_file_is_indented_json() -> None:
         '  "reverse": false,\n'
         '  "theme": "textual-dark",\n'
         '  "poll_interval": 2,\n'
+        '  "columns": [\n'
+        '    "id",\n'
+        '    "status",\n'
+        '    "priority",\n'
+        '    "due",\n'
+        '    "title"\n'
+        "  ],\n"
         '  "keybindings": {}\n'
         "}\n"
     )
@@ -196,6 +207,7 @@ def test_missing_file_gives_the_defaults(tmp_path: Path) -> None:
     assert config.reverse is False
     assert config.theme is None
     assert config.poll_interval == DEFAULT_POLL_INTERVAL == 2.0
+    assert config.columns == DEFAULT_COLUMNS
 
 
 def test_load_reads_the_file_at_config_path() -> None:
@@ -214,6 +226,7 @@ def test_every_setting_is_read() -> None:
           "reverse": true,
           "theme": "nord",
           "poll_interval": 0.5,
+          "columns": ["title", "due"],
           "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
         }""",
         PATH,
@@ -226,6 +239,7 @@ def test_every_setting_is_read() -> None:
         reverse=True,
         theme="nord",
         poll_interval=0.5,
+        columns=(Column.TITLE, Column.DUE),
         keybindings={"task_list.new": "a", "task_form.save": "ctrl+s,f2"},
     )
 
@@ -241,6 +255,21 @@ def test_no_keybindings_by_default() -> None:
 def test_spaces_around_keybinding_keys_are_dropped() -> None:
     config = parse_config('{"keybindings": {"task_list.new": " a , f2 "}}', PATH)
     assert config.keybindings == {"task_list.new": "a,f2"}
+
+
+def test_default_columns_are_id_status_priority_due_and_title() -> None:
+    assert Config().columns == (
+        Column.ID,
+        Column.STATUS,
+        Column.PRIORITY,
+        Column.DUE,
+        Column.TITLE,
+    )
+
+
+def test_columns_keep_their_order_and_may_include_created_and_updated() -> None:
+    config = parse_config('{"columns": ["updated", "title", "id", "created"]}', PATH)
+    assert config.columns == (Column.UPDATED, Column.TITLE, Column.ID, Column.CREATED)
 
 
 def test_tasks_dir_expands_home() -> None:
@@ -282,7 +311,7 @@ def test_the_file_must_hold_an_object(text: str, got: str) -> None:
 def test_unknown_keys_are_refused() -> None:
     assert error_message('{"sort": "due", "colour": "red"}') == (
         "unknown key 'colour'; the known keys are tasks_dir, sort, reverse, "
-        "theme, poll_interval, keybindings"
+        "theme, poll_interval, columns, keybindings"
     )
 
 
@@ -303,6 +332,19 @@ def test_unknown_keys_are_refused() -> None:
         ('{"poll_interval": NaN}', POLL + "the number nan"),
         ('{"poll_interval": Infinity}', POLL + "the number inf"),
         ('{"poll_interval": null}', POLL + "null"),
+        (
+            '{"columns": "id,title"}',
+            "columns: expected a list of column names, got the text 'id,title'",
+        ),
+        (
+            '{"columns": []}',
+            f"columns: expected at least one of {NAMES}, got an empty list",
+        ),
+        ('{"columns": ["id", "tags"]}', COLUMNS + "the text 'tags'"),
+        ('{"columns": ["ID"]}', COLUMNS + "the text 'ID'"),
+        ('{"columns": [1]}', COLUMNS + "the number 1"),
+        ('{"columns": [["id"]]}', COLUMNS + "a list"),
+        ('{"columns": ["id", "due", "id"]}', "columns: 'id' is listed twice"),
         (
             '{"keybindings": ["task_list.new"]}',
             "keybindings: expected an object of binding ids and keys, got a list",
