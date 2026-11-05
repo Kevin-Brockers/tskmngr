@@ -1,4 +1,5 @@
 import io
+import json
 import sys
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -8,7 +9,7 @@ import pytest
 
 from tskmngr import cli, models
 from tskmngr.app import TskmngrApp
-from tskmngr.config import default_config_text
+from tskmngr.config import DEFAULT_SETTINGS, ConfigError, default_config_text
 from tskmngr.models import Priority, Repeat, Status, Task, Unit
 from tskmngr.storage import load_tasks, save_task
 from tskmngr.taskfile import TaskFile
@@ -1362,7 +1363,15 @@ def test_without_tasks_dir_or_tskmngr_dir_the_default_is_used(
     assert len(load_all(user_home / ".local" / "share" / "tskmngr" / "tasks")) == 1
 
 
-@pytest.mark.parametrize("argv", [["list"], ["add", "Buy milk"], []])
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["list"],
+        ["add", "Buy milk"],
+        ["remote", "init", "https://example.com/t.git"],
+        [],
+    ],
+)
 def test_a_broken_config_file_stops_every_command(
     tasks: Path,
     config_file: Path,
@@ -2516,3 +2525,184 @@ def test_tasks_repo_must_be_text(
         f"tskmngr: error: config file {config_file}: tasks_repo: expected a git "
         "repository's URL or folder, got the number 5\n"
     )
+
+
+def clone_folder(user_home: Path) -> Path:
+    return user_home / ".tskmngr" / "remote_task_dir"
+
+
+def test_remote_init_sets_up_the_remote_and_the_config(
+    config_file: Path,
+    remote: Path,
+    user_home: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    url = remote.as_uri()
+
+    assert cli.main(["remote", "init", url]) == 0
+
+    clone = clone_folder(user_home)
+    assert capsys.readouterr().out == (
+        f"Set up {url} and cloned it into {clone}\n"
+        f"Set tasks_repo to it in {config_file}\n"
+    )
+    assert git(remote, "log", "--format=%s") == "tskmngr: remote init"
+    files = git(remote, "ls-tree", "-r", "--name-only", "HEAD").splitlines()
+    assert files == ["AGENTS.md", "tasks/.trash/.gitkeep"]
+    agents = (Path(cli.__file__).parent / "tasks_repo_agents.md").read_text()
+    assert (clone / "AGENTS.md").read_text(encoding="utf-8") == agents
+    # The default config written on this first run, with tasks_repo added last.
+    settings = json.loads(config_file.read_text(encoding="utf-8"))
+    assert settings == {**DEFAULT_SETTINGS, "tasks_repo": url}
+    assert list(settings)[-1] == "tasks_repo"
+
+    # The next commands use it right away.
+    assert cli.main(["add", "Buy milk"]) == 0
+    [source] = load_all(clone / "tasks")
+    assert git(remote, "log", "--format=%s").splitlines() == [
+        f"tskmngr: add {source.task.id} Buy milk",
+        "tskmngr: remote init",
+    ]
+    assert cli.main(["list"]) == 0
+    assert "Buy milk" in capsys.readouterr().out
+
+
+def test_remote_init_keeps_the_other_settings(
+    config_file: Path, remote: Path, git: Git
+) -> None:
+    write_config(config_file, '{"sort": "priority", "tasks_dir": "elsewhere"}')
+
+    assert cli.main(["remote", "init", remote.as_uri()]) == 0
+
+    assert json.loads(config_file.read_text(encoding="utf-8")) == {
+        "sort": "priority",
+        "tasks_dir": "elsewhere",
+        "tasks_repo": remote.as_uri(),
+    }
+
+
+def test_remote_init_leaves_a_config_already_naming_the_url_alone(
+    config_file: Path, remote: Path, git: Git, capsys: pytest.CaptureFixture[str]
+) -> None:
+    text = f'{{"tasks_repo":"{remote.as_uri()}"}}'
+    write_config(config_file, text)
+
+    assert cli.main(["remote", "init", remote.as_uri()]) == 0
+
+    assert "Set tasks_repo" not in capsys.readouterr().out
+    assert config_file.read_text(encoding="utf-8") == text
+    assert git(remote, "log", "--format=%s") == "tskmngr: remote init"
+
+
+def test_remote_init_wont_replace_another_tasks_repo(
+    config_file: Path,
+    remote: Path,
+    user_home: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    text = '{"tasks_repo": "https://example.com/other.git"}'
+    write_config(config_file, text)
+
+    assert cli.main(["remote", "init", remote.as_uri()]) == 1
+
+    assert capsys.readouterr().err == (
+        "tskmngr: error: tasks_repo is already https://example.com/other.git in "
+        f"{config_file}; remote init doesn't replace it. Nothing was changed\n"
+    )
+    assert config_file.read_text(encoding="utf-8") == text
+    assert not clone_folder(user_home).exists()
+    assert git(remote, "for-each-ref") == ""
+
+
+def test_remote_init_refuses_a_repository_that_isnt_empty(
+    config_file: Path,
+    laid_out: Path,
+    user_home: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    before = config_file.read_text(encoding="utf-8") if config_file.exists() else None
+    url = laid_out.as_uri()
+
+    assert cli.main(["remote", "init", url]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: {url} isn't empty; remote init only sets up an empty "
+        "repository. Nothing was changed\n"
+    )
+    assert "tasks_repo" not in json.loads(config_file.read_text(encoding="utf-8"))
+    assert before is None
+    assert sorted(path.name for path in (user_home / ".tskmngr").iterdir()) == [
+        "config.json"
+    ]
+
+
+def test_remote_init_refuses_an_existing_clone_folder(
+    config_file: Path,
+    remote: Path,
+    user_home: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    clone = clone_folder(user_home)
+    clone.mkdir(parents=True)
+
+    assert cli.main(["remote", "init", remote.as_uri()]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: {clone} already exists; move it away to set up "
+        f"{remote.as_uri()} there. Nothing was changed\n"
+    )
+    assert list(clone.iterdir()) == []
+    assert "tasks_repo" not in json.loads(config_file.read_text(encoding="utf-8"))
+    assert git(remote, "for-each-ref") == ""
+
+
+def test_remote_init_says_to_set_tasks_repo_by_hand_if_it_cant(
+    config_file: Path,
+    remote: Path,
+    user_home: Path,
+    git: Git,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def refuse(path: Path, location: str) -> None:
+        raise ConfigError(path, "can't be written: Permission denied")
+
+    monkeypatch.setattr(cli, "set_tasks_repo", refuse)
+    url = remote.as_uri()
+
+    assert cli.main(["remote", "init", url]) == 1
+
+    output = capsys.readouterr()
+    assert output.out == f"Set up {url} and cloned it into {clone_folder(user_home)}\n"
+    assert output.err == (
+        f"tskmngr: error: config file {config_file}: can't be written: Permission "
+        f"denied; set tasks_repo to {url} in it by hand\n"
+    )
+    assert git(remote, "log", "--format=%s") == "tskmngr: remote init"
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (
+            ["remote", "init", "~/tasks"],
+            (
+                "argument URL: '~/tasks' isn't a remote URL, like "
+                "https://github.com/me/tasks.git or git@github.com:me/tasks.git"
+            ),
+        ),
+        (["remote", "init"], "the following arguments are required: URL"),
+        (["remote"], "the following arguments are required: remote_command"),
+    ],
+)
+def test_remote_init_usage_errors_write_no_config(
+    config_file: Path,
+    argv: list[str],
+    message: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert message in usage_error(argv, capsys)
+    assert not config_file.exists()

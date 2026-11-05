@@ -14,12 +14,14 @@ from tskmngr.gitsync import (
     commit_all,
     has_changes,
     has_upstream,
+    init_remote,
     is_remote,
     open_repo,
     parse_tasks_repo,
     pull,
     push,
     remote_tasks_dir,
+    setup_files,
 )
 
 # The `git` fixture from conftest.py: runs git in a folder, returns its output.
@@ -444,3 +446,118 @@ def test_a_tasks_directory_thats_gone_fails_the_sync(
 
     with pytest.raises(SyncError, match="is gone"):
         commit_all(repo, "add")
+
+
+FILES = {"AGENTS.md": "# Tasks\n", "tasks/.trash/.gitkeep": ""}
+
+
+def tskmngr_folder(user_home: Path) -> list[str]:
+    """What's in `~/.tskmngr`, temp folders included."""
+    folder = user_home / ".tskmngr"
+    return sorted(path.name for path in folder.iterdir()) if folder.exists() else []
+
+
+def test_init_remote_sets_up_an_empty_remote(
+    remote: Path, user_home: Path, git: Git
+) -> None:
+    repo = init_remote(remote.as_uri(), FILES)
+
+    assert repo == TasksRepo(remote.as_uri(), True, remote_tasks_dir())
+    assert subjects(git, remote) == ["tskmngr: remote init"]
+    files = git(remote, "ls-tree", "-r", "--name-only", "HEAD").splitlines()
+    assert files == ["AGENTS.md", "tasks/.trash/.gitkeep"]
+    assert git(remote, "show", "HEAD:AGENTS.md") == "# Tasks"
+    # The clone is what open_repo makes, with nothing left to commit or push.
+    assert tskmngr_folder(user_home) == ["remote_task_dir"]
+    assert open_repo(repo) is False
+    check_layout(repo)
+    assert not has_changes(repo)
+    assert push(repo) is False
+
+
+def test_init_remote_refuses_a_repository_that_isnt_empty(
+    laid_out: Path, user_home: Path, git: Git
+) -> None:
+    with pytest.raises(RepoError, match="isn't empty"):
+        init_remote(laid_out.as_uri(), FILES)
+
+    assert subjects(git, laid_out) == ["setup"]
+    assert tskmngr_folder(user_home) == []
+
+
+def test_init_remote_counts_a_tag_as_not_empty(
+    tmp_path: Path, remote: Path, user_home: Path, git: Git
+) -> None:
+    seed = tmp_path / "seed"
+    git(tmp_path, "clone", "--quiet", str(remote), str(seed))
+    git(seed, "commit", "--quiet", "--allow-empty", "-m", "tagged")
+    git(seed, "tag", "v1")
+    git(seed, "push", "--quiet", "origin", "v1")
+
+    with pytest.raises(RepoError, match="isn't empty"):
+        init_remote(remote.as_uri(), FILES)
+
+    assert tskmngr_folder(user_home) == []
+
+
+def test_init_remote_leaves_an_existing_folder_alone(
+    remote: Path, user_home: Path, git: Git
+) -> None:
+    folder = remote_tasks_dir()
+    folder.mkdir(parents=True)
+    (folder / "mine.md").write_text("mine", encoding="utf-8")
+
+    with pytest.raises(RepoError, match="already exists; move it away"):
+        init_remote(remote.as_uri(), FILES)
+
+    assert [path.name for path in folder.iterdir()] == ["mine.md"]
+    assert tskmngr_folder(user_home) == ["remote_task_dir"]
+    assert git(remote, "for-each-ref") == ""
+
+
+def test_init_remote_reports_a_failed_clone(
+    tmp_path: Path, user_home: Path, git: Git
+) -> None:
+    with pytest.raises(RepoError, match="can't clone"):
+        init_remote((tmp_path / "missing.git").as_uri(), FILES)
+
+    assert tskmngr_folder(user_home) == []
+
+
+def test_init_remote_without_a_git_identity_changes_nothing(
+    remote: Path, user_home: Path, git: Git, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in ("AUTHOR", "COMMITTER"):
+        monkeypatch.delenv(f"GIT_{name}_NAME")
+        monkeypatch.delenv(f"GIT_{name}_EMAIL")
+    # As in test_commit_all_without_a_git_identity_fails.
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "")
+
+    with pytest.raises(RepoError, match="can't commit the setup"):
+        init_remote(remote.as_uri(), FILES)
+
+    assert tskmngr_folder(user_home) == []
+    assert git(remote, "for-each-ref") == ""
+
+
+def test_init_remote_reports_a_refused_push_and_changes_nothing(
+    remote: Path, user_home: Path, git: Git
+) -> None:
+    hook = remote / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\necho refused >&2\nexit 1\n", encoding="utf-8")
+    hook.chmod(0o755)
+
+    with pytest.raises(RepoError, match="can't push to .*refused"):
+        init_remote(remote.as_uri(), FILES)
+
+    assert tskmngr_folder(user_home) == []
+    assert git(remote, "for-each-ref") == ""
+
+
+def test_setup_files_are_the_agents_template_and_a_gitkeep() -> None:
+    files = setup_files()
+
+    assert list(files) == ["AGENTS.md", "tasks/.trash/.gitkeep"]
+    assert files["AGENTS.md"].startswith("# AGENTS.md\n")
+    assert "Never delete a task file" in files["AGENTS.md"]
+    assert files["tasks/.trash/.gitkeep"] == ""

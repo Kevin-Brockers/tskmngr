@@ -19,6 +19,7 @@ from tskmngr.config import (
     load_config,
     old_config_path,
     parse_config,
+    set_tasks_repo,
     tasks_directory,
 )
 from tskmngr.display import DEFAULT_COLUMNS, DEFAULT_TRASH_COLUMNS, Column, TrashColumn
@@ -510,3 +511,75 @@ def test_tasks_repo_must_be_text(value: str) -> None:
     assert error_message(f'{{"tasks_repo": {value}}}').startswith(
         "tasks_repo: expected a git repository's URL or folder, got "
     )
+
+
+def test_set_tasks_repo_keeps_every_other_key_in_its_order(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(
+        '{"theme": "nord",   "sort": "priority",\n"tasks_dir": "~/Aufgaben/ü"}'
+    )
+
+    set_tasks_repo(path, "git@github.com:me/tasks.git")
+
+    assert path.read_text(encoding="utf-8") == (
+        "{\n"
+        '  "theme": "nord",\n'
+        '  "sort": "priority",\n'
+        '  "tasks_dir": "~/Aufgaben/ü",\n'
+        '  "tasks_repo": "git@github.com:me/tasks.git"\n'
+        "}\n"
+    )
+    config = load_config(path)
+    assert config.tasks_repo is not None
+    assert config.tasks_repo.location == "git@github.com:me/tasks.git"
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["config.json"]
+
+
+def test_set_tasks_repo_replaces_the_old_value(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.write_text('{"tasks_repo": "old", "sort": "due"}')
+
+    set_tasks_repo(path, "https://example.com/new.git")
+
+    assert json.loads(path.read_text()) == {
+        "tasks_repo": "https://example.com/new.git",
+        "sort": "due",
+    }
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("{", "line 1, column 2: Expecting property name enclosed in double quotes"),
+        ("[]", "expected an object of settings, got a list"),
+    ],
+)
+def test_set_tasks_repo_refuses_a_file_that_isnt_an_object(
+    tmp_path: Path, text: str, message: str
+) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(text)
+
+    with pytest.raises(ConfigError) as error:
+        set_tasks_repo(path, "https://example.com/t.git")
+
+    assert str(error.value) == f"{path}: {message}"
+    assert path.read_text() == text
+
+
+def test_set_tasks_repo_reports_a_file_that_cant_be_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "config.json"
+    path.write_text("{}")
+
+    def refuse(source: object, target: object) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(os, "replace", refuse)
+    with pytest.raises(ConfigError) as error:
+        set_tasks_repo(path, "https://example.com/t.git")
+
+    assert str(error.value) == f"{path}: can't be written: Permission denied"
+    assert path.read_text() == "{}"
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["config.json"]
