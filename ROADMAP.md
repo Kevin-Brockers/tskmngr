@@ -329,4 +329,4 @@ tasks in `tasks/`, and `tskmngr remote init` sets up a new one.
   filename as ID, `.trash/`, subtasks, `repeat`) and that agents don't delete
   task files. Document it in the README and update `AGENTS.md` (the config
   file is no longer only read) · `feature/remote_init` · depends on M12.1 ·
-  #TBD
+  [#76](https://github.com/Kevin-Brockers/tskmngr/pull/76)
