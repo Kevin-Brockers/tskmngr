@@ -19,8 +19,10 @@ from tskmngr.config import (
     load_config,
     old_config_path,
     parse_config,
+    tasks_directory,
 )
 from tskmngr.display import DEFAULT_COLUMNS, DEFAULT_TRASH_COLUMNS, Column, TrashColumn
+from tskmngr.gitsync import TasksRepo
 from tskmngr.query import SortKey
 
 PATH = Path("/home/me/.tskmngr/config.json")
@@ -64,7 +66,7 @@ def test_old_config_path_is_in_dot_config(user_home: Path) -> None:
 # Writing the default file
 
 
-def test_the_default_file_has_every_setting_but_tasks_dir() -> None:
+def test_the_default_file_has_every_setting_but_tasks_dir_and_tasks_repo() -> None:
     assert json.loads(default_config_text()) == DEFAULT_SETTINGS
     assert set(DEFAULT_SETTINGS) == {
         "sort",
@@ -282,6 +284,7 @@ def test_a_missing_file_sets_no_keys(tmp_path: Path) -> None:
 def test_setting_keys_are_every_known_key_in_the_documented_order() -> None:
     assert SETTING_KEYS == (
         "tasks_dir",
+        "tasks_repo",
         "sort",
         "reverse",
         "theme",
@@ -383,8 +386,9 @@ def test_the_file_must_hold_an_object(text: str, got: str) -> None:
 
 def test_unknown_keys_are_refused() -> None:
     assert error_message('{"sort": "due", "colour": "red"}') == (
-        "unknown key 'colour'; the known keys are tasks_dir, sort, reverse, "
-        "theme, poll_interval, columns, trash_columns, show_trash, keybindings"
+        "unknown key 'colour'; the known keys are tasks_dir, tasks_repo, sort, "
+        "reverse, theme, poll_interval, columns, trash_columns, show_trash, "
+        "keybindings"
     )
 
 
@@ -475,3 +479,34 @@ def test_config_does_not_import_textual() -> None:
     code = "import sys, tskmngr.config; sys.exit('textual' in sys.modules)"
 
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_tasks_repo_is_a_url_or_a_folder_read_from_the_config_folder(
+    user_home: Path,
+) -> None:
+    remote = parse_config('{"tasks_repo": "https://example.com/t.git"}', PATH)
+    local = parse_config('{"tasks_repo": "tasks"}', PATH)
+
+    assert remote.tasks_repo == TasksRepo(
+        "https://example.com/t.git", True, user_home / ".tskmngr" / "remote_task_dir"
+    )
+    assert local.tasks_repo == TasksRepo(
+        str(PATH.parent / "tasks"), False, PATH.parent / "tasks"
+    )
+
+
+def test_tasks_repo_comes_before_tasks_dir_and_tskmngr_dir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TSKMNGR_DIR", "/elsewhere")
+    config = parse_config('{"tasks_dir": "/mine", "tasks_repo": "/repo"}', PATH)
+
+    assert tasks_directory(config) == Path("/repo")
+    assert tasks_directory(Config(tasks_dir=Path("/mine"))) == Path("/mine")
+
+
+@pytest.mark.parametrize("value", ["5", '" "', '["a"]', "null"])
+def test_tasks_repo_must_be_text(value: str) -> None:
+    assert error_message(f'{{"tasks_repo": {value}}}').startswith(
+        "tasks_repo: expected a git repository's URL or folder, got "
+    )

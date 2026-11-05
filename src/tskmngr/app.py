@@ -7,8 +7,8 @@ from textual.app import App
 from textual.binding import Binding, BindingType
 from textual.screen import Screen
 
-from tskmngr.config import Config, ConfigError
-from tskmngr.storage import TRASH, FileStamp, scan_tasks_dir, scan_trash, tasks_dir
+from tskmngr.config import Config, ConfigError, tasks_directory
+from tskmngr.storage import TRASH, FileStamp, scan_tasks_dir, scan_trash
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
 from tskmngr.widgets.confirm_discard import ConfirmDiscardScreen
 from tskmngr.widgets.task_detail import TaskDetailScreen
@@ -44,8 +44,8 @@ class TskmngrApp(App):
     ) -> None:
         """Settings come from `config`, the defaults if None.
 
-        `directory` is the tasks directory; by default `storage.tasks_dir()`
-        with the config's `tasks_dir`. `poll_interval` overrides the config's;
+        `directory` is the tasks directory; by default the config's
+        (`config.tasks_directory`). `poll_interval` overrides the config's;
         0 turns polling off. Raises `ConfigError` for a theme Textual doesn't
         have, or keybindings that name an unknown binding or give two bindings
         on one screen the same key.
@@ -53,7 +53,7 @@ class TskmngrApp(App):
         super().__init__()
         self.config = config if config is not None else Config()
         self.directory = (
-            directory if directory is not None else tasks_dir(self.config.tasks_dir)
+            directory if directory is not None else tasks_directory(self.config)
         )
         self.poll_interval = (
             poll_interval if poll_interval is not None else self.config.poll_interval

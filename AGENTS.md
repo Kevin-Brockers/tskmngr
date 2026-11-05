@@ -89,6 +89,7 @@ src/tskmngr/
                 #   task list (`Column`) and the deleted tasks view
                 #   (`TrashColumn`); shared by CLI and TUI
   editor.py     # find $VISUAL/$EDITOR and run it on a file
+  gitsync.py    # clone, pull, commit and push the tasks directory's git repo
   models.py     # Task dataclass and enums (status, priority)
   query.py      # filter, search, sort, ID-prefix lookup; shared by CLI and TUI
   recurrence.py # next due date of a repeating task, and its next occurrence
@@ -100,8 +101,8 @@ tests/          # mirrors src/ layout; test_<module>.py
 ```
 
 Keep the layers separate: `models`, `taskfile`, `storage`, `query`,
-`subtasks`, `recurrence`, `display`, `editor` and `config` must not import
-Textual, so they can be tested without a
+`subtasks`, `recurrence`, `display`, `editor`, `gitsync` and `config` must
+not import Textual, so they can be tested without a
 UI.
 
 ## Task storage format
@@ -125,7 +126,8 @@ updated: 2026-10-28T09:15:00Z
 Notes go here, in **Markdown**.
 ```
 
-- Files live in a tasks directory: the config file's `tasks_dir`, else
+- Files live in a tasks directory: the clone or folder of the config file's
+  `tasks_repo` (see "Synced tasks"), else its `tasks_dir`, else
   `TSKMNGR_DIR`, else `~/.local/share/tskmngr/tasks/`.
 - A task's ID is its filename without `.md`; the frontmatter has no `id` key.
   New tasks get a random 10-character Crockford base32 ID, and a copied or
@@ -175,15 +177,16 @@ Notes go here, in **Markdown**.
 ## Config file
 
 A JSON object (read with `json`) at `~/.tskmngr/config.json`, the only
-place it's read from, with the keys `tasks_dir`, `sort`, `reverse`, `theme`,
-`poll_interval`, `columns`, `trash_columns`, `show_trash` and `keybindings`.
+place it's read from, with the keys `tasks_dir`, `tasks_repo`, `sort`,
+`reverse`, `theme`, `poll_interval`, `columns`, `trash_columns`, `show_trash`
+and `keybindings`.
 All are flat values except `columns` and `trash_columns`, lists of column
 names, and `keybindings`, an object mapping TUI binding ids to keys as in
 Textual's keymap. All are optional.
 
 - On every run (any CLI command or the TUI), if nothing is at that path, the
-  app writes the default config there: every key except `tasks_dir`, at its
-  default (`sort` `due`, `reverse` false, `theme` `textual-dark`,
+  app writes the default config there: every key except `tasks_dir` and
+  `tasks_repo`, at its default (`sort` `due`, `reverse` false, `theme` `textual-dark`,
   `poll_interval` 2, `columns`
   `["id", "status", "priority", "due", "title", "tags"]`, `trash_columns`
   `["title", "tags", "deleted", "id"]`, `show_trash` true,
@@ -192,8 +195,9 @@ Textual's keymap. All are optional.
   can't be written, the CLI and the TUI stop with an error naming the file.
   `--help` and usage errors exit before this, so they don't write the file
   (or print the warning below).
-- `tasks_dir` comes first for the tasks directory, then `TSKMNGR_DIR`, then
-  the default. A relative `tasks_dir` is read from the config file's folder.
+- `tasks_repo` comes first for the tasks directory (see "Synced tasks"), then
+  `tasks_dir`, then `TSKMNGR_DIR`, then the default. A relative `tasks_dir`
+  or local `tasks_repo` is read from the config file's folder.
 - `columns` sets the TUI task list's columns in display order, from `id`,
   `status`, `priority`, `due`, `created`, `updated`, `title` and `tags`; the
   ones left out are hidden. `tags` lists a task's tags separated by commas;
@@ -218,24 +222,28 @@ Textual's keymap. All are optional.
   commands don't use those keys and run anyway.
 - `tskmngr config` prints the file's path and every setting in use, marking
   the ones the file leaves out `(default)`, or `(TSKMNGR_DIR)` for the tasks
-  directory. `config get KEY` prints one: plain text, `tasks_dir` as the full
-  path, `columns` and `keybindings` as JSON. `config edit` opens the file in
+  directory; while `tasks_repo` is set, the tasks directory is marked
+  `(tasks_repo)` and `tasks_repo` notes whether it's remote or local.
+  `config get KEY` prints one: plain text, `tasks_dir` as the full path,
+  `tasks_repo` as its URL or full path (an empty line if not set), `columns`
+  and `keybindings` as JSON. `config edit` opens the file in
   `$VISUAL`/`$EDITOR`, then runs every check above, the TUI's included. It
   names the key of the first problem and exits 1, and never rewrites the
   file.
 
-## Synced tasks (planned)
+## Synced tasks
 
-Agreed with the maintainer for roadmap step M7.2 and **not built yet**; until
-M7.2a lands, the sections above describe the app as it is. The tasks
-directory can be a git repository, synced through the `git` CLI
-(`subprocess`, no new dependency). The config key `tasks_repo` turns it on;
-without it, nothing is synced.
+The tasks directory can be a git repository, synced through the `git` CLI
+(`subprocess`, no new dependency; `gitsync.py`). The config key `tasks_repo`
+turns it on; without it, nothing is synced. Every command but `config` (the
+TUI included) first clones or checks the repository, and stops with an error
+if it can't be used.
 
 - A remote URL (`scheme://…`, e.g. `https://github.com/me/tasks.git`, or
   `user@host:path`) is cloned into `~/.tskmngr/remote_task_dir`, which is then
-  the tasks directory. If that folder doesn't exist, it's cloned on the first
-  sync. If it exists but isn't a git repository, or its `origin` is another
+  the tasks directory. If that folder doesn't exist, it's cloned the first
+  time the tasks are needed, into a temp folder next to it that's renamed
+  into place, so a failed clone leaves nothing behind. If it exists but isn't a git repository, or its `origin` is another
   URL, the command stops with an error naming the folder and nothing in it is
   changed.
 - Anything else is a local path (a relative one is read from the config
@@ -248,7 +256,7 @@ without it, nothing is synced.
   repository.
 - `tasks_repo` must be a string, like other keys' types; beyond that it isn't
   checked when the config is loaded. `tskmngr config` notes whether it's a
-  remote URL or a local path, and for a remote URL the clone's folder. The
+  remote URL or a local folder, and for a remote URL the clone's folder. The
   default config file leaves it out.
 
 Which CLI commands sync:
@@ -257,24 +265,32 @@ Which CLI commands sync:
 | ------- | ---- |
 | `add`, `edit`, `done`, `delete` | Pull, then change the task files, commit and push |
 | `list` | Pull, then list |
-| `sync` | Pull, then push commits not pushed yet; an error while `tasks_repo` isn't set |
+| `sync` | Commit any changes, pull, then push commits not pushed yet; an error while `tasks_repo` isn't set |
 | `show`, `config` | None |
 
-The TUI's sync (pull at start, commit and push after each change, a sync key)
-is planned separately in M7.2b.
+The TUI uses the same tasks directory but doesn't sync yet; its sync (pull at
+start, commit and push after each change, a sync key) is M7.2b.
 
 - Every change is one commit, including the move into `.trash/` on delete and
   both files when `done` creates a recurring task's next occurrence. The
   message names the command, the task's ID and its title, e.g.
-  `tskmngr: add 01JB3K7Q2X Buy milk`.
-- Pulls use `git pull --rebase`. A conflict (the same task changed on two
-  machines) aborts the rebase and is reported with the task's ID; it's never
-  resolved by overwriting a task. The local commits stay until the user
-  resolves it by hand.
-- A failed or offline pull or push is a warning on stderr: the command still
-  works on the local files, and commits that weren't pushed go out with the
-  next push. Git runs with `GIT_TERMINAL_PROMPT=0`, so it never waits for a
-  password.
+  `tskmngr: add 01JB3K7Q2X Buy milk`. A command that changes nothing makes
+  no commit.
+- Changes nobody committed (hand edits, the TUI, a commit that failed) are
+  committed as `tskmngr: sync` before a changing command's pull, so the pull
+  never stashes anything: with `--autostash`, a conflict leaves conflict
+  markers in the task file. `list` doesn't commit them.
+- Pulls work like `git pull --rebase`: a fetch, then a fast-forward, or a
+  rebase of the local commits if both sides have new ones. A conflict (the
+  same task changed on two machines) aborts the rebase and is reported with
+  the task's ID; it's never resolved by overwriting a task. The local commits
+  stay until the user resolves it by hand.
+- A failed or offline pull, commit or push is a warning on stderr: the
+  command still works on the local files and exits 0, and commits that
+  weren't pushed go out with the next push. Only `tskmngr sync` exits 1 on
+  one. Git runs with `GIT_TERMINAL_PROMPT=0`, so it never waits for a
+  password, and a git command that talks to the remote is stopped after 60
+  seconds.
 - The access token (a fine-grained one) is read from `TSKMNGR_GIT_TOKEN` and
   given to git on each command through a one-off credential helper that reads
   the variable by name, so the token never appears in a command line,
