@@ -219,6 +219,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   form's Tags field, a fixed tasks repository layout (`AGENTS.md` at the root,
   the tasks in `tasks/`) and `tskmngr remote init` to set up an empty remote
   repository
+- [#74](https://github.com/Kevin-Brockers/tskmngr/pull/74) - The TUI form's Tags field suggests existing tags: while a tag is
+  typed, the rest of the first existing tag that starts with it is shown
+  greyed out, and → accepts it
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

@@ -16,6 +16,7 @@ from tskmngr.widgets.task_form import (
     TaskFormScreen,
     format_tags,
     parse_tags,
+    suggest_tag,
     tidy_notes,
 )
 from tskmngr.widgets.task_list import TaskListScreen
@@ -83,6 +84,41 @@ def test_parse_tags_of_blank_text_is_empty() -> None:
 
 def test_format_tags_reads_back_with_parse_tags() -> None:
     assert parse_tags(format_tags(("errands", "home"))) == ["errands", "home"]
+
+
+TAGS = ("errands", "home", "homework", "work")
+
+
+def test_suggest_tag_completes_the_tag_being_typed() -> None:
+    assert suggest_tag("e", TAGS) == "errands"
+    assert suggest_tag("work, ho", TAGS) == "work, home"
+
+
+def test_suggest_tag_takes_the_first_match_alphabetically() -> None:
+    assert suggest_tag("h", ("homework", "home")) == "home"
+
+
+def test_suggest_tag_keeps_the_text_as_typed() -> None:
+    assert suggest_tag("Work,  Er", TAGS) == "Work,  Errands"
+
+
+def test_suggest_tag_skips_tags_already_typed() -> None:
+    assert suggest_tag("home ho", TAGS) == "home homework"
+    assert suggest_tag("errands, e", TAGS) is None
+
+
+def test_suggest_tag_suggests_nothing_for_a_whole_tag() -> None:
+    assert suggest_tag("home", TAGS) is None
+
+
+def test_suggest_tag_suggests_nothing_without_a_match() -> None:
+    assert suggest_tag("x", TAGS) is None
+    assert suggest_tag("e", ()) is None
+
+
+@pytest.mark.parametrize("text", ["", "home ", "home,", "home, "])
+def test_suggest_tag_suggests_nothing_while_no_tag_is_typed(text: str) -> None:
+    assert suggest_tag(text, TAGS) is None
 
 
 def test_tidy_notes_adds_a_final_newline() -> None:
@@ -1067,3 +1103,106 @@ async def test_a_next_due_date_that_cant_be_computed_keeps_the_form_open(
             )
         ]
     assert loaded(tmp_path) == {"AAAA": task}
+
+
+@pytest.mark.asyncio
+async def test_the_new_task_form_suggests_existing_tags(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First", tags=("errands", "home")), None)
+    save_task(tmp_path, make_task("BBBB", "Second", tags=("work",)), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("n", *"Task")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        tags = screen.query_one("#tags", Input)
+        tags.focus()
+        await pilot.press("E")
+        await pilot.pause()
+        await pilot.press("right")
+        assert tags.value == "Errands"
+
+        await pilot.press(*", w")
+        await pilot.pause()
+        await pilot.press("right")
+        assert tags.value == "Errands, work"
+
+        await pilot.press("ctrl+s")
+
+        assert isinstance(app.screen, TaskListScreen)
+        (new,) = (t for t in loaded(tmp_path).values() if t.title == "Task")
+        assert new.tags == ("errands", "work")
+
+
+@pytest.mark.asyncio
+async def test_right_without_a_suggestion_only_moves_the_cursor(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First", tags=("home",)), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("n")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        tags = screen.query_one("#tags", Input)
+        tags.focus()
+        await pilot.press(*"home")
+        await pilot.pause()
+        await pilot.press("right")
+        assert tags.value == "home"
+
+        await pilot.press(*" x")
+        await pilot.pause()
+        await pilot.press("right")
+        assert tags.value == "home x"
+
+
+@pytest.mark.asyncio
+async def test_the_edit_form_suggests_tags_from_the_list_and_the_detail_view(
+    tmp_path: Path,
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First", tags=("home",)), None)
+    save_task(tmp_path, make_task("BBBB", "Second", tags=("work",)), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        for keys in (("e",), ("enter", "e")):
+            await pilot.press(*keys)
+            screen = app.screen
+            assert isinstance(screen, TaskFormScreen)
+            tags = screen.query_one("#tags", Input)
+            assert tags.value == "home"
+            tags.focus()
+            await pilot.press("end", *" w")
+            await pilot.pause()
+            await pilot.press("right")
+            assert tags.value == "home work"
+            await pilot.press("escape", "y")
+            if keys[0] == "enter":
+                await pilot.press("escape")
+            assert isinstance(app.screen, TaskListScreen)
+
+
+@pytest.mark.asyncio
+async def test_unreadable_tasks_leave_nothing_to_suggest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    save_task(tmp_path, make_task("AAAA", "First", tags=("home",)), None)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+
+        def fail(directory: Path) -> object:
+            raise PermissionError(13, "Permission denied")
+
+        monkeypatch.setattr(task_form, "load_tasks", fail)
+        await pilot.press("n")
+        screen = app.screen
+        assert isinstance(screen, TaskFormScreen)
+        tags = screen.query_one("#tags", Input)
+        tags.focus()
+        await pilot.press("h")
+        await pilot.pause()
+        await pilot.press("right")
+        assert tags.value == "h"

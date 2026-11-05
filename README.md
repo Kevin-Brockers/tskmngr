@@ -175,8 +175,10 @@ them, so the arrow keys move between them; `Tab` moves to the notes.
 | `Ctrl+S` | Save; problems are shown under their field |
 | `Escape` | Cancel, after asking if there are unsaved changes |
 
-Tags are separated by spaces or commas. In the notes, `Enter` starts a new
-line.
+Tags are separated by spaces or commas. While you type a tag, the rest of an
+existing tag that starts with it is shown greyed out (the first one
+alphabetically, leaving out tags already in the field), and `→` accepts it. In
+the notes, `Enter` starts a new line.
 
 If a task's file changed or was deleted on disk since the app loaded it, a
 save, status change or delete doesn't overwrite it: the error is shown and the
