@@ -10,6 +10,7 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 from pathlib import Path
 
+from tskmngr import gitsync
 from tskmngr.app import TskmngrApp
 from tskmngr.config import (
     DEFAULT_THEME,
@@ -20,9 +21,11 @@ from tskmngr.config import (
     create_default_config,
     load_config,
     old_config_path,
+    tasks_directory,
 )
 from tskmngr.display import format_next_occurrence, task_fields
 from tskmngr.editor import EditorSettingError, editor_command, run_editor
+from tskmngr.gitsync import PullConflict, RepoError, SyncError
 from tskmngr.models import (
     Priority,
     Repeat,
@@ -49,7 +52,6 @@ from tskmngr.storage import (
     load_tasks,
     save_completed,
     save_task,
-    tasks_dir,
 )
 from tskmngr.taskfile import TaskFile
 
@@ -60,6 +62,15 @@ REPEAT_HELP = (
 
 # Statuses `tskmngr list` shows unless told otherwise.
 OPEN_STATUSES = (Status.TODO, Status.DOING)
+
+# How a command syncs while `tasks_repo` is set (the `sync` default of its
+# parser): CHANGE commits what's left over, pulls, runs the command, then
+# commits and pushes; PULL only pulls first. Other commands don't sync.
+CHANGE = "change"
+PULL = "pull"
+# The message of a commit of changes no command made, e.g. by hand or in the
+# TUI, and of `tskmngr sync`'s.
+SYNC_MESSAGE = "tskmngr: sync"
 
 
 class CommandError(Exception):
@@ -74,6 +85,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     reading or saving tasks return 1. Writes the default config file if there
     is none, and warns on stderr while the old one still exists. Only
     `config edit` runs with a config file that can't be used, to fix it.
+
+    While the config sets `tasks_repo`, every command but `config` first
+    clones or checks the repository (stopping with 1 if it can't be used),
+    and the commands that change tasks, and `list`, sync with it; a failed
+    sync is a warning on stderr.
     """
     parser = _parser()
     args, extra = parser.parse_known_args(argv)
@@ -102,19 +118,81 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.command is None:
                 app = TskmngrApp(config=config)
             args.config = config
-            args.directory = tasks_dir(config.tasks_dir)
+            args.directory = tasks_directory(config)
     except ConfigError as error:
         print(f"tskmngr: error: config file {error}", file=sys.stderr)
         return 1
+    repo = _tasks_repo(args)
+    if getattr(args, "uses_tasks", True) and repo is not None:
+        try:
+            _open_repo(repo)
+        except RepoError as error:
+            print(f"tskmngr: error: tasks_repo: {error}", file=sys.stderr)
+            return 1
     if args.command is None:
         app.run()
         return 0
     args.config_path = path
     try:
-        return args.handler(args)
+        _sync_before(args)
+        status = args.handler(args)
     except CommandError as error:
         print(f"tskmngr: error: {error}", file=sys.stderr)
         return 1
+    if status == 0:
+        _sync_after(args)
+    return status
+
+
+def _open_repo(repo: gitsync.TasksRepo) -> None:
+    if gitsync.open_repo(repo):
+        print(f"tskmngr: cloned {repo.location} into {repo.directory}", file=sys.stderr)
+
+
+def _sync_before(args: argparse.Namespace) -> None:
+    """Pull before a command that syncs, first committing what's left over.
+
+    Changes nobody committed (made by hand, in the TUI or by a command whose
+    commit failed) are committed first, so the pull never has to stash them.
+    """
+    repo = _tasks_repo(args)
+    sync = getattr(args, "sync", None)
+    if repo is None or sync is None:
+        return
+    try:
+        if sync == CHANGE:
+            gitsync.commit_all(repo, SYNC_MESSAGE)
+        gitsync.pull(repo)
+    except SyncError as error:
+        _warn_not_synced(error)
+
+
+def _sync_after(args: argparse.Namespace) -> None:
+    """Commit and push what a command that changes tasks changed."""
+    repo = _tasks_repo(args)
+    if repo is None or getattr(args, "sync", None) != CHANGE:
+        return
+    try:
+        gitsync.commit_all(repo, getattr(args, "commit_message", SYNC_MESSAGE))
+        gitsync.push(repo)
+    except SyncError as error:
+        _warn_not_synced(error)
+
+
+def _tasks_repo(args: argparse.Namespace) -> gitsync.TasksRepo | None:
+    """The config's `tasks_repo`; None too for `config edit`, which has no config."""
+    config = getattr(args, "config", None)
+    return config.tasks_repo if config is not None else None
+
+
+def _warn_not_synced(error: SyncError) -> None:
+    later = "" if isinstance(error, PullConflict) else "; it's synced next time"
+    print(f"tskmngr: warning: not synced: {error}{later}", file=sys.stderr)
+
+
+def _commit_message(command: str, task: Task) -> str:
+    """A commit's message, e.g. `tskmngr: add 01JB3K7Q2X Buy milk`."""
+    return f"tskmngr: {command} {task.id} {task.title}"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -148,7 +226,7 @@ def _parser() -> argparse.ArgumentParser:
         metavar="TAG",
         help="add a tag; repeat for more tags",
     )
-    add.set_defaults(handler=_add, parser=add)
+    add.set_defaults(handler=_add, parser=add, sync=CHANGE)
 
     list_ = commands.add_parser(
         "list",
@@ -202,7 +280,7 @@ def _parser() -> argparse.ArgumentParser:
     list_.add_argument(
         "-r", "--reverse", action="store_true", help="reverse the sort order"
     )
-    list_.set_defaults(handler=_list, parser=list_)
+    list_.set_defaults(handler=_list, parser=list_, sync=PULL)
 
     show = commands.add_parser(
         "show",
@@ -256,7 +334,7 @@ def _parser() -> argparse.ArgumentParser:
     untag.add_argument(
         "--clear-tags", action="store_true", help="remove all tags before adding any"
     )
-    edit.set_defaults(handler=_edit, parser=edit)
+    edit.set_defaults(handler=_edit, parser=edit, sync=CHANGE)
 
     done = commands.add_parser(
         "done",
@@ -267,7 +345,7 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     _add_id_argument(done)
-    done.set_defaults(handler=_done, parser=done)
+    done.set_defaults(handler=_done, parser=done, sync=CHANGE)
 
     delete = commands.add_parser(
         "delete",
@@ -281,7 +359,18 @@ def _parser() -> argparse.ArgumentParser:
     delete.add_argument(
         "-y", "--yes", action="store_true", help="delete without asking"
     )
-    delete.set_defaults(handler=_delete, parser=delete)
+    delete.set_defaults(handler=_delete, parser=delete, sync=CHANGE)
+
+    sync = commands.add_parser(
+        "sync",
+        help="sync the tasks with tasks_repo",
+        description=(
+            "Commit any changes in the tasks directory, pull from the git "
+            "repository the config file's tasks_repo names, then push the "
+            "commits not pushed yet."
+        ),
+    )
+    sync.set_defaults(handler=_sync, parser=sync)
 
     config = commands.add_parser(
         "config",
@@ -291,21 +380,21 @@ def _parser() -> argparse.ArgumentParser:
             "the file leaves out is marked with where its value comes from."
         ),
     )
-    config.set_defaults(handler=_config_show, parser=config)
+    config.set_defaults(handler=_config_show, parser=config, uses_tasks=False)
     config_commands = config.add_subparsers(dest="config_command", title="commands")
     get = config_commands.add_parser(
         "get",
         help="print one setting",
         description=(
             "Print the value in use of one setting: tasks_dir as the full path "
-            "of the tasks directory, columns, trash_columns and keybindings as "
-            "JSON."
+            "of the tasks directory, tasks_repo as its URL or full path (empty "
+            "if not set), columns, trash_columns and keybindings as JSON."
         ),
     )
     get.add_argument(
         "key", choices=SETTING_KEYS, metavar="KEY", help=", ".join(SETTING_KEYS)
     )
-    get.set_defaults(handler=_config_get, parser=get)
+    get.set_defaults(handler=_config_get, parser=get, uses_tasks=False)
     config_edit = config_commands.add_parser(
         "edit",
         help="open the config file in your editor",
@@ -315,7 +404,7 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     config_edit.set_defaults(
-        handler=_config_edit, parser=config_edit, loads_config=False
+        handler=_config_edit, parser=config_edit, loads_config=False, uses_tasks=False
     )
     return parser
 
@@ -342,6 +431,7 @@ def _add(args: argparse.Namespace) -> int:
         args.parser.error(str(error))
     try:
         save_task(directory, task, None)
+        args.commit_message = _commit_message("add", task)
     except ConflictError as error:
         raise CommandError(f"can't save the task: {error}") from error
     except OSError as error:
@@ -431,6 +521,7 @@ def _edit(args: argparse.Namespace) -> int:
         edited = replace(task, **changes)
     except TaskValidationError as error:
         args.parser.error(str(error))
+    args.commit_message = _commit_message("edit", edited)
     _save_changed(directory, source, edited, result.ids)
     return 0
 
@@ -440,6 +531,7 @@ def _done(args: argparse.Namespace) -> int:
     result = _load(directory)
     source = _find(args, result)
     edited = replace(source.task, status=Status.DONE)
+    args.commit_message = _commit_message("done", edited)
     _save_changed(directory, source, edited, result.ids)
     return 0
 
@@ -465,7 +557,32 @@ def _delete(args: argparse.Namespace) -> int:
         raise CommandError(
             f"can't delete the task in {directory}: {_reason(error)}"
         ) from error
+    args.commit_message = _commit_message("delete", task)
     print(f"Moved {task.id} to {trashed}")
+    return 0
+
+
+def _sync(args: argparse.Namespace) -> int:
+    """Commit what's left over, pull, then push; any failure is an error."""
+    repo = args.config.tasks_repo
+    if repo is None:
+        raise CommandError(
+            f"tasks_repo isn't set in {args.config_path}; set it to a git "
+            "repository's URL or folder to sync the tasks"
+        )
+    try:
+        gitsync.commit_all(repo, SYNC_MESSAGE)
+        if not gitsync.has_upstream(repo):
+            print(
+                f"{repo.directory} has no upstream branch, so the changes are "
+                "only committed"
+            )
+            return 0
+        gitsync.pull(repo)
+        gitsync.push(repo)
+    except SyncError as error:
+        raise CommandError(f"not synced: {error}") from error
+    print(f"Synced {repo.directory} with {repo.location}")
     return 0
 
 
@@ -515,14 +632,25 @@ def format_config(config: Config, path: Path) -> list[str]:
     """The config file's path, then each setting in use, one per line.
 
     A setting the file leaves out is followed by where its value comes from:
-    `(default)`, or `(TSKMNGR_DIR)` for a tasks directory set by it.
+    `(default)`, or `(TSKMNGR_DIR)` for a tasks directory set by it. While
+    `tasks_repo` is set, the tasks directory is marked `(tasks_repo)`, and
+    `tasks_repo` says whether it's a remote URL, and where it's cloned, or a
+    local folder.
     """
     width = max(len(key) for key in SETTING_KEYS)
     lines = [f"Config file: {path}", ""]
+    repo = config.tasks_repo
     for key in SETTING_KEYS:
         value = setting_value(config, key)
-        if key not in config.keys:
+        if key == "tasks_dir" and repo is not None:
+            value += " (tasks_repo)"
+        elif key == "tasks_repo" and repo is not None:
+            where = f"remote URL, cloned into {repo.directory}"
+            value += f" ({where})" if repo.remote else " (local folder)"
+        elif key not in config.keys:
             from_env = key == "tasks_dir" and os.environ.get(ENV_VAR)
+            if key == "tasks_repo":
+                value = "not set"
             value += " (TSKMNGR_DIR)" if from_env else " (default)"
         lines.append(f"{key:<{width}}  {value}")
     return lines
@@ -532,12 +660,14 @@ def setting_value(config: Config, key: str) -> str:
     """The value in use of the setting `key`, as `config get` prints it.
 
     Text, numbers and booleans are plain, `tasks_dir` is the tasks directory
-    used, and `columns`, `trash_columns` and `keybindings` are JSON on one
-    line.
+    used, `tasks_repo` its URL or full path (empty if it isn't set), and
+    `columns`, `trash_columns` and `keybindings` are JSON on one line.
     """
     match key:
         case "tasks_dir":
-            return str(tasks_dir(config.tasks_dir))
+            return str(tasks_directory(config))
+        case "tasks_repo":
+            return config.tasks_repo.location if config.tasks_repo else ""
         case "sort":
             return config.sort.value
         case "reverse":

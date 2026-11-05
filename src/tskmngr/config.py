@@ -20,6 +20,10 @@ wrong type) is a `ConfigError`, so nothing runs with a half-read config.
 
 `tasks_dir` may start with `~`; a relative path is read from the config
 file's folder. It comes before `TSKMNGR_DIR` (see `storage.tasks_dir`).
+`tasks_repo` (not in the example) is a git repository for the tasks, a remote
+URL or a local folder (see `gitsync.parse_tasks_repo`); while it's set,
+`tasks_dir` and `TSKMNGR_DIR` aren't used (see `tasks_directory`). Only its
+type is checked here.
 `columns` names the TUI task list's columns in display order (see
 `display.Column`); the ones left out are hidden. `trash_columns` does the same
 for the deleted tasks view (`display.TrashColumn`), and `show_trash` says
@@ -41,7 +45,9 @@ from enum import StrEnum
 from pathlib import Path
 
 from tskmngr.display import DEFAULT_COLUMNS, DEFAULT_TRASH_COLUMNS, Column, TrashColumn
+from tskmngr.gitsync import TasksRepo, parse_tasks_repo
 from tskmngr.query import SortKey
+from tskmngr.storage import tasks_dir
 
 DEFAULT_PATH = Path(".tskmngr", "config.json")
 # Where the config file was before; only looked for to warn that it's unused.
@@ -52,9 +58,9 @@ DEFAULT_POLL_INTERVAL = 2.0
 # Textual's default theme, which the TUI uses when the config has none.
 DEFAULT_THEME = "textual-dark"
 
-# What a new config file holds: every setting but `tasks_dir`, at its default,
-# so the file shows what can be set. Without `tasks_dir`, `TSKMNGR_DIR` or the
-# default tasks directory is used.
+# What a new config file holds: every setting but `tasks_dir` and
+# `tasks_repo`, at its default, so the file shows what can be set. Without
+# them, `TSKMNGR_DIR` or the default tasks directory is used.
 DEFAULT_SETTINGS: dict[str, object] = {
     "sort": SortKey.DUE.value,
     "reverse": False,
@@ -84,6 +90,8 @@ class Config:
     path: Path | None = None
     # None means `TSKMNGR_DIR` or the default (see `storage.tasks_dir`).
     tasks_dir: Path | None = None
+    # The git repository for the tasks; None means they aren't synced.
+    tasks_repo: TasksRepo | None = None
     sort: SortKey = SortKey.DUE
     reverse: bool = False
     # None means Textual's default theme.
@@ -100,6 +108,13 @@ class Config:
     # The keys the file sets; the other settings are at their defaults. Not
     # compared, so a config equals another with the same settings.
     keys: frozenset[str] = field(default=frozenset(), compare=False)
+
+
+def tasks_directory(config: Config) -> Path:
+    """The tasks directory in use: `tasks_repo`'s, else as `storage.tasks_dir`."""
+    if config.tasks_repo is not None:
+        return config.tasks_repo.directory
+    return tasks_dir(config.tasks_dir)
 
 
 def config_path() -> Path:
@@ -213,6 +228,14 @@ def _tasks_dir(value: object, path: Path) -> Path:
     return directory if directory.is_absolute() else path.parent / directory
 
 
+def _tasks_repo(value: object, path: Path) -> TasksRepo:
+    if not isinstance(value, str) or not value.strip():
+        raise _BadValue(
+            f"expected a git repository's URL or folder, got {_describe(value)}"
+        )
+    return parse_tasks_repo(value.strip(), path.parent)
+
+
 def _sort(value: object, path: Path) -> SortKey:
     names = ", ".join(key.value for key in SortKey)
     if not isinstance(value, str) or value not in set(SortKey):
@@ -290,6 +313,7 @@ def _keybindings(value: object, path: Path) -> dict[str, str]:
 # Each known key and how its value is read, in the order the docs list them.
 _READERS: dict[str, Callable[[object, Path], object]] = {
     "tasks_dir": _tasks_dir,
+    "tasks_repo": _tasks_repo,
     "sort": _sort,
     "reverse": _boolean,
     "theme": _theme,

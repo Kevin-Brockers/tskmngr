@@ -201,6 +201,15 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#63](https://github.com/Kevin-Brockers/tskmngr/pull/63) - Roadmap milestone M10: documentation fixes, `trash_columns` in
   `AGENTS.md`'s `config get` line and a note on M8.3 that M9.3 changed the
   default `trash_columns`
+- #TBD - Synced tasks: the config's `tasks_repo` keeps the tasks in a git
+  repository, a remote URL cloned into `~/.tskmngr/remote_task_dir` or a local
+  folder, used instead of `tasks_dir` and `TSKMNGR_DIR`. `add`, `edit`,
+  `done` and `delete` pull, commit and push, `list` pulls, and the new
+  `tskmngr sync` commits, pulls and pushes by hand. A failed or offline sync
+  is a warning and catches up later, a pull conflict is reported without
+  overwriting a task, and an HTTPS token comes from `TSKMNGR_GIT_TOKEN`
+  without being stored. `tskmngr config` notes whether `tasks_repo` is remote
+  or local
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

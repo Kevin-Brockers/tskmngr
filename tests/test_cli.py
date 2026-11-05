@@ -1,5 +1,6 @@
 import io
 import sys
+from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -1740,6 +1741,7 @@ def test_config_prints_the_path_and_the_default_settings(
         f"Config file: {config_file}\n"
         "\n"
         f"tasks_dir      {tasks} (default)\n"
+        "tasks_repo     not set (default)\n"
         "sort           due\n"
         "reverse        false\n"
         "theme          textual-dark\n"
@@ -1765,6 +1767,7 @@ def test_config_marks_the_settings_the_file_leaves_out(
 
     assert capsys.readouterr().out.splitlines()[2:] == [
         f"tasks_dir      {config_file.parent / 'tasks'}",
+        "tasks_repo     not set (default)",
         "sort           due (default)",
         "reverse        false (default)",
         "theme          textual-dark (default)",
@@ -2043,3 +2046,385 @@ def test_config_edit_runs_the_real_editor_on_the_file(
     assert cli.main(["config", "edit"]) == 0
 
     assert config_file.read_text(encoding="utf-8") == '{"theme": "nord"}'
+
+
+# The `git` fixture from conftest.py: runs git in a folder, returns its output.
+type Git = Callable[..., str]
+
+
+@pytest.fixture
+def synced(
+    tmp_path: Path,
+    config_file: Path,
+    remote: Path,
+    user_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """A config whose `tasks_repo` is `remote`'s URL; returns the clone's folder.
+
+    `TSKMNGR_DIR` and `tasks_dir` point elsewhere, which `tasks_repo` wins over.
+    """
+    monkeypatch.setenv("TSKMNGR_DIR", str(tmp_path / "env_tasks"))
+    write_config(
+        config_file,
+        f'{{"tasks_repo": "{remote.as_uri()}", "tasks_dir": "config_tasks"}}',
+    )
+    return user_home / ".tskmngr" / "remote_task_dir"
+
+
+def other_machine(tmp_path: Path, remote: Path, git: Git) -> Path:
+    """Another clone of `remote`, for changes made elsewhere."""
+    directory = tmp_path / "other"
+    if not directory.exists():
+        git(tmp_path, "clone", "--quiet", str(remote), str(directory))
+    git(directory, "pull", "--quiet", "--rebase")
+    return directory
+
+
+def push_from(directory: Path, git: Git, message: str) -> None:
+    git(directory, "add", "--all")
+    git(directory, "commit", "--quiet", "-m", message)
+    git(directory, "push", "--quiet", "origin", "HEAD:main")
+
+
+def remote_log(git: Git, remote: Path) -> list[str]:
+    return git(remote, "log", "--format=%s").splitlines()
+
+
+def test_add_clones_tasks_repo_then_commits_and_pushes(
+    tmp_path: Path,
+    synced: Path,
+    remote: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+
+    [source] = load_all(synced)
+    output = capsys.readouterr()
+    assert output.out == f"{source.task.id}\n"
+    assert output.err == f"tskmngr: cloned {remote.as_uri()} into {synced}\n"
+    assert remote_log(git, remote) == [f"tskmngr: add {source.task.id} Buy milk"]
+    # Neither TSKMNGR_DIR nor the config's tasks_dir is used.
+    assert not (tmp_path / "env_tasks").exists()
+    assert not (synced.parent / "config_tasks").exists()
+
+
+def test_changing_commands_commit_with_their_name_id_and_title(
+    synced: Path, remote: Path, git: Git, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert cli.main(["add", "Buy milk", "--repeat", "weekly"]) == 0
+    [source] = load_all(synced)
+    task_id = source.task.id
+
+    assert cli.main(["edit", task_id, "--title", "Buy oat milk"]) == 0
+    assert cli.main(["done", task_id]) == 0
+    assert cli.main(["delete", task_id, "--yes"]) == 0
+
+    assert remote_log(git, remote) == [
+        f"tskmngr: delete {task_id} Buy oat milk",
+        f"tskmngr: done {task_id} Buy oat milk",
+        f"tskmngr: edit {task_id} Buy oat milk",
+        f"tskmngr: add {task_id} Buy milk",
+    ]
+    # One commit for the done task and its next occurrence.
+    changed = git(remote, "show", "--name-only", "--format=", "HEAD~1").splitlines()
+    assert len(changed) == 2
+    assert git(synced, "status", "--porcelain") == ""
+
+
+def test_a_command_that_changes_nothing_makes_no_commit(
+    synced: Path, remote: Path, git: Git
+) -> None:
+    assert cli.main(["add", "Buy milk", "--priority", "high"]) == 0
+    [source] = load_all(synced)
+
+    assert cli.main(["edit", source.task.id, "--priority", "high"]) == 0
+
+    assert len(remote_log(git, remote)) == 1
+
+
+def test_changes_nobody_committed_are_committed_first(
+    synced: Path, remote: Path, git: Git
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+    add_task(synced, "HANDMADE01", "Made by hand")
+
+    assert cli.main(["add", "Call mum"]) == 0
+
+    log = remote_log(git, remote)
+    assert log[1:] == ["tskmngr: sync", log[2]]
+    assert log[0].endswith(" Call mum")
+    assert "HANDMADE01.md" in git(remote, "show", "--name-only", "HEAD~1")
+
+
+def test_commands_pull_first_so_they_see_tasks_added_elsewhere(
+    tmp_path: Path,
+    synced: Path,
+    remote: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+    other = other_machine(tmp_path, remote, git)
+    add_task(other, "ELSEWHERE1", "Added elsewhere")
+    push_from(other, git, "elsewhere")
+    capsys.readouterr()
+
+    assert cli.main(["list"]) == 0
+    assert "Added elsewhere" in capsys.readouterr().out
+
+    assert cli.main(["done", "ELSEWHERE1"]) == 0
+    assert remote_log(git, remote)[0] == "tskmngr: done ELSEWHERE1 Added elsewhere"
+
+
+def test_show_doesnt_pull(
+    tmp_path: Path,
+    synced: Path,
+    remote: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+    other = other_machine(tmp_path, remote, git)
+    add_task(other, "ELSEWHERE1", "Added elsewhere")
+    push_from(other, git, "elsewhere")
+
+    assert cli.main(["show", "ELSEWHERE1"]) == 1
+    assert "no task" in capsys.readouterr().err
+
+
+def test_list_doesnt_commit_or_push(
+    synced: Path, remote: Path, git: Git, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+    add_task(synced, "HANDMADE01", "Made by hand")
+
+    assert cli.main(["list"]) == 0
+
+    assert "Made by hand" in capsys.readouterr().out
+    assert len(remote_log(git, remote)) == 1
+    assert "HANDMADE01.md" in git(synced, "status", "--porcelain")
+
+
+def test_an_offline_change_is_kept_and_pushed_next_time(
+    tmp_path: Path,
+    synced: Path,
+    remote: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+    remote.rename(tmp_path / "away.git")
+    capsys.readouterr()
+
+    assert cli.main(["add", "Call mum"]) == 0
+
+    err = capsys.readouterr().err.splitlines()
+    assert len(err) == 2
+    assert err[0].startswith("tskmngr: warning: not synced: can't pull from origin")
+    assert err[1].startswith("tskmngr: warning: not synced: can't push to origin")
+    assert err[1].endswith("; it's synced next time")
+    assert len(load_all(synced)) == 2
+    assert git(synced, "status", "--porcelain") == ""
+
+    (tmp_path / "away.git").rename(remote)
+    assert cli.main(["list"]) == 0
+    assert len(remote_log(git, remote)) == 1
+    assert cli.main(["sync"]) == 0
+    assert len(remote_log(git, remote)) == 2
+
+
+def test_a_pull_conflict_is_reported_and_overwrites_nothing(
+    tmp_path: Path,
+    synced: Path,
+    remote: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+    [source] = load_all(synced)
+    task_id = source.task.id
+    other = other_machine(tmp_path, remote, git)
+    assert cli.main(["edit", task_id, "--priority", "high"]) == 0
+    remote.rename(tmp_path / "away.git")
+    assert cli.main(["edit", task_id, "--title", "Buy oat milk"]) == 0
+    (tmp_path / "away.git").rename(remote)
+    git(other, "pull", "--quiet", "--rebase")
+    edited = (other / f"{task_id}.md").read_text(encoding="utf-8")
+    (other / f"{task_id}.md").write_text(
+        edited.replace("Buy milk", "Buy soy milk"), encoding="utf-8"
+    )
+    push_from(other, git, "elsewhere")
+    capsys.readouterr()
+
+    assert cli.main(["edit", task_id, "--tag", "errands"]) == 0
+
+    err = capsys.readouterr().err
+    assert f"changed both here and there: {task_id}" in err
+    assert "Nothing was overwritten" in err
+    [source] = load_all(synced)
+    assert source.task.title == "Buy oat milk"
+    assert source.task.tags == ("errands",)
+    assert remote_log(git, remote)[0] == "elsewhere"
+    assert cli.main(["sync"]) == 1
+    assert "not synced: can't pull" in capsys.readouterr().err
+
+
+def test_sync_commits_pulls_and_pushes(
+    tmp_path: Path,
+    synced: Path,
+    remote: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+    other = other_machine(tmp_path, remote, git)
+    add_task(other, "ELSEWHERE1", "Added elsewhere")
+    push_from(other, git, "elsewhere")
+    add_task(synced, "HANDMADE01", "Made by hand")
+    capsys.readouterr()
+
+    assert cli.main(["sync"]) == 0
+
+    assert capsys.readouterr().out == f"Synced {synced} with {remote.as_uri()}\n"
+    assert (synced / "ELSEWHERE1.md").exists()
+    assert remote_log(git, remote)[:2] == ["tskmngr: sync", "elsewhere"]
+
+
+def test_sync_without_tasks_repo_is_an_error(
+    tasks: Path, config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["sync"]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: tasks_repo isn't set in {config_file}; set it to a git "
+        "repository's URL or folder to sync the tasks\n"
+    )
+
+
+def test_sync_reports_a_failure_as_an_error(
+    tmp_path: Path, synced: Path, remote: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["add", "Buy milk"]) == 0
+    remote.rename(tmp_path / "away.git")
+    capsys.readouterr()
+
+    assert cli.main(["sync"]) == 1
+
+    assert capsys.readouterr().err.startswith(
+        "tskmngr: error: not synced: can't pull from origin"
+    )
+
+
+def test_a_local_tasks_repo_is_the_tasks_directory(
+    tmp_path: Path,
+    config_file: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    folder = config_file.parent / "my_tasks"
+    git(tmp_path, "init", "--quiet", str(folder))
+    write_config(config_file, '{"tasks_repo": "my_tasks"}')
+
+    assert cli.main(["add", "Buy milk"]) == 0
+    [source] = load_all(folder)
+    assert (
+        git(folder, "log", "--format=%s") == f"tskmngr: add {source.task.id} Buy milk"
+    )
+    capsys.readouterr()
+
+    assert cli.main(["sync"]) == 0
+    assert capsys.readouterr().out == (
+        f"{folder} has no upstream branch, so the changes are only committed\n"
+    )
+
+
+@pytest.mark.parametrize("argv", [["list"], ["show", "X"], ["sync"], []])
+def test_a_local_tasks_repo_must_be_a_repository(
+    config_file: Path,
+    git: Git,
+    argv: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(TskmngrApp, "run", lambda self: None)
+    (config_file.parent / "my_tasks").mkdir(parents=True)
+    write_config(config_file, '{"tasks_repo": "my_tasks"}')
+
+    assert cli.main(argv) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: tasks_repo: {config_file.parent / 'my_tasks'} isn't a git "
+        "repository, so it can't be tasks_repo; tskmngr never runs git init\n"
+    )
+
+
+def test_the_tui_uses_the_clone_of_tasks_repo(
+    synced: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started: list[TskmngrApp] = []
+    monkeypatch.setattr(TskmngrApp, "run", lambda self: started.append(self))
+
+    assert cli.main([]) == 0
+
+    [app] = started
+    assert app.directory == synced
+    assert (synced / ".git").is_dir()
+
+
+def test_config_notes_a_remote_tasks_repo_and_doesnt_clone_it(
+    synced: Path, remote: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["config"]) == 0
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[2:4] == [
+        f"tasks_dir      {synced} (tasks_repo)",
+        f"tasks_repo     {remote.as_uri()} (remote URL, cloned into {synced})",
+    ]
+    assert not synced.exists()
+
+
+def test_config_notes_a_local_tasks_repo(
+    config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_config(config_file, '{"tasks_repo": "~/my_tasks"}')
+
+    assert cli.main(["config"]) == 0
+
+    folder = config_file.parent.parent / "my_tasks"
+    assert capsys.readouterr().out.splitlines()[2:4] == [
+        f"tasks_dir      {folder} (tasks_repo)",
+        f"tasks_repo     {folder} (local folder)",
+    ]
+
+
+def test_config_get_tasks_repo(
+    synced: Path, remote: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["config", "get", "tasks_repo"]) == 0
+    assert cli.main(["config", "get", "tasks_dir"]) == 0
+
+    assert capsys.readouterr().out == f"{remote.as_uri()}\n{synced}\n"
+
+
+def test_config_get_tasks_repo_is_empty_when_not_set(
+    config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.main(["config", "get", "tasks_repo"]) == 0
+
+    assert capsys.readouterr().out == "\n"
+
+
+def test_tasks_repo_must_be_text(
+    config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_config(config_file, '{"tasks_repo": 5}')
+
+    assert cli.main(["list"]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: config file {config_file}: tasks_repo: expected a git "
+        "repository's URL or folder, got the number 5\n"
+    )
