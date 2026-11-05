@@ -283,8 +283,9 @@ synced must be agreed with the maintainer before starting M7.2, and
 
 Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
 
-- [ ] **M10.1** `AGENTS.md`'s `config get` line: `trash_columns` is printed as
-  JSON too, as the code and README already do · `docs/config_get_trash_columns`
+- [x] **M10.1** `AGENTS.md`'s `config get` line: `trash_columns` is printed as
+  JSON too, as the code and README already do · `docs/config_get_trash_columns` ·
+  #TBD
 - [ ] **M10.2** M8.3 still gives the old default for `trash_columns`
   (`["title", "deleted", "id"]`); note on it that M9.3 changed it, the way
   M0.1 notes #45 · `docs/roadmap_trash_default`
