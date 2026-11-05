@@ -49,6 +49,7 @@ from tskmngr.storage import (
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.confirm_discard import ConfirmDiscardScreen
 from tskmngr.widgets.saving import notify_next, save_task_and_next
+from tskmngr.widgets.syncing import record_change
 from tskmngr.widgets.tasks_changed import TasksChanged
 
 FIELDS = ("title", "status", "priority", "due", "repeat", "tags", "notes")
@@ -261,6 +262,9 @@ class TaskFormScreen(Screen[str | None]):
                 markup=False,
             )
             return
+        record_change(
+            self, "add" if self.source is None else "edit", task.id, task.title
+        )
         notify_next(self, following)
         self.dismiss(task.id)
 

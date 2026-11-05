@@ -268,15 +268,20 @@ Which CLI commands sync:
 | `sync` | Commit any changes, pull, then push commits not pushed yet; an error while `tasks_repo` isn't set |
 | `show`, `config` | None |
 
-The TUI uses the same tasks directory but doesn't sync yet; its sync (pull at
-start, commit and push after each change, a sync key) is M7.2b.
+The TUI syncs in the background (a thread in `widgets/syncing.py`, one job
+at a time, so it never waits for the network): a full sync (commit leftovers,
+pull, push) when it starts and on `y` (`task_list.sync`, shown only while
+`tasks_repo` is set), and a commit and push after each change it makes, with
+the CLI's commit messages (`add`, `edit`, `done`, `delete`). A failed sync is
+a warning notification and a conflict an error one; only `y` confirms that
+it worked.
 
 - Every change is one commit, including the move into `.trash/` on delete and
   both files when `done` creates a recurring task's next occurrence. The
   message names the command, the task's ID and its title, e.g.
   `tskmngr: add 01JB3K7Q2X Buy milk`. A command that changes nothing makes
   no commit.
-- Changes nobody committed (hand edits, the TUI, a commit that failed) are
+- Changes nobody committed (hand edits, a commit that failed) are
   committed as `tskmngr: sync` before a changing command's pull, so the pull
   never stashes anything: with `--autostash`, a conflict leaves conflict
   markers in the task file. `list` doesn't commit them.

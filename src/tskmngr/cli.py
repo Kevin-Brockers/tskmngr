@@ -25,7 +25,13 @@ from tskmngr.config import (
 )
 from tskmngr.display import format_next_occurrence, task_fields
 from tskmngr.editor import EditorSettingError, editor_command, run_editor
-from tskmngr.gitsync import PullConflict, RepoError, SyncError
+from tskmngr.gitsync import (
+    SYNC_MESSAGE,
+    PullConflict,
+    RepoError,
+    SyncError,
+    commit_message,
+)
 from tskmngr.models import (
     Priority,
     Repeat,
@@ -68,9 +74,6 @@ OPEN_STATUSES = (Status.TODO, Status.DOING)
 # commits and pushes; PULL only pulls first. Other commands don't sync.
 CHANGE = "change"
 PULL = "pull"
-# The message of a commit of changes no command made, e.g. by hand or in the
-# TUI, and of `tskmngr sync`'s.
-SYNC_MESSAGE = "tskmngr: sync"
 
 
 class CommandError(Exception):
@@ -192,7 +195,7 @@ def _warn_not_synced(error: SyncError) -> None:
 
 def _commit_message(command: str, task: Task) -> str:
     """A commit's message, e.g. `tskmngr: add 01JB3K7Q2X Buy milk`."""
-    return f"tskmngr: {command} {task.id} {task.title}"
+    return commit_message(command, task.id, task.title)
 
 
 def _parser() -> argparse.ArgumentParser:
