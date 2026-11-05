@@ -198,7 +198,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   filter (TUI and `tskmngr list`), the TUI's sort-only columns at the far
   right, and a tags column. Listed before M7 and built first; step IDs are
   unchanged
-- #TBD - Roadmap milestone M10: documentation fixes, `trash_columns` in
+- [#63](https://github.com/Kevin-Brockers/tskmngr/pull/63) - Roadmap milestone M10: documentation fixes, `trash_columns` in
   `AGENTS.md`'s `config get` line and a note on M8.3 that M9.3 changed the
   default `trash_columns`
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
@@ -248,7 +248,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   M6.2a that doesn't exist
 - [#60](https://github.com/Kevin-Brockers/tskmngr/pull/60) - The created or updated column the TUI task list shows only while it's
   sorted by it is now the last one, at the far right, instead of before Title
-- #TBD - Roadmap M7.2 and a planned "Synced tasks" section in `AGENTS.md`
+- [#63](https://github.com/Kevin-Brockers/tskmngr/pull/63) - Roadmap M7.2 and a planned "Synced tasks" section in `AGENTS.md`
   describe the agreed git sync: `tasks_repo` is a remote URL cloned into
   `~/.tskmngr/remote_task_dir` or a local git repository, used instead of
   `tasks_dir`; `add`, `edit`, `done` and `delete` pull, commit and push,
