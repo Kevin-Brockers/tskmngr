@@ -290,4 +290,5 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   [#67](https://github.com/Kevin-Brockers/tskmngr/pull/67)
 - [x] **M10.2** M8.3 still gives the old default for `trash_columns`
   (`["title", "deleted", "id"]`); note on it that M9.3 changed it, the way
-  M0.1 notes #45 · `docs/roadmap_trash_default` · #TBD
+  M0.1 notes #45 · `docs/roadmap_trash_default` ·
+  [#70](https://github.com/Kevin-Brockers/tskmngr/pull/70)

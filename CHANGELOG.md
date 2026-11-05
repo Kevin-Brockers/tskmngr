@@ -270,7 +270,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `TSKMNGR_GIT_TOKEN`
 - [#67](https://github.com/Kevin-Brockers/tskmngr/pull/67) - `AGENTS.md`'s `config get` line lists `trash_columns` among the
   settings printed as JSON, as the code and README already do
-- #TBD - Roadmap step M8.3 notes that M9.3 changed the default
+- [#70](https://github.com/Kevin-Brockers/tskmngr/pull/70) - Roadmap step M8.3 notes that M9.3 changed the default
   `trash_columns` to `["title", "tags", "deleted", "id"]`
 
 ### Removed
