@@ -501,7 +501,7 @@ def test_tasks_repo_comes_before_tasks_dir_and_tskmngr_dir(
     monkeypatch.setenv("TSKMNGR_DIR", "/elsewhere")
     config = parse_config('{"tasks_dir": "/mine", "tasks_repo": "/repo"}', PATH)
 
-    assert tasks_directory(config) == Path("/repo")
+    assert tasks_directory(config) == Path("/repo/tasks")
     assert tasks_directory(Config(tasks_dir=Path("/mine"))) == Path("/mine")
 
 

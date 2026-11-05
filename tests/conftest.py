@@ -59,3 +59,25 @@ def remote(tmp_path: Path, git: Git) -> Path:
     path = tmp_path / "remote.git"
     git(tmp_path, "init", "--quiet", "--bare", "--initial-branch=main", str(path))
     return path
+
+
+# The message of the first commit `laid_out` gives the remote.
+SETUP_MESSAGE = "setup"
+
+
+@pytest.fixture
+def laid_out(tmp_path: Path, remote: Path, git: Git) -> Path:
+    """`remote` with a first commit holding `tasks/.gitkeep`; returns `remote`.
+
+    Its clones have the `tasks/` folder that a `tasks_repo`'s tasks directory
+    is (git doesn't keep empty folders, hence the file).
+    """
+    seed = tmp_path / "seed"
+    git(tmp_path, "clone", "--quiet", str(remote), str(seed))
+    (seed / "tasks").mkdir()
+    (seed / "tasks" / ".gitkeep").write_text("", encoding="utf-8")
+    git(seed, "add", "--all")
+    git(seed, "commit", "--quiet", "-m", SETUP_MESSAGE)
+    git(seed, "push", "--quiet", "origin", "HEAD:main")
+    shutil.rmtree(seed)
+    return remote

@@ -111,9 +111,12 @@ class Config:
 
 
 def tasks_directory(config: Config) -> Path:
-    """The tasks directory in use: `tasks_repo`'s, else as `storage.tasks_dir`."""
+    """The tasks directory in use: `tasks_repo`'s, else as `storage.tasks_dir`.
+
+    A `tasks_repo`'s is its `tasks/` folder (see `gitsync`).
+    """
     if config.tasks_repo is not None:
-        return config.tasks_repo.directory
+        return config.tasks_repo.tasks_directory
     return tasks_dir(config.tasks_dir)
 
 

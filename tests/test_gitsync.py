@@ -10,6 +10,7 @@ from tskmngr.gitsync import (
     RepoError,
     SyncError,
     TasksRepo,
+    check_layout,
     commit_all,
     has_changes,
     has_upstream,
@@ -82,6 +83,42 @@ def test_a_relative_local_path_is_read_from_the_base(tmp_path: Path) -> None:
     repo = parse_tasks_repo("tasks", tmp_path)
 
     assert repo == TasksRepo(str(tmp_path / "tasks"), False, tmp_path / "tasks")
+
+
+def test_the_tasks_directory_is_the_repositorys_tasks_folder(tmp_path: Path) -> None:
+    repo = parse_tasks_repo("repo", tmp_path)
+
+    assert repo.tasks_directory == tmp_path / "repo" / "tasks"
+
+
+def test_check_layout_accepts_a_repository_with_a_tasks_folder(
+    tmp_path: Path, laid_out: Path
+) -> None:
+    repo = cloned(laid_out, tmp_path / "clone")
+
+    check_layout(repo)
+
+
+@pytest.mark.parametrize("tasks", [None, "file"])
+def test_check_layout_refuses_a_repository_without_a_tasks_folder(
+    tmp_path: Path, remote: Path, tasks: str | None
+) -> None:
+    repo = cloned(remote, tmp_path / "clone")
+    write(repo, "01JB3K7Q2X.md", "---\ntitle: At the root\n---\n")
+    if tasks == "file":
+        write(repo, "tasks", "not a folder")
+
+    with pytest.raises(RepoError) as error:
+        check_layout(repo)
+
+    assert str(error.value) == (
+        f"{repo.directory} has no tasks folder for the tasks; create "
+        f"{repo.directory / 'tasks'} and move any task files and .trash/ in the "
+        "repository into it"
+    )
+    # Nothing was moved or created.
+    names = sorted(path.name for path in repo.directory.iterdir())
+    assert names == sorted([".git", "01JB3K7Q2X.md", *(["tasks"] if tasks else [])])
 
 
 def test_a_local_path_may_start_with_a_tilde(user_home: Path) -> None:
@@ -241,21 +278,21 @@ def test_a_conflict_is_reported_and_undone(
     tmp_path: Path, remote: Path, git: Git
 ) -> None:
     first = cloned(remote, tmp_path / "first")
-    write(first, "T1.md", "one")
+    write(first, "tasks/T1.md", "one")
     commit_all(first, "add T1")
     push(first)
     second = cloned(remote, tmp_path / "second")
-    write(first, "T1.md", "first's")
+    write(first, "tasks/T1.md", "first's")
     commit_all(first, "edit T1 there")
     push(first)
-    write(second, "T1.md", "second's")
+    write(second, "tasks/T1.md", "second's")
     commit_all(second, "edit T1 here")
 
     with pytest.raises(PullConflict, match="changed both here and there: T1") as info:
         pull(second)
 
     assert info.value.names == ("T1",)
-    assert (second.directory / "T1.md").read_text(encoding="utf-8") == "second's"
+    assert (second.tasks_directory / "T1.md").read_text(encoding="utf-8") == "second's"
     assert subjects(git, second.directory)[0] == "edit T1 here"
     assert not has_changes(second)
     with pytest.raises(SyncError, match="can't push"):
@@ -265,9 +302,17 @@ def test_a_conflict_is_reported_and_undone(
 @pytest.mark.parametrize(
     ("path", "name"),
     [
-        ("01JB3K7Q2X.md", "01JB3K7Q2X"),
-        (".trash/01JB3K7Q2X.2026-10-30T12-00-05Z-1.md", "01JB3K7Q2X"),
-        ("notes/readme.md", "notes/readme.md"),
+        ("tasks/01JB3K7Q2X.md", "01JB3K7Q2X"),
+        ("tasks/.trash/01JB3K7Q2X.2026-10-30T12-00-05Z-1.md", "01JB3K7Q2X"),
+        # Outside tasks/, nothing is a task, like files at the root.
+        ("01JB3K7Q2X.md", "01JB3K7Q2X.md"),
+        (
+            ".trash/01JB3K7Q2X.2026-10-30T12-00-05Z-1.md",
+            ".trash/01JB3K7Q2X.2026-10-30T12-00-05Z-1.md",
+        ),
+        ("AGENTS.md", "AGENTS.md"),
+        ("tasks/notes/readme.md", "tasks/notes/readme.md"),
+        ("tasks/.trash/malformed.md", "tasks/.trash/malformed.md"),
         ("README", "README"),
     ],
 )

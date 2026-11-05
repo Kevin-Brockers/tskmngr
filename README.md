@@ -320,19 +320,38 @@ tskmngr runs `git`, so git needs to be installed. `tasks_repo` is one of:
 
 - **A remote URL**, like `https://github.com/me/tasks.git` or
   `git@github.com:me/tasks.git`. tskmngr clones it into
-  `~/.tskmngr/remote_task_dir` the first time it needs the tasks, and that
-  clone is the tasks directory. If that folder already exists but isn't a
+  `~/.tskmngr/remote_task_dir` the first time it needs the tasks. If that
+  folder already exists but isn't a
   clone of this URL, tskmngr stops with an error and leaves the folder alone;
   move it away to clone there.
 - **A local folder** that's already a git repository: `~` is your home, and a
-  relative path is read from the config file's folder. The folder is the
-  tasks directory, synced with its upstream branch (the one `git push` would
-  use). Without one, changes are only committed. tskmngr never runs
-  `git init`, so a folder that isn't a repository is an error.
+  relative path is read from the config file's folder. It's synced with its
+  upstream branch (the one `git push` would use). Without one, changes are
+  only committed. tskmngr never runs `git init`, so a folder that isn't a
+  repository is an error.
+
+Either way, the tasks directory is the repository's `tasks/` folder, with the
+deleted tasks in `tasks/.trash/`. Files at the repository's root, like a
+README or an `AGENTS.md`, are synced but aren't tasks:
+
+```
+repo/
+  AGENTS.md
+  tasks/
+    01JB3K7Q2X.md
+    .trash/
+```
+
+A repository without `tasks/` stops every command but `config` with an error,
+and tskmngr doesn't create or move anything: create the folder in a new
+repository, or move the task files and `.trash/` of a repository whose tasks
+are at its root into it, then commit. Git doesn't keep empty folders, so in a
+new repository put a file in it, like `tasks/.gitkeep`, for other clones to
+have it too.
 
 While `tasks_repo` is set, `tasks_dir` and `TSKMNGR_DIR` aren't used. Tasks
 already in another tasks directory aren't moved: copy their files into the
-repository yourself, and the next command that changes a task commits them.
+repository's `tasks/` folder yourself, and the next command that changes a task commits them.
 
 These commands sync:
 
@@ -365,8 +384,8 @@ The TUI syncs too, in the background, so it never waits for the network:
   as `tskmngr: sync` before the pull.
 - A pull rebases your commits onto the new ones from the remote. If the same
   task was changed on both sides, the pull is undone and tskmngr names the
-  task: nothing is overwritten, and you resolve it with git in the tasks
-  directory.
+  task: nothing is overwritten, and you resolve it with git in the
+  repository.
 - If a pull or push fails, for example offline, tskmngr warns on stderr and
   the command still works on the files on disk. The commits that weren't
   pushed go out with the next push. Each git command that talks to the
@@ -477,7 +496,7 @@ exists, tskmngr warns about it on every run: move your settings to
 | Setting | Value | Default |
 | ------- | ----- | ------- |
 | `tasks_dir` | The tasks directory; `~` is your home, and a relative path is read from the config file's folder (`~/.tskmngr`). Comes before `TSKMNGR_DIR` | `TSKMNGR_DIR`, else `~/.local/share/tskmngr/tasks` |
-| `tasks_repo` | A git repository to keep the tasks in: a remote URL, cloned into `~/.tskmngr/remote_task_dir`, or a local folder that's a repository; while it's set, `tasks_dir` and `TSKMNGR_DIR` aren't used (see [Synced tasks](#synced-tasks)) | not set: no sync |
+| `tasks_repo` | A git repository to keep the tasks in, in its `tasks/` folder: a remote URL, cloned into `~/.tskmngr/remote_task_dir`, or a local folder that's a repository; while it's set, `tasks_dir` and `TSKMNGR_DIR` aren't used (see [Synced tasks](#synced-tasks)) | not set: no sync |
 | `sort` | How the TUI list and `tskmngr list` are sorted: `due`, `priority`, `created` or `updated` | `due` |
 | `reverse` | `true` reverses that order | `false` |
 | `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |
