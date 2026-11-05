@@ -257,17 +257,33 @@ synced must be agreed with the maintainer before starting M7.2, and
   and the tasks directory order in the README, and update `AGENTS.md` to
   match · `feature/config_home` · [#42](https://github.com/Kevin-Brockers/tskmngr/pull/42)
 - [ ] **M7.2** Tasks directory in a separate git repository, through the `git`
-  CLI (`subprocess`, no new dependency): commit after every change, pull when
-  tskmngr starts, push after each commit, and `tskmngr sync` to sync by hand ·
-  `feature/git_sync` · depends on M6.1. Split into:
-  - [ ] **M7.2a** Core and CLI: a `tasks_repo` config key with the
-    repository's HTTPS URL, cloned into the tasks directory if that isn't a
-    git repository yet; a fine-grained access token read from the
+  CLI (`subprocess`, no new dependency), as agreed with the maintainer and
+  described in `AGENTS.md` ("Synced tasks"): pull before changing or listing
+  tasks, commit and push after every change, and `tskmngr sync` to sync by
+  hand · `feature/git_sync` · depends on M6.1. Split into:
+  - [ ] **M7.2a** Core and CLI: a `tasks_repo` config key, either a remote
+    URL cloned into `~/.tskmngr/remote_task_dir` or a local folder that's
+    already a git repository, used as the tasks directory; while it's set,
+    `tasks_dir` and `TSKMNGR_DIR` aren't used, and `tskmngr config` notes
+    whether it's local or remote; a fine-grained access token read from the
     `TSKMNGR_GIT_TOKEN` env var and handed to git per command, never written
-    to `.git/config`, the remote URL or any output; sync in the CLI commands
-    and `tskmngr sync`; a failed or offline sync is reported and catches up
-    on the next one, and a pull conflict is reported, never resolved by
-    overwriting a task · `feature/git_sync_core`
+    to `.git/config`, the remote URL or any output; `add`, `edit`, `done` and
+    `delete` pull, commit and push, `list` pulls, and `tskmngr sync` pulls
+    and pushes (an error while `tasks_repo` isn't set); a failed or offline
+    sync is a warning and catches up on the next one, and a pull conflict is
+    reported, never resolved by overwriting a task; document it in the
+    README and move it in `AGENTS.md` from planned to the config file and
+    storage sections · `feature/git_sync_core`
   - [ ] **M7.2b** TUI: pull at start, commit and push after each change, a
     sync key, and sync errors and conflicts shown to the user ·
     `feature/git_sync_tui` · depends on M7.2a
+
+### M10 · Documentation fixes
+
+Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
+
+- [ ] **M10.1** `AGENTS.md`'s `config get` line: `trash_columns` is printed as
+  JSON too, as the code and README already do · `docs/config_get_trash_columns`
+- [ ] **M10.2** M8.3 still gives the old default for `trash_columns`
+  (`["title", "deleted", "id"]`); note on it that M9.3 changed it, the way
+  M0.1 notes #45 · `docs/roadmap_trash_default`

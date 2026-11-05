@@ -224,6 +224,63 @@ Textual's keymap. All are optional.
   names the key of the first problem and exits 1, and never rewrites the
   file.
 
+## Synced tasks (planned)
+
+Agreed with the maintainer for roadmap step M7.2 and **not built yet**; until
+M7.2a lands, the sections above describe the app as it is. The tasks
+directory can be a git repository, synced through the `git` CLI
+(`subprocess`, no new dependency). The config key `tasks_repo` turns it on;
+without it, nothing is synced.
+
+- A remote URL (`scheme://…`, e.g. `https://github.com/me/tasks.git`, or
+  `user@host:path`) is cloned into `~/.tskmngr/remote_task_dir`, which is then
+  the tasks directory. If that folder doesn't exist, it's cloned on the first
+  sync. If it exists but isn't a git repository, or its `origin` is another
+  URL, the command stops with an error naming the folder and nothing in it is
+  changed.
+- Anything else is a local path (a relative one is read from the config
+  file's folder) to a folder that's already a git repository, used as the
+  tasks directory. It's pulled from and pushed to its upstream branch; without
+  one, changes are only committed. A folder that isn't a git repository stops
+  the command with an error; tskmngr never runs `git init`.
+- While `tasks_repo` is set, `tasks_dir` and `TSKMNGR_DIR` aren't used. Tasks
+  in another tasks directory aren't moved; the user copies them into the
+  repository.
+- `tasks_repo` must be a string, like other keys' types; beyond that it isn't
+  checked when the config is loaded. `tskmngr config` notes whether it's a
+  remote URL or a local path, and for a remote URL the clone's folder. The
+  default config file leaves it out.
+
+Which CLI commands sync:
+
+| Command | Sync |
+| ------- | ---- |
+| `add`, `edit`, `done`, `delete` | Pull, then change the task files, commit and push |
+| `list` | Pull, then list |
+| `sync` | Pull, then push commits not pushed yet; an error while `tasks_repo` isn't set |
+| `show`, `config` | None |
+
+The TUI's sync (pull at start, commit and push after each change, a sync key)
+is planned separately in M7.2b.
+
+- Every change is one commit, including the move into `.trash/` on delete and
+  both files when `done` creates a recurring task's next occurrence. The
+  message names the command, the task's ID and its title, e.g.
+  `tskmngr: add 01JB3K7Q2X Buy milk`.
+- Pulls use `git pull --rebase`. A conflict (the same task changed on two
+  machines) aborts the rebase and is reported with the task's ID; it's never
+  resolved by overwriting a task. The local commits stay until the user
+  resolves it by hand.
+- A failed or offline pull or push is a warning on stderr: the command still
+  works on the local files, and commits that weren't pushed go out with the
+  next push. Git runs with `GIT_TERMINAL_PROMPT=0`, so it never waits for a
+  password.
+- The access token (a fine-grained one) is read from `TSKMNGR_GIT_TOKEN` and
+  given to git on each command through a one-off credential helper that reads
+  the variable by name, so the token never appears in a command line,
+  `.git/config`, the remote URL or any output. Without the variable, git uses
+  its own credentials (SSH keys, a credential manager).
+
 ## Working conventions
 
 ### Tests with every change
