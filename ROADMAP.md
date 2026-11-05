@@ -292,3 +292,38 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   (`["title", "deleted", "id"]`); note on it that M9.3 changed it, the way
   M0.1 notes #45 · `docs/roadmap_trash_default` ·
   [#70](https://github.com/Kevin-Brockers/tskmngr/pull/70)
+
+### M11 · Tag suggestions
+
+Goal: the TUI helps reuse existing tags instead of creating near-duplicates.
+
+- [ ] **M11.1** Suggest existing tags in the TUI form's Tags field, for new
+  and edited tasks alike: while a tag is being typed, the rest of the first
+  existing tag (alphabetically, from the loaded tasks) that starts with it is
+  shown greyed out and → accepts it, through Textual's `Suggester` (no new
+  dependency); document it in the README · `feature/tui_tag_suggestions`
+
+### M12 · Tasks repository layout and setup
+
+Goal: a tasks repository has a fixed layout, `AGENTS.md` at its root and the
+tasks in `tasks/`, and `tskmngr remote init` sets up a new one.
+
+- [ ] **M12.1** Repository layout: while `tasks_repo` is set, the tasks
+  directory is the repository's `tasks/` folder (deleted tasks in
+  `tasks/.trash/`), for remote URLs and local folders alike; a repository
+  without `tasks/` stops every command but `config` with an error saying to
+  move the task files and `.trash/` into `tasks/`, and nothing is moved;
+  document it in the README and update `AGENTS.md` ("Synced tasks") to match
+  · `feature/tasks_repo_layout`
+- [ ] **M12.2** `tskmngr remote init URL` sets up an existing, empty remote
+  repository: clones it into `~/.tskmngr/remote_task_dir`, adds `AGENTS.md`
+  and `tasks/.trash/.gitkeep` (git doesn't keep empty folders), commits and
+  pushes them, then writes `tasks_repo` into the config file with `json`
+  (keys and values kept, whitespace rewritten); it stops, changing nothing,
+  if the clone folder exists, the repository isn't empty or the config
+  already has another `tasks_repo`. The repository's `AGENTS.md` comes from a
+  template shipped with tskmngr, is written only by this command and never
+  rewritten, and describes the task file format (frontmatter fields, the
+  filename as ID, `.trash/`, subtasks, `repeat`) and that agents don't delete
+  task files. Document it in the README and update `AGENTS.md` (the config
+  file is no longer only read) · `feature/remote_init` · depends on M12.1

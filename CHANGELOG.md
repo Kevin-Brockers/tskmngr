@@ -215,6 +215,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   set), and with a commit and push after each change made in it. A failed
   sync is a warning and a conflict an error notification; `y` also confirms
   when it worked
+- [#71](https://github.com/Kevin-Brockers/tskmngr/pull/71) - Roadmap milestones M11 and M12: existing tags suggested in the TUI
+  form's Tags field, a fixed tasks repository layout (`AGENTS.md` at the root,
+  the tasks in `tasks/`) and `tskmngr remote init` to set up an empty remote
+  repository
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
