@@ -302,7 +302,7 @@ Goal: the TUI helps reuse existing tags instead of creating near-duplicates.
   existing tag (alphabetically, from the loaded tasks) that starts with it is
   shown greyed out and → accepts it, through Textual's `Suggester` (no new
   dependency); document it in the README · `feature/tui_tag_suggestions` ·
-  #TBD
+  [#74](https://github.com/Kevin-Brockers/tskmngr/pull/74)
 
 ### M12 · Tasks repository layout and setup
 
