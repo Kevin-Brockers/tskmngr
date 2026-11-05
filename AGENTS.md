@@ -126,7 +126,7 @@ updated: 2026-10-28T09:15:00Z
 Notes go here, in **Markdown**.
 ```
 
-- Files live in a tasks directory: the clone or folder of the config file's
+- Files live in a tasks directory: the `tasks/` folder of the config file's
   `tasks_repo` (see "Synced tasks"), else its `tasks_dir`, else
   `TSKMNGR_DIR`, else `~/.local/share/tskmngr/tasks/`.
 - A task's ID is its filename without `.md`; the frontmatter has no `id` key.
@@ -236,24 +236,29 @@ Textual's keymap. All are optional.
 The tasks directory can be a git repository, synced through the `git` CLI
 (`subprocess`, no new dependency; `gitsync.py`). The config key `tasks_repo`
 turns it on; without it, nothing is synced. Every command but `config` (the
-TUI included) first clones or checks the repository, and stops with an error
-if it can't be used.
+TUI included) first clones or checks the repository and its `tasks/` folder,
+and stops with an error if it can't be used.
 
 - A remote URL (`scheme://…`, e.g. `https://github.com/me/tasks.git`, or
-  `user@host:path`) is cloned into `~/.tskmngr/remote_task_dir`, which is then
-  the tasks directory. If that folder doesn't exist, it's cloned the first
+  `user@host:path`) is cloned into `~/.tskmngr/remote_task_dir`. If that
+  folder doesn't exist, it's cloned the first
   time the tasks are needed, into a temp folder next to it that's renamed
   into place, so a failed clone leaves nothing behind. If it exists but isn't a git repository, or its `origin` is another
   URL, the command stops with an error naming the folder and nothing in it is
   changed.
 - Anything else is a local path (a relative one is read from the config
-  file's folder) to a folder that's already a git repository, used as the
-  tasks directory. It's pulled from and pushed to its upstream branch; without
-  one, changes are only committed. A folder that isn't a git repository stops
-  the command with an error; tskmngr never runs `git init`.
+  file's folder) to a folder that's already a git repository. It's pulled
+  from and pushed to its upstream branch; without one, changes are only
+  committed. A folder that isn't a git repository stops the command with an
+  error; tskmngr never runs `git init`.
+- Either way the tasks directory is the repository's `tasks/` folder, with
+  the deleted tasks in `tasks/.trash/`; git runs at the repository's root, so
+  files there (like an `AGENTS.md`) are synced but aren't tasks. A repository
+  without `tasks/` stops every command but `config` with an error saying to
+  move the task files and `.trash/` into it; nothing is created or moved.
 - While `tasks_repo` is set, `tasks_dir` and `TSKMNGR_DIR` aren't used. Tasks
   in another tasks directory aren't moved; the user copies them into the
-  repository.
+  repository's `tasks/` folder.
 - `tasks_repo` must be a string, like other keys' types; beyond that it isn't
   checked when the config is loaded. `tskmngr config` notes whether it's a
   remote URL or a local folder, and for a remote URL the clone's folder. The

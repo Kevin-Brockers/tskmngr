@@ -90,7 +90,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     `config edit` runs with a config file that can't be used, to fix it.
 
     While the config sets `tasks_repo`, every command but `config` first
-    clones or checks the repository (stopping with 1 if it can't be used),
+    clones or checks the repository and its `tasks/` folder, the tasks
+    directory (stopping with 1 if it can't be used),
     and the commands that change tasks, and `list`, sync with it; a failed
     sync is a warning on stderr.
     """
@@ -150,6 +151,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _open_repo(repo: gitsync.TasksRepo) -> None:
     if gitsync.open_repo(repo):
         print(f"tskmngr: cloned {repo.location} into {repo.directory}", file=sys.stderr)
+    gitsync.check_layout(repo)
 
 
 def _sync_before(args: argparse.Namespace) -> None:
@@ -368,9 +370,9 @@ def _parser() -> argparse.ArgumentParser:
         "sync",
         help="sync the tasks with tasks_repo",
         description=(
-            "Commit any changes in the tasks directory, pull from the git "
-            "repository the config file's tasks_repo names, then push the "
-            "commits not pushed yet."
+            "Commit any changes in the git repository the config file's "
+            "tasks_repo names, pull from it, then push the commits not pushed "
+            "yet."
         ),
     )
     sync.set_defaults(handler=_sync, parser=sync)

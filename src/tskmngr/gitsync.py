@@ -2,18 +2,21 @@
 
 The config's `tasks_repo` names the repository (see `parse_tasks_repo`):
 
-- a remote URL, cloned into `~/.tskmngr/remote_task_dir` (`REMOTE_DIR`),
-  which is then the tasks directory, or
-- a local folder that's already a git repository, used as the tasks
-  directory; it's pulled from and pushed to its upstream branch, if it has
-  one.
+- a remote URL, cloned into `~/.tskmngr/remote_task_dir` (`REMOTE_DIR`), or
+- a local folder that's already a git repository; it's pulled from and pushed
+  to its upstream branch, if it has one.
 
-`open_repo` clones or checks the folder; `RepoError` means it can't be used
-at all. `commit_all`, `pull` and `push` raise `SyncError` when git fails (no
-network, no access, no git identity), and `pull` raises `PullConflict` when
-the same task changed on both sides; the caller reports these as warnings,
-since the files on disk are still fine. Nothing here overwrites a task: a
-conflicting rebase is aborted, and uncommitted changes are never stashed.
+Either way the tasks directory is the repository's `tasks/` folder (`TASKS`),
+with the deleted tasks in `tasks/.trash/`; other files at the root, like an
+`AGENTS.md`, are synced but aren't tasks.
+
+`open_repo` clones or checks the folder and `check_layout` checks that it has
+`tasks/`; `RepoError` means it can't be used at all. `commit_all`, `pull` and
+`push` raise `SyncError` when git fails (no network, no access, no git
+identity), and `pull` raises `PullConflict` when the same task changed on both
+sides; the caller reports these as warnings, since the files on disk are
+still fine. Nothing here overwrites a task: a conflicting rebase is aborted,
+and uncommitted changes are never stashed.
 
 The access token comes from `TSKMNGR_GIT_TOKEN` (`TOKEN_VAR`) and reaches git
 through a credential helper that reads the variable by name, so the token is
@@ -34,6 +37,8 @@ from tskmngr.storage import SUFFIX, TRASH, parse_trash_name
 TOKEN_VAR = "TSKMNGR_GIT_TOKEN"
 # Where a remote `tasks_repo` is cloned, under the home folder.
 REMOTE_DIR = Path(".tskmngr", "remote_task_dir")
+# The folder in the repository that holds the tasks: the tasks directory.
+TASKS = "tasks"
 # Seconds a git command that talks to the remote may run before it's stopped
 # and counts as failed, so tskmngr doesn't hang on a network that doesn't
 # answer.
@@ -61,8 +66,13 @@ class TasksRepo:
     location: str
     # Whether `location` is a remote URL (cloned) or a local folder.
     remote: bool
-    # The tasks directory: the clone's folder, or the local folder.
+    # The repository's folder, where git runs: the clone's, or the local one.
     directory: Path
+
+    @property
+    def tasks_directory(self) -> Path:
+        """The tasks directory: the repository's `tasks/` folder."""
+        return self.directory / TASKS
 
 
 class RepoError(Exception):
@@ -136,8 +146,23 @@ def open_repo(repo: TasksRepo) -> bool:
     return False
 
 
+def check_layout(repo: TasksRepo) -> None:
+    """Make sure the repository has its `tasks/` folder, the tasks directory.
+
+    Raises `RepoError` if it doesn't, saying to move the task files there.
+    Nothing is created or moved.
+    """
+    tasks = repo.tasks_directory
+    if not tasks.is_dir():
+        raise RepoError(
+            f"{repo.directory} has no {TASKS} folder for the tasks; create "
+            f"{tasks} and move any task files and {TRASH}/ in the repository "
+            "into it"
+        )
+
+
 def has_changes(repo: TasksRepo) -> bool:
-    """Whether the tasks directory has changes that aren't committed."""
+    """Whether the repository has changes that aren't committed."""
     result = _git(repo.directory, "status", "--porcelain", "--untracked-files=all")
     if result.returncode != 0:
         raise SyncError(f"can't read the state of {repo.directory}: {_why(result)}")
@@ -145,7 +170,7 @@ def has_changes(repo: TasksRepo) -> bool:
 
 
 def commit_all(repo: TasksRepo, message: str) -> bool:
-    """Commit every change in the tasks directory; returns whether it committed.
+    """Commit every change in the repository; returns whether it committed.
 
     Nothing to commit isn't an error. Raises `SyncError` if git can't commit,
     e.g. without a `user.name` and `user.email`.
@@ -283,12 +308,15 @@ def _rebase(directory: Path, upstream: str) -> None:
 
 
 def _task_name(path: str) -> str:
-    """The task ID a changed file belongs to, or the path if it's no task file."""
+    """The task ID a changed file belongs to, or the path if it's no task file.
+
+    `path` is relative to the repository's root, as git prints it.
+    """
     parts = PurePosixPath(path).parts
     name = parts[-1]
-    if len(parts) == 1 and name.endswith(SUFFIX):
+    if len(parts) == 2 and parts[0] == TASKS and name.endswith(SUFFIX):
         return name.removesuffix(SUFFIX)
-    if len(parts) == 2 and parts[0] == TRASH:
+    if len(parts) == 3 and parts[:2] == (TASKS, TRASH):
         trashed = parse_trash_name(name)
         if trashed is not None:
             return trashed[0]

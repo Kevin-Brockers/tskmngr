@@ -27,9 +27,12 @@ def make_task(task_id: str, title: str, **fields: object) -> Task:
 
 
 @pytest.fixture
-def clone(tmp_path: Path, remote: Path) -> TasksRepo:
-    """`remote` cloned, the way the CLI does before it starts the TUI."""
-    repo = TasksRepo(remote.as_uri(), True, tmp_path / "clone")
+def clone(tmp_path: Path, laid_out: Path) -> TasksRepo:
+    """`remote` cloned, the way the CLI does before it starts the TUI.
+
+    The remote has the `tasks/` folder (see `laid_out`), the tasks directory.
+    """
+    repo = TasksRepo(laid_out.as_uri(), True, tmp_path / "clone")
     open_repo(repo)
     return repo
 
@@ -42,7 +45,7 @@ def elsewhere(tmp_path: Path, remote: Path, git: Git, *tasks: Task) -> Path:
     if not tasks:
         return other
     for task in tasks:
-        save_task(other, task, None)
+        save_task(other / "tasks", task, None)
     git(other, "add", "--all")
     git(other, "commit", "--quiet", "-m", "elsewhere")
     git(other, "push", "--quiet", "origin", "HEAD:main")
@@ -79,7 +82,9 @@ async def settle(app: TskmngrApp, pilot: Pilot) -> None:
 
 
 def log(git: Git, directory: Path) -> list[str]:
-    return git(directory, "log", "--format=%s").splitlines()
+    """The commit messages, newest first, without `laid_out`'s setup commit."""
+    messages = git(directory, "log", "--format=%s").splitlines()
+    return messages[:-1] if messages[-1:] == ["setup"] else messages
 
 
 def titles(app: TskmngrApp) -> list[str]:
@@ -93,7 +98,7 @@ async def test_the_app_syncs_in_full_when_it_starts(
     tmp_path: Path, remote: Path, clone: TasksRepo, git: Git
 ) -> None:
     elsewhere(tmp_path, remote, git, make_task("AAAA", "From elsewhere"))
-    save_task(clone.directory, make_task("BBBB", "Left over"), None)
+    save_task(clone.tasks_directory, make_task("BBBB", "Left over"), None)
 
     app = synced_app(clone)
     notes = record_notifications(app)
@@ -110,7 +115,7 @@ async def test_the_app_syncs_in_full_when_it_starts(
 async def test_status_changes_are_committed_and_pushed(
     remote: Path, clone: TasksRepo, git: Git
 ) -> None:
-    save_task(clone.directory, make_task("AAAA", "Buy milk"), None)
+    save_task(clone.tasks_directory, make_task("AAAA", "Buy milk"), None)
 
     app = synced_app(clone)
     async with app.run_test() as pilot:
@@ -140,7 +145,7 @@ async def test_a_new_task_from_the_form_is_committed_as_added(
         await pilot.press("ctrl+s")
         await settle(app, pilot)
 
-    [source] = load_tasks(clone.directory).tasks
+    [source] = load_tasks(clone.tasks_directory).tasks
     assert log(git, remote) == [f"tskmngr: add {source.task.id} Buy milk"]
 
 
@@ -148,7 +153,7 @@ async def test_a_new_task_from_the_form_is_committed_as_added(
 async def test_an_edit_in_the_form_is_committed(
     remote: Path, clone: TasksRepo, git: Git
 ) -> None:
-    save_task(clone.directory, make_task("AAAA", "Buy milk"), None)
+    save_task(clone.tasks_directory, make_task("AAAA", "Buy milk"), None)
 
     app = synced_app(clone)
     async with app.run_test() as pilot:
@@ -162,7 +167,7 @@ async def test_an_edit_in_the_form_is_committed(
 
 @pytest.mark.asyncio
 async def test_a_delete_is_committed(remote: Path, clone: TasksRepo, git: Git) -> None:
-    save_task(clone.directory, make_task("AAAA", "Buy milk"), None)
+    save_task(clone.tasks_directory, make_task("AAAA", "Buy milk"), None)
 
     app = synced_app(clone)
     async with app.run_test() as pilot:
@@ -171,14 +176,16 @@ async def test_a_delete_is_committed(remote: Path, clone: TasksRepo, git: Git) -
         await settle(app, pilot)
 
     assert log(git, remote)[0] == "tskmngr: delete AAAA Buy milk"
-    assert git(remote, "ls-tree", "--name-only", "HEAD") == ".trash"
+    assert git(remote, "ls-tree", "--name-only", "HEAD:tasks") == ".gitkeep\n.trash"
 
 
 @pytest.mark.asyncio
 async def test_checking_the_last_subtask_is_committed_as_done(
     remote: Path, clone: TasksRepo, git: Git
 ) -> None:
-    save_task(clone.directory, make_task("AAAA", "Trip", notes="- [ ] Pack\n"), None)
+    save_task(
+        clone.tasks_directory, make_task("AAAA", "Trip", notes="- [ ] Pack\n"), None
+    )
 
     app = synced_app(clone)
     async with app.run_test() as pilot:
@@ -195,7 +202,7 @@ async def test_checking_the_last_subtask_is_committed_as_done(
 async def test_an_edit_in_the_editor_is_committed(
     remote: Path, clone: TasksRepo, git: Git, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    save_task(clone.directory, make_task("AAAA", "Buy milk"), None)
+    save_task(clone.tasks_directory, make_task("AAAA", "Buy milk"), None)
 
     def run_editor(command: list[str], path: Path) -> int:
         text = path.read_text(encoding="utf-8")
@@ -268,7 +275,7 @@ async def test_the_sync_key_is_shown_with_tasks_repo(clone: TasksRepo) -> None:
 async def test_a_failed_push_is_a_warning_and_catches_up(
     tmp_path: Path, remote: Path, clone: TasksRepo, git: Git
 ) -> None:
-    save_task(clone.directory, make_task("AAAA", "Buy milk"), None)
+    save_task(clone.tasks_directory, make_task("AAAA", "Buy milk"), None)
 
     app = synced_app(clone)
     notes = record_notifications(app)
@@ -294,19 +301,21 @@ async def test_a_failed_push_is_a_warning_and_catches_up(
 async def test_a_conflict_is_shown_and_overwrites_nothing(
     tmp_path: Path, remote: Path, clone: TasksRepo, git: Git
 ) -> None:
-    save_task(clone.directory, make_task("AAAA", "Buy milk"), None)
+    save_task(clone.tasks_directory, make_task("AAAA", "Buy milk"), None)
     app = synced_app(clone)
     async with app.run_test() as pilot:
         await settle(app, pilot)
     other = elsewhere(tmp_path, remote, git)
     git(other, "pull", "--quiet")
-    (other / "AAAA.md").write_text(
-        (other / "AAAA.md").read_text(encoding="utf-8").replace("milk", "oat milk"),
+    (other / "tasks" / "AAAA.md").write_text(
+        (other / "tasks" / "AAAA.md")
+        .read_text(encoding="utf-8")
+        .replace("milk", "oat milk"),
         encoding="utf-8",
     )
     git(other, "commit", "--quiet", "-am", "there")
     git(other, "push", "--quiet", "origin", "HEAD:main")
-    path = clone.directory / "AAAA.md"
+    path = clone.tasks_directory / "AAAA.md"
     path.write_text(path.read_text(encoding="utf-8").replace("milk", "soy milk"))
 
     app = synced_app(clone)
@@ -325,9 +334,9 @@ async def test_a_conflict_is_shown_and_overwrites_nothing(
 async def test_a_local_repository_without_upstream_only_commits(
     tmp_path: Path, git: Git
 ) -> None:
-    git(tmp_path, "init", "--quiet", "tasks")
-    repo = TasksRepo(str(tmp_path / "tasks"), False, tmp_path / "tasks")
-    save_task(repo.directory, make_task("AAAA", "Buy milk"), None)
+    git(tmp_path, "init", "--quiet", "repo")
+    repo = TasksRepo(str(tmp_path / "repo"), False, tmp_path / "repo")
+    save_task(repo.tasks_directory, make_task("AAAA", "Buy milk"), None)
 
     app = synced_app(repo)
     notes = record_notifications(app)

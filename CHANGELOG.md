@@ -279,6 +279,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   settings printed as JSON, as the code and README already do
 - [#70](https://github.com/Kevin-Brockers/tskmngr/pull/70) - Roadmap step M8.3 notes that M9.3 changed the default
   `trash_columns` to `["title", "tags", "deleted", "id"]`
+- [#75](https://github.com/Kevin-Brockers/tskmngr/pull/75) - While `tasks_repo` is set, the tasks are in the repository's `tasks/`
+  folder, the deleted ones in `tasks/.trash/`, instead of at its root. A
+  repository without `tasks/` stops every command but `config` with an error
+  saying to move the task files there; tskmngr doesn't move them
 
 ### Removed
 

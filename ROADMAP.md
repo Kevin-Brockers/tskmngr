@@ -309,13 +309,14 @@ Goal: the TUI helps reuse existing tags instead of creating near-duplicates.
 Goal: a tasks repository has a fixed layout, `AGENTS.md` at its root and the
 tasks in `tasks/`, and `tskmngr remote init` sets up a new one.
 
-- [ ] **M12.1** Repository layout: while `tasks_repo` is set, the tasks
+- [x] **M12.1** Repository layout: while `tasks_repo` is set, the tasks
   directory is the repository's `tasks/` folder (deleted tasks in
   `tasks/.trash/`), for remote URLs and local folders alike; a repository
   without `tasks/` stops every command but `config` with an error saying to
   move the task files and `.trash/` into `tasks/`, and nothing is moved;
   document it in the README and update `AGENTS.md` ("Synced tasks") to match
-  · `feature/tasks_repo_layout`
+  · `feature/tasks_repo_layout` ·
+  [#75](https://github.com/Kevin-Brockers/tskmngr/pull/75)
 - [ ] **M12.2** `tskmngr remote init URL` sets up an existing, empty remote
   repository: clones it into `~/.tskmngr/remote_task_dir`, adds `AGENTS.md`
   and `tasks/.trash/.gitkeep` (git doesn't keep empty folders), commits and
