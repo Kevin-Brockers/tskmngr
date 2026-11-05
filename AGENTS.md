@@ -96,6 +96,8 @@ src/tskmngr/
   storage.py    # read/write task files in the tasks directory
   subtasks.py   # find and toggle the checklist items in a task's notes
   taskfile.py   # convert tasks to and from Markdown with frontmatter (no I/O)
+  tasks_repo_agents.md  # the AGENTS.md `tskmngr remote init` puts in a
+                #   tasks repository
   widgets/      # Textual widgets and screens
 tests/          # mirrors src/ layout; test_<module>.py
 ```
@@ -191,8 +193,10 @@ Textual's keymap. All are optional.
   `["id", "status", "priority", "due", "title", "tags"]`, `trash_columns`
   `["title", "tags", "deleted", "id"]`, `show_trash` true,
   `keybindings` `{}`). The write is atomic and never
-  overwrites an existing file; otherwise the app only reads the file. If it
-  can't be written, the CLI and the TUI stop with an error naming the file.
+  overwrites an existing file; otherwise the app only reads the file, except
+  `tskmngr remote init` (see "Synced tasks"), which sets `tasks_repo` in it:
+  every other key and value is kept in its order, and the file is rewritten
+  atomically as indented JSON, so its spacing changes. If it can't be written, the CLI and the TUI stop with an error naming the file.
   `--help` and usage errors exit before this, so they don't write the file
   (or print the warning below).
 - `tasks_repo` comes first for the tasks directory (see "Synced tasks"), then
@@ -235,9 +239,9 @@ Textual's keymap. All are optional.
 
 The tasks directory can be a git repository, synced through the `git` CLI
 (`subprocess`, no new dependency; `gitsync.py`). The config key `tasks_repo`
-turns it on; without it, nothing is synced. Every command but `config` (the
-TUI included) first clones or checks the repository and its `tasks/` folder,
-and stops with an error if it can't be used.
+turns it on; without it, nothing is synced. Every command but `config` and
+`remote init` (the TUI included) first clones or checks the repository and
+its `tasks/` folder, and stops with an error if it can't be used.
 
 - A remote URL (`scheme://…`, e.g. `https://github.com/me/tasks.git`, or
   `user@host:path`) is cloned into `~/.tskmngr/remote_task_dir`. If that
@@ -259,6 +263,15 @@ and stops with an error if it can't be used.
 - While `tasks_repo` is set, `tasks_dir` and `TSKMNGR_DIR` aren't used. Tasks
   in another tasks directory aren't moved; the user copies them into the
   repository's `tasks/` folder.
+- `tskmngr remote init URL` sets up an existing, empty remote repository: it
+  clones it into a temp folder next to `~/.tskmngr/remote_task_dir`, adds
+  `AGENTS.md` (from `tasks_repo_agents.md`) and `tasks/.trash/.gitkeep`,
+  commits them as `tskmngr: remote init`, pushes, renames the clone into
+  place and sets `tasks_repo` to the URL. It stops, changing nothing, if that
+  folder exists, the repository has any branch or tag, `tasks_repo` is
+  already another URL, or the clone, commit or push fails. Only it writes the
+  repository's `AGENTS.md`; it's never rewritten. A local path is a usage
+  error.
 - `tasks_repo` must be a string, like other keys' types; beyond that it isn't
   checked when the config is loaded. `tskmngr config` notes whether it's a
   remote URL or a local folder, and for a remote URL the clone's folder. The
@@ -271,6 +284,7 @@ Which CLI commands sync:
 | `add`, `edit`, `done`, `delete` | Pull, then change the task files, commit and push |
 | `list` | Pull, then list |
 | `sync` | Commit any changes, pull, then push commits not pushed yet; an error while `tasks_repo` isn't set |
+| `remote init` | Clone, then commit and push the setup |
 | `show`, `config` | None |
 
 The TUI syncs in the background (a thread in `widgets/syncing.py`, one job
