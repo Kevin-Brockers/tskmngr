@@ -315,7 +315,8 @@ tasks in `tasks/`, and `tskmngr remote init` sets up a new one.
   without `tasks/` stops every command but `config` with an error saying to
   move the task files and `.trash/` into `tasks/`, and nothing is moved;
   document it in the README and update `AGENTS.md` ("Synced tasks") to match
-  · `feature/tasks_repo_layout` · #TBD
+  · `feature/tasks_repo_layout` ·
+  [#75](https://github.com/Kevin-Brockers/tskmngr/pull/75)
 - [ ] **M12.2** `tskmngr remote init URL` sets up an existing, empty remote
   repository: clones it into `~/.tskmngr/remote_task_dir`, adds `AGENTS.md`
   and `tasks/.trash/.gitkeep` (git doesn't keep empty folders), commits and
