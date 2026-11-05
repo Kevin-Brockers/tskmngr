@@ -205,7 +205,9 @@ moving its file back by hand.
   like `columns`, default `["title", "deleted", "id"]`; and `show_trash`,
   whether the view starts shown, default `true`; both in the default config
   file; document them and the view in the README and update `AGENTS.md` to
-  match · `feature/trash_view_config` · [#56](https://github.com/Kevin-Brockers/tskmngr/pull/56)
+  match · `feature/trash_view_config` · [#56](https://github.com/Kevin-Brockers/tskmngr/pull/56).
+  Changed in [#61](https://github.com/Kevin-Brockers/tskmngr/pull/61) (M9.3):
+  the default `trash_columns` is `["title", "tags", "deleted", "id"]`
 
 ### M9 · Filtering and task list columns
 
@@ -286,6 +288,6 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
 - [x] **M10.1** `AGENTS.md`'s `config get` line: `trash_columns` is printed as
   JSON too, as the code and README already do · `docs/config_get_trash_columns` ·
   [#67](https://github.com/Kevin-Brockers/tskmngr/pull/67)
-- [ ] **M10.2** M8.3 still gives the old default for `trash_columns`
+- [x] **M10.2** M8.3 still gives the old default for `trash_columns`
   (`["title", "deleted", "id"]`); note on it that M9.3 changed it, the way
-  M0.1 notes #45 · `docs/roadmap_trash_default`
+  M0.1 notes #45 · `docs/roadmap_trash_default` · #TBD
