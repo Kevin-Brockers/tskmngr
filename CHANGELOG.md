@@ -215,7 +215,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   set), and with a commit and push after each change made in it. A failed
   sync is a warning and a conflict an error notification; `y` also confirms
   when it worked
-- #TBD - Roadmap milestones M11 and M12: existing tags suggested in the TUI
+- [#71](https://github.com/Kevin-Brockers/tskmngr/pull/71) - Roadmap milestones M11 and M12: existing tags suggested in the TUI
   form's Tags field, a fixed tasks repository layout (`AGENTS.md` at the root,
   the tasks in `tasks/`) and `tskmngr remote init` to set up an empty remote
   repository
