@@ -210,7 +210,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   overwriting a task, and an HTTPS token comes from `TSKMNGR_GIT_TOKEN`
   without being stored. `tskmngr config` notes whether `tasks_repo` is remote
   or local
-- #TBD - The TUI syncs with `tasks_repo` too, in the background: in full when
+- [#65](https://github.com/Kevin-Brockers/tskmngr/pull/65) - The TUI syncs with `tasks_repo` too, in the background: in full when
   it starts and on `y` (`task_list.sync`, shown only while `tasks_repo` is
   set), and with a commit and push after each change made in it. A failed
   sync is a warning and a conflict an error notification; `y` also confirms

@@ -261,7 +261,7 @@ synced must be agreed with the maintainer before starting M7.2, and
   described in `AGENTS.md` ("Synced tasks"): pull before changing or listing
   tasks, commit and push after every change, and `tskmngr sync` to sync by
   hand · `feature/git_sync` · depends on M6.1 ·
-  [#64](https://github.com/Kevin-Brockers/tskmngr/pull/64), #TBD. Split into:
+  [#64](https://github.com/Kevin-Brockers/tskmngr/pull/64), [#65](https://github.com/Kevin-Brockers/tskmngr/pull/65). Split into:
   - [x] **M7.2a** Core and CLI: a `tasks_repo` config key, either a remote
     URL cloned into `~/.tskmngr/remote_task_dir` or a local folder that's
     already a git repository, used as the tasks directory; while it's set,
@@ -277,7 +277,7 @@ synced must be agreed with the maintainer before starting M7.2, and
     storage sections · `feature/git_sync_core` · [#64](https://github.com/Kevin-Brockers/tskmngr/pull/64)
   - [x] **M7.2b** TUI: pull at start, commit and push after each change, a
     sync key, and sync errors and conflicts shown to the user ·
-    `feature/git_sync_tui` · depends on M7.2a · #TBD
+    `feature/git_sync_tui` · depends on M7.2a · [#65](https://github.com/Kevin-Brockers/tskmngr/pull/65)
 
 ### M10 · Documentation fixes
 
