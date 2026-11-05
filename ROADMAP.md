@@ -297,11 +297,12 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
 
 Goal: the TUI helps reuse existing tags instead of creating near-duplicates.
 
-- [ ] **M11.1** Suggest existing tags in the TUI form's Tags field, for new
+- [x] **M11.1** Suggest existing tags in the TUI form's Tags field, for new
   and edited tasks alike: while a tag is being typed, the rest of the first
   existing tag (alphabetically, from the loaded tasks) that starts with it is
   shown greyed out and → accepts it, through Textual's `Suggester` (no new
-  dependency); document it in the README · `feature/tui_tag_suggestions`
+  dependency); document it in the README · `feature/tui_tag_suggestions` ·
+  #TBD
 
 ### M12 · Tasks repository layout and setup
 

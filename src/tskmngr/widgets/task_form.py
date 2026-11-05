@@ -1,8 +1,9 @@
 """The task form: create a task or edit the fields of one.
 
 Title, status, priority, due date, repeat rule, tags and the notes, which are
-edited as plain text in a text area. Input is checked on save and each problem
-is shown under its field. Saving a repeating task as done (a new one, or one
+edited as plain text in a text area. While a tag is typed, the rest of an
+existing tag that starts with it is suggested, and → accepts it. Input is
+checked on save and each problem is shown under its field. Saving a repeating task as done (a new one, or one
 that wasn't done) also adds its next occurrence, see `tskmngr.recurrence`. A save that hits a conflict (the file changed or was deleted
 on disk) is shown as an error and the form closes without saving, so the
 caller reloads from disk. Cancelling a form with changes asks before
@@ -14,6 +15,7 @@ or was deleted, the conflict is shown right away, before saving runs into it.
 """
 
 import re
+from collections.abc import Iterable
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -26,6 +28,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import VerticalScroll
 from textual.screen import Screen
+from textual.suggester import Suggester
 from textual.widgets import Footer, Header, Input, Label, Select, Static, TextArea
 
 from tskmngr.models import (
@@ -69,6 +72,40 @@ def parse_tags(text: str) -> list[str]:
 def format_tags(tags: tuple[str, ...]) -> str:
     """Tags as the form shows them, for `parse_tags` to read back."""
     return ", ".join(tags)
+
+
+def suggest_tag(text: str, tags: Iterable[str]) -> str | None:
+    """`text` with the tag being typed at its end completed, or None.
+
+    The completion is the alphabetically first of `tags` that starts with the
+    last tag in `text`, ignoring case, leaving out the tags already typed
+    before it. Nothing is suggested while no tag is being typed (empty text or
+    a separator at the end) or when the first match is the typed tag itself.
+    """
+    typed = TAG_SEPARATORS.split(text)[-1]
+    if not typed:
+        return None
+    before = text[: len(text) - len(typed)]
+    entered = set(parse_tags(before))
+    start = typed.lower()
+    for tag in sorted(set(tags)):
+        if tag in entered or not tag.startswith(start):
+            continue
+        return None if tag == start else text + tag[len(typed) :]
+    return None
+
+
+class TagSuggester(Suggester):
+    """Completes the tag being typed in the Tags field from existing tags."""
+
+    def __init__(self, tags: Iterable[str]) -> None:
+        # Case-sensitive so the text as typed is kept; `suggest_tag` ignores
+        # case itself.
+        super().__init__(case_sensitive=True)
+        self.tags = tuple(tags)
+
+    async def get_suggestion(self, value: str) -> str | None:
+        return suggest_tag(value, self.tags)
 
 
 def tidy_notes(text: str, newline: str = "\n") -> str:
@@ -172,8 +209,21 @@ class TaskFormScreen(Screen[str | None]):
             self.sub_title = "New task"
         else:
             self.sub_title = f"Edit {task_path(self.directory, self.source.task.id)}"
+        self.query_one("#tags", Input).suggester = TagSuggester(self._existing_tags())
         self.query_one("#title", Input).focus()
         self._initial_values = self._field_values()
+
+    def _existing_tags(self) -> set[str]:
+        """The tags of the tasks in the directory, for the Tags field to suggest.
+
+        Read once, when the form opens. If the tasks can't be read, there's
+        nothing to suggest; saving reports the problem if it persists.
+        """
+        try:
+            result = load_tasks(self.directory)
+        except OSError:
+            return set()
+        return {tag for source in result.tasks for tag in source.task.tags}
 
     def _field_values(self) -> tuple[object, ...]:
         """What the fields hold, as shown, before any checks."""
