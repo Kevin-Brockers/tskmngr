@@ -225,8 +225,8 @@ Textual's keymap. All are optional.
   directory; while `tasks_repo` is set, the tasks directory is marked
   `(tasks_repo)` and `tasks_repo` notes whether it's remote or local.
   `config get KEY` prints one: plain text, `tasks_dir` as the full path,
-  `tasks_repo` as its URL or full path (an empty line if not set), `columns`
-  and `keybindings` as JSON. `config edit` opens the file in
+  `tasks_repo` as its URL or full path (an empty line if not set), `columns`,
+  `trash_columns` and `keybindings` as JSON. `config edit` opens the file in
   `$VISUAL`/`$EDITOR`, then runs every check above, the TUI's included. It
   names the key of the first problem and exits 1, and never rewrites the
   file.

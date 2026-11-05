@@ -268,6 +268,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `tasks_dir`; `add`, `edit`, `done` and `delete` pull, commit and push,
   `list` pulls, `tskmngr sync` syncs by hand, and the token comes from
   `TSKMNGR_GIT_TOKEN`
+- [#67](https://github.com/Kevin-Brockers/tskmngr/pull/67) - `AGENTS.md`'s `config get` line lists `trash_columns` among the
+  settings printed as JSON, as the code and README already do
 
 ### Removed
 
