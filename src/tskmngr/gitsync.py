@@ -38,6 +38,9 @@ REMOTE_DIR = Path(".tskmngr", "remote_task_dir")
 # and counts as failed, so tskmngr doesn't hang on a network that doesn't
 # answer.
 NETWORK_TIMEOUT = 60
+# The message of a commit of changes no command made, e.g. by hand, and of a
+# sync's (`tskmngr sync`, or the TUI's sync key).
+SYNC_MESSAGE = "tskmngr: sync"
 # The user name sent with the token; GitHub and most hosts ignore it.
 TOKEN_USER = "x-access-token"
 # A credential helper that answers git's `get` with the token. It reads the
@@ -77,6 +80,11 @@ class PullConflict(SyncError):
         super().__init__(message)
         # The IDs of the tasks in conflict, or a file's path if it isn't one.
         self.names = tuple(names)
+
+
+def commit_message(command: str, task_id: str, title: str | None = None) -> str:
+    """A change's commit message, e.g. `tskmngr: add 01JB3K7Q2X Buy milk`."""
+    return " ".join(["tskmngr:", command, task_id, *([title] if title else [])])
 
 
 def remote_tasks_dir() -> Path:
@@ -353,9 +361,12 @@ def _git(
     """Run git in `directory` without prompting; never raises for git's errors.
 
     A network command that takes longer than `NETWORK_TIMEOUT` seconds is
-    stopped and fails. Raises `RepoError` if git isn't installed.
+    stopped and fails, and so does any command in a folder that's gone.
+    Raises `RepoError` if git isn't installed.
     """
     command = ["git", *_token_config(), *args]
+    if not directory.is_dir():
+        return subprocess.CompletedProcess(command, 1, "", f"{directory} is gone")
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     try:
         return subprocess.run(

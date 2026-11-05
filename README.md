@@ -119,6 +119,7 @@ panel above the list.
 | `S` | Sort by the next key: due date, priority, created, updated |
 | `R` | Reverse the sort order |
 | `t` | Hide or show the deleted tasks below the list |
+| `y` | Sync with the git repository, like `tskmngr sync`; only there while `tasks_repo` is set (see [Synced tasks](#synced-tasks)) |
 
 The filter narrows the list as you type. Words are searched in titles and
 notes, `#tag` needs a tag, and `status:` and `priority:` restrict to a value;
@@ -340,14 +341,26 @@ These commands sync:
 | `sync` | Commit any changes, pull, then push the commits not pushed yet |
 | `show`, `config` | None |
 
-The TUI uses the same tasks directory, but doesn't sync yet: run `tskmngr
-sync` after using it.
+The TUI syncs too, in the background, so it never waits for the network:
+
+- When it starts, it syncs like `tskmngr sync`: commit any changes, pull, then
+  push. Tasks the pull brings in show up when it's done.
+- Each change you make in it (a new task, an edit in the form or in your
+  editor, a status, a subtask, a delete) is committed and pushed right away.
+  It doesn't pull before a change, so press `y` to bring in changes made
+  elsewhere while it runs.
+- `y` on the task list syncs by hand, like `tskmngr sync`, and says when it's
+  done. Without `tasks_repo`, the key isn't there.
+- A sync that fails, for example offline, shows a warning, and a conflict an
+  error naming the task; it never interrupts what you're doing. If you quit
+  while a sync is still running, it may not finish; whatever wasn't
+  committed or pushed goes out with the next sync.
 
 - Each change is one commit, named after the command, the task's ID and its
   title, like `tskmngr: add 01JB3K7Q2X Buy milk`; marking a recurring task
   done commits both files, and a delete commits the move into `.trash/`.
-- Changes no command committed, like a file you edited by hand or changes
-  made in the TUI, are committed as `tskmngr: sync` before the pull.
+- Changes no command committed, like a file you edited by hand, are committed
+  as `tskmngr: sync` before the pull.
 - A pull rebases your commits onto the new ones from the remote. If the same
   task was changed on both sides, the pull is undone and tskmngr names the
   task: nothing is overwritten, and you resolve it with git in the tasks

@@ -52,7 +52,7 @@ from tskmngr.display import (
     TrashColumn,
     task_cell,
 )
-from tskmngr.models import Task, next_status
+from tskmngr.models import Status, Task, next_status
 from tskmngr.query import SortKey, TaskFilter, parse_filter, sort_tasks
 from tskmngr.recurrence import RecurrenceError
 from tskmngr.storage import (
@@ -66,6 +66,7 @@ from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
 from tskmngr.widgets.external_editor import edit_in_editor
 from tskmngr.widgets.saving import notify_next, save_task_and_next
+from tskmngr.widgets.syncing import Syncer, record_change
 from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_form import TaskFormScreen
 from tskmngr.widgets.tasks_changed import TasksChanged
@@ -194,6 +195,8 @@ class TaskListScreen(Screen):
         Binding("slash", "filter", "Filter", id="task_list.filter"),
         Binding("escape", "clear_filter", "Clear", id="task_list.clear_filter"),
         Binding("t", "toggle_trash", "Deleted", id="task_list.toggle_trash"),
+        # Only shown while the config sets `tasks_repo`.
+        Binding("y", "sync", "Sync", id="task_list.sync"),
     ]
 
     # Not the first focusable widget, the filter bar, which starts hidden.
@@ -433,6 +436,9 @@ class TaskListScreen(Screen):
         if action == "clear_filter":
             # Hidden from the footer, and Escape does nothing, without a bar.
             return self.query_one("#filter-input").has_class("-shown")
+        if action == "sync":
+            # Hidden while there's no `tasks_repo` to sync with.
+            return isinstance(getattr(self.app, "syncer", None), Syncer)
         return True
 
     def _current(self) -> TaskFile | None:
@@ -517,6 +523,8 @@ class TaskListScreen(Screen):
                 "Not saved",
             )
         else:
+            command = "done" if task.status is Status.DONE else "edit"
+            record_change(self, command, task.id, task.title)
             notify_next(self, following)
         self.reload(task.id)
 
@@ -553,6 +561,7 @@ class TaskListScreen(Screen):
             )
             self.reload(task_id)
             return
+        record_change(self, "delete", task_id, source.task.title)
         self.notify(
             f"Moved {task_id} to {_display_path(self.directory, trashed)}",
             title="Deleted",
@@ -568,6 +577,14 @@ class TaskListScreen(Screen):
         task_id = source.task.id
         edit_in_editor(self.app, task_path(self.directory, task_id))
         self.reload(task_id)
+        edited = next((s for s in self.loaded if s.task.id == task_id), None)
+        record_change(self, "edit", task_id, edited.task.title if edited else None)
+
+    def action_sync(self) -> None:
+        """Sync the tasks with `tasks_repo` now: commit, pull, then push."""
+        syncer = getattr(self.app, "syncer", None)
+        if isinstance(syncer, Syncer):
+            syncer.sync(manual=True)
 
     def _notify_error(self, message: str, title: str) -> None:
         self.notify(message, title=title, severity="error", markup=False)

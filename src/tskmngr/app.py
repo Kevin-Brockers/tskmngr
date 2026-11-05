@@ -8,9 +8,11 @@ from textual.binding import Binding, BindingType
 from textual.screen import Screen
 
 from tskmngr.config import Config, ConfigError, tasks_directory
+from tskmngr.gitsync import PullConflict
 from tskmngr.storage import TRASH, FileStamp, scan_tasks_dir, scan_trash
 from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
 from tskmngr.widgets.confirm_discard import ConfirmDiscardScreen
+from tskmngr.widgets.syncing import Syncer, SyncFinished
 from tskmngr.widgets.task_detail import TaskDetailScreen
 from tskmngr.widgets.task_form import TaskFormScreen
 from tskmngr.widgets.task_list import TaskListScreen
@@ -31,6 +33,12 @@ class TskmngrApp(App):
 
     Polls the tasks directory every `poll_interval` seconds and tells the
     screens when task files were changed, added or removed on disk.
+
+    While the config sets `tasks_repo`, `syncer` syncs the tasks directory in
+    the background: in full when the app starts and when asked (the task
+    list's sync key), and with a commit and push after each change the
+    screens make (`syncing.record_change`). Problems are shown as
+    notifications; a sync asked for by hand also confirms that it worked.
     """
 
     TITLE = "tskmngr"
@@ -76,6 +84,8 @@ class TskmngrApp(App):
             self.set_keymap(dict(self.config.keybindings))
         # The task files as last seen; None if the directory couldn't be read.
         self._stamps: dict[str, FileStamp] | None = None
+        repo = self.config.tasks_repo
+        self.syncer = Syncer(repo, self) if repo is not None else None
 
     def on_mount(self) -> None:
         self._stamps = self._scan()
@@ -91,6 +101,34 @@ class TskmngrApp(App):
         )
         if self.poll_interval > 0:
             self.set_interval(self.poll_interval, self.check_tasks_dir)
+        if self.syncer is not None:
+            self.syncer.sync()
+
+    def on_sync_finished(self, message: SyncFinished) -> None:
+        """Show how a sync went, and reload the screens after a pull."""
+        if message.pulled:
+            # Also when polling is off, so pulled tasks show up.
+            self.check_tasks_dir()
+        error = message.error
+        if error is not None:
+            conflict = isinstance(error, PullConflict)
+            later = "" if conflict else " It's synced next time."
+            self.notify(
+                f"{str(error).rstrip('.')}.{later}",
+                title="Sync conflict" if conflict else "Not synced",
+                severity="error" if conflict else "warning",
+                markup=False,
+            )
+        elif message.manual and self.syncer is not None:
+            repo = self.syncer.repo
+            if message.upstream:
+                text = f"Synced with {repo.location}."
+            else:
+                text = (
+                    f"{repo.directory} has no upstream branch, so the changes are "
+                    "only committed."
+                )
+            self.notify(text, title="Synced", markup=False)
 
     def check_tasks_dir(self) -> bool:
         """Send `TasksChanged` to every screen if task files changed on disk.

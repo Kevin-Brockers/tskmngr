@@ -389,3 +389,13 @@ def test_git_errors_never_show_the_token(monkeypatch: pytest.MonkeyPatch) -> Non
     )
 
     assert gitsync._why(result) == "fatal: bad https://***@example.com"
+
+
+def test_a_tasks_directory_thats_gone_fails_the_sync(
+    tmp_path: Path, remote: Path
+) -> None:
+    repo = cloned(remote, tmp_path / "clone")
+    (tmp_path / "clone").rename(tmp_path / "moved")
+
+    with pytest.raises(SyncError, match="is gone"):
+        commit_all(repo, "add")

@@ -36,6 +36,7 @@ from tskmngr.subtasks import Subtask, parse_subtasks, toggle_subtask
 from tskmngr.taskfile import TaskFile
 from tskmngr.widgets.external_editor import edit_in_editor
 from tskmngr.widgets.saving import notify_next, save_task_and_next
+from tskmngr.widgets.syncing import record_change
 from tskmngr.widgets.task_form import TaskFormScreen
 from tskmngr.widgets.tasks_changed import TasksChanged
 
@@ -176,6 +177,8 @@ class TaskDetailScreen(Screen):
                 f"Can't save the task in {self.directory}: {error.strerror or error}"
             )
         else:
+            done = task.status is Status.DONE and old.status is not Status.DONE
+            record_change(self, "done" if done else "edit", task.id, task.title)
             if task.status is not old.status:
                 reason = (
                     "All subtasks are done"
@@ -197,6 +200,8 @@ class TaskDetailScreen(Screen):
         """Open the task's file in the user's editor, then reload it."""
         edit_in_editor(self.app, self.path)
         await self.reload()
+        task = self.source.task
+        record_change(self, "edit", task.id, task.title)
 
     async def on_tasks_changed(self, message: TasksChanged) -> None:
         """Task files changed on disk: reload the task, if it's on top.
