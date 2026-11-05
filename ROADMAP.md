@@ -285,7 +285,7 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
 
 - [x] **M10.1** `AGENTS.md`'s `config get` line: `trash_columns` is printed as
   JSON too, as the code and README already do · `docs/config_get_trash_columns` ·
-  #TBD
+  [#67](https://github.com/Kevin-Brockers/tskmngr/pull/67)
 - [ ] **M10.2** M8.3 still gives the old default for `trash_columns`
   (`["title", "deleted", "id"]`); note on it that M9.3 changed it, the way
   M0.1 notes #45 · `docs/roadmap_trash_default`
