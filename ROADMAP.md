@@ -317,7 +317,7 @@ tasks in `tasks/`, and `tskmngr remote init` sets up a new one.
   document it in the README and update `AGENTS.md` ("Synced tasks") to match
   · `feature/tasks_repo_layout` ·
   [#75](https://github.com/Kevin-Brockers/tskmngr/pull/75)
-- [ ] **M12.2** `tskmngr remote init URL` sets up an existing, empty remote
+- [x] **M12.2** `tskmngr remote init URL` sets up an existing, empty remote
   repository: clones it into `~/.tskmngr/remote_task_dir`, adds `AGENTS.md`
   and `tasks/.trash/.gitkeep` (git doesn't keep empty folders), commits and
   pushes them, then writes `tasks_repo` into the config file with `json`
@@ -328,4 +328,5 @@ tasks in `tasks/`, and `tskmngr remote init` sets up a new one.
   rewritten, and describes the task file format (frontmatter fields, the
   filename as ID, `.trash/`, subtasks, `repeat`) and that agents don't delete
   task files. Document it in the README and update `AGENTS.md` (the config
-  file is no longer only read) · `feature/remote_init` · depends on M12.1
+  file is no longer only read) · `feature/remote_init` · depends on M12.1 ·
+  [#76](https://github.com/Kevin-Brockers/tskmngr/pull/76)

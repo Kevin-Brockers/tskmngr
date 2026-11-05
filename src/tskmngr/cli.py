@@ -21,6 +21,7 @@ from tskmngr.config import (
     create_default_config,
     load_config,
     old_config_path,
+    set_tasks_repo,
     tasks_directory,
 )
 from tskmngr.display import format_next_occurrence, task_fields
@@ -377,6 +378,31 @@ def _parser() -> argparse.ArgumentParser:
     )
     sync.set_defaults(handler=_sync, parser=sync)
 
+    remote = commands.add_parser(
+        "remote",
+        help="set up a git repository for the tasks",
+        description="Set up a git repository to keep the tasks in.",
+    )
+    remote_commands = remote.add_subparsers(
+        dest="remote_command", title="commands", required=True
+    )
+    remote_init = remote_commands.add_parser(
+        "init",
+        help="set up an empty remote repository and use it as tasks_repo",
+        description=(
+            "Set up an existing, empty remote repository for tskmngr: clone it "
+            "into ~/.tskmngr/remote_task_dir, add AGENTS.md and "
+            "tasks/.trash/.gitkeep, commit and push them, then set tasks_repo "
+            "to the URL in the config file. Stops without changing anything if "
+            "that folder exists, the repository isn't empty or tasks_repo is "
+            "already another repository."
+        ),
+    )
+    remote_init.add_argument(
+        "url", type=_remote_url, metavar="URL", help="the repository's URL"
+    )
+    remote_init.set_defaults(handler=_remote_init, parser=remote_init, uses_tasks=False)
+
     config = commands.add_parser(
         "config",
         help="show or edit the config file",
@@ -593,6 +619,46 @@ def _sync(args: argparse.Namespace) -> int:
 
 def _config_show(args: argparse.Namespace) -> int:
     print("\n".join(format_config(args.config, args.config_path)))
+    return 0
+
+
+def _remote_url(value: str) -> str:
+    """A `remote init` URL; anything else is a usage error."""
+    if not gitsync.is_remote(value):
+        raise argparse.ArgumentTypeError(
+            f"{value!r} isn't a remote URL, like https://github.com/me/tasks.git "
+            "or git@github.com:me/tasks.git"
+        )
+    return value
+
+
+def _remote_init(args: argparse.Namespace) -> int:
+    """Set up an empty remote repository and make it the config's `tasks_repo`.
+
+    Stops before changing anything if `tasks_repo` is already another one, or
+    if `gitsync.init_remote` can't set it up. A config that already names
+    this URL is left as it is.
+    """
+    location = args.url
+    current = args.config.tasks_repo
+    if current is not None and current.location != location:
+        raise CommandError(
+            f"tasks_repo is already {current.location} in {args.config_path}; "
+            "remote init doesn't replace it. Nothing was changed"
+        )
+    try:
+        repo = gitsync.init_remote(location, gitsync.setup_files())
+    except RepoError as error:
+        raise CommandError(f"{error}. Nothing was changed") from error
+    print(f"Set up {location} and cloned it into {repo.directory}")
+    if current is None:
+        try:
+            set_tasks_repo(args.config_path, location)
+        except ConfigError as error:
+            raise CommandError(
+                f"config file {error}; set tasks_repo to {location} in it by hand"
+            ) from error
+        print(f"Set tasks_repo to it in {args.config_path}")
     return 0
 
 

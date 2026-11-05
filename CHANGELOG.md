@@ -222,6 +222,12 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#74](https://github.com/Kevin-Brockers/tskmngr/pull/74) - The TUI form's Tags field suggests existing tags: while a tag is
   typed, the rest of the first existing tag that starts with it is shown
   greyed out, and → accepts it
+- [#76](https://github.com/Kevin-Brockers/tskmngr/pull/76) - `tskmngr remote init URL` sets up an existing, empty remote
+  repository for the tasks: it clones it into `~/.tskmngr/remote_task_dir`,
+  adds an `AGENTS.md` describing the task files for AI agents and
+  `tasks/.trash/.gitkeep`, commits and pushes them, then sets `tasks_repo` in
+  the config file. It changes nothing if that folder exists, the repository
+  isn't empty or `tasks_repo` is already another repository
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

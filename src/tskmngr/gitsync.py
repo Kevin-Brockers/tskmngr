@@ -11,7 +11,8 @@ with the deleted tasks in `tasks/.trash/`; other files at the root, like an
 `AGENTS.md`, are synced but aren't tasks.
 
 `open_repo` clones or checks the folder and `check_layout` checks that it has
-`tasks/`; `RepoError` means it can't be used at all. `commit_all`, `pull` and
+`tasks/`; `RepoError` means it can't be used at all. `init_remote` sets up a
+new, empty remote repository in that layout. `commit_all`, `pull` and
 `push` raise `SyncError` when git fails (no network, no access, no git
 identity), and `pull` raises `PullConflict` when the same task changed on both
 sides; the caller reports these as warnings, since the files on disk are
@@ -28,8 +29,9 @@ import re
 import secrets
 import shutil
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path, PurePosixPath
 
 from tskmngr.storage import SUFFIX, TRASH, parse_trash_name
@@ -46,6 +48,8 @@ NETWORK_TIMEOUT = 60
 # The message of a commit of changes no command made, e.g. by hand, and of a
 # sync's (`tskmngr sync`, or the TUI's sync key).
 SYNC_MESSAGE = "tskmngr: sync"
+# The message of the commit `init_remote` sets up a repository with.
+INIT_MESSAGE = "tskmngr: remote init"
 # The user name sent with the token; GitHub and most hosts ignore it.
 TOKEN_USER = "x-access-token"
 # A credential helper that answers git's `get` with the token. It reads the
@@ -262,22 +266,92 @@ def push(repo: TasksRepo) -> bool:
     return True
 
 
+def init_remote(location: str, files: Mapping[str, str]) -> TasksRepo:
+    """Set up the empty remote repository at `location` for tskmngr.
+
+    Clones it, writes `files` (text by path relative to the repository's root,
+    with `/` between folders), commits them as `INIT_MESSAGE` and pushes that
+    to the clone's branch; the clone is then `remote_tasks_dir()`, as
+    `open_repo` would have made it. It's all done in a temp folder next to
+    that, renamed into place only once the push worked, so on any error
+    nothing is changed, here or in the remote. Raises `RepoError` if the
+    folder already exists, if the repository can't be cloned or isn't empty
+    (it has any branch or tag), or if the commit or push fails.
+    """
+    repo = TasksRepo(location, True, remote_tasks_dir())
+    directory = repo.directory
+    if os.path.lexists(directory):
+        raise RepoError(
+            f"{directory} already exists; move it away to set up {location} there"
+        )
+    temp = directory.with_name(f".{directory.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        _clone_into(location, temp)
+        if _output(temp, "for-each-ref"):
+            raise RepoError(
+                f"{location} isn't empty; remote init only sets up an empty repository"
+            )
+        for name, text in files.items():
+            path = temp / PurePosixPath(name)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        for args in (("add", "--all"), ("commit", "--quiet", "-m", INIT_MESSAGE)):
+            result = _git(temp, *args)
+            if result.returncode != 0:
+                raise RepoError(f"can't commit the setup: {_why(result)}")
+        branch = _branch(temp)
+        result = _git(
+            temp,
+            "push",
+            "--quiet",
+            "--set-upstream",
+            "origin",
+            f"HEAD:{branch}",
+            network=True,
+        )
+        if result.returncode != 0:
+            raise RepoError(f"can't push to {location}: {_why(result)}")
+        os.rename(temp, directory)
+    except SyncError as error:
+        raise RepoError(str(error)) from error
+    except OSError as error:
+        reason = error.strerror or str(error)
+        raise RepoError(f"can't set up {location} in {directory}: {reason}") from error
+    finally:
+        # Only ever the folder this made, never anyone else's.
+        shutil.rmtree(temp, ignore_errors=True)
+    return repo
+
+
+def setup_files() -> dict[str, str]:
+    """The files `tskmngr remote init` sets up a repository with, by path.
+
+    `AGENTS.md` at the root, from the template shipped with tskmngr, telling
+    agents how the task files work, and `tasks/.trash/.gitkeep`, since git
+    doesn't keep empty folders.
+    """
+    agents = resources.files("tskmngr").joinpath("tasks_repo_agents.md")
+    return {
+        "AGENTS.md": agents.read_text(encoding="utf-8"),
+        f"{TASKS}/{TRASH}/.gitkeep": "",
+    }
+
+
+def _clone_into(location: str, folder: Path) -> None:
+    """Clone `location` into the new `folder`, making its parent folders."""
+    folder.parent.mkdir(parents=True, exist_ok=True)
+    result = _git(
+        folder.parent, "clone", "--quiet", "--", location, str(folder), network=True
+    )
+    if result.returncode != 0:
+        raise RepoError(f"can't clone {location}: {_why(result)}")
+
+
 def _clone(repo: TasksRepo) -> None:
     directory = repo.directory
     temp = directory.with_name(f".{directory.name}.{secrets.token_hex(4)}.tmp")
     try:
-        directory.parent.mkdir(parents=True, exist_ok=True)
-        result = _git(
-            directory.parent,
-            "clone",
-            "--quiet",
-            "--",
-            repo.location,
-            str(temp),
-            network=True,
-        )
-        if result.returncode != 0:
-            raise RepoError(f"can't clone {repo.location}: {_why(result)}")
+        _clone_into(repo.location, temp)
         os.rename(temp, directory)
     except OSError as error:
         reason = error.strerror or str(error)

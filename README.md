@@ -80,6 +80,7 @@ $ tskmngr done m2p
 | `done ID` | Mark a task as done. If it [repeats](#recurring-tasks), its next occurrence is added and its ID and due date printed |
 | `delete ID` | Move a task's file into `.trash/` (see [Deleted tasks](#deleted-tasks)) after asking; `-y/--yes` skips the question, and is required when there's no terminal to ask on |
 | `sync` | Sync the tasks with the git repository `tasks_repo` names: commit any changes, pull, then push (see [Synced tasks](#synced-tasks)); an error if `tasks_repo` isn't set |
+| `remote init URL` | Set up an existing, empty remote repository to keep the tasks in, and set `tasks_repo` to it (see [Synced tasks](#synced-tasks)) |
 | `config` | Print the [config file](#config-file)'s path and every setting in use; a setting the file leaves out is marked `(default)`, or `(TSKMNGR_DIR)` for a tasks directory that comes from it; while `tasks_repo` is set, the tasks directory is marked `(tasks_repo)` and `tasks_repo` says whether it's a remote URL, and where it's cloned, or a local folder |
 | `config get KEY` | Print the value in use of one setting: `tasks_dir` as the full path of the tasks directory, `tasks_repo` as its URL or full path (an empty line if it isn't set), `columns`, `trash_columns` and `keybindings` as JSON, the rest as plain text |
 | `config edit` | Open the config file in `$VISUAL` or `$EDITOR`, even if it can't be used, then check it like the TUI does and name the key of any problem |
@@ -92,7 +93,8 @@ reports task files it can't load on stderr and lists the rest.
 Commands exit with 0 on success, 2 for invalid arguments and 1 for any other
 error: no task or several tasks match the ID, a task file can't be loaded,
 saved or deleted, a delete isn't confirmed, `config edit` leaves a config
-file that can't be used, `tasks_repo` can't be used, or `sync` fails. A
+file that can't be used, `tasks_repo` can't be used, `remote init` can't set
+up the repository, or `sync` fails. A
 failed sync in any other command is only a warning.
 
 ## TUI keys
@@ -316,14 +318,31 @@ The directory is created when the first task is saved.
 
 To keep your tasks in a git repository, usually a private one, and sync them
 between computers, set `tasks_repo` in the [config file](#config-file).
-tskmngr runs `git`, so git needs to be installed. `tasks_repo` is one of:
+tskmngr runs `git`, so git needs to be installed.
+
+The quickest way to start is a new, empty repository, without a README or a
+license: create it on GitHub (or another host), then run
+
+```bash
+tskmngr remote init git@github.com:me/tasks.git
+```
+
+It clones the repository into `~/.tskmngr/remote_task_dir`, adds an
+`AGENTS.md` that tells AI coding agents how the task files work and that they
+must not delete any, and `tasks/.trash/.gitkeep`, commits them as
+`tskmngr: remote init` and pushes that, then sets `tasks_repo` to the URL in
+the config file. If the folder already exists, the repository isn't empty or
+`tasks_repo` is already another repository, it stops without changing
+anything. tskmngr writes the `AGENTS.md` only then, so it's yours to change
+afterwards.
+
+`tasks_repo` is one of:
 
 - **A remote URL**, like `https://github.com/me/tasks.git` or
   `git@github.com:me/tasks.git`. tskmngr clones it into
   `~/.tskmngr/remote_task_dir` the first time it needs the tasks. If that
-  folder already exists but isn't a
-  clone of this URL, tskmngr stops with an error and leaves the folder alone;
-  move it away to clone there.
+  folder already exists but isn't a clone of this URL, tskmngr stops with an
+  error and leaves the folder alone; move it away to clone there.
 - **A local folder** that's already a git repository: `~` is your home, and a
   relative path is read from the config file's folder. It's synced with its
   upstream branch (the one `git push` would use). Without one, changes are
@@ -343,15 +362,16 @@ repo/
 ```
 
 A repository without `tasks/` stops every command but `config` with an error,
-and tskmngr doesn't create or move anything: create the folder in a new
-repository, or move the task files and `.trash/` of a repository whose tasks
-are at its root into it, then commit. Git doesn't keep empty folders, so in a
-new repository put a file in it, like `tasks/.gitkeep`, for other clones to
-have it too.
+and tskmngr doesn't create or move anything: set up a new repository with
+`tskmngr remote init`, or create the folder yourself, or move the task files
+and `.trash/` of a repository whose tasks are at its root into it, then
+commit. Git doesn't keep empty folders, so in a new repository put a file in
+it, like `tasks/.gitkeep`, for other clones to have it too.
 
 While `tasks_repo` is set, `tasks_dir` and `TSKMNGR_DIR` aren't used. Tasks
 already in another tasks directory aren't moved: copy their files into the
-repository's `tasks/` folder yourself, and the next command that changes a task commits them.
+repository's `tasks/` folder yourself, and the next command that changes a
+task commits them.
 
 These commands sync:
 
@@ -360,6 +380,7 @@ These commands sync:
 | `add`, `edit`, `done`, `delete` | Pull, then change the task files, commit and push |
 | `list` | Pull, then list |
 | `sync` | Commit any changes, pull, then push the commits not pushed yet |
+| `remote init` | Clone, then commit and push the setup |
 | `show`, `config` | None |
 
 The TUI syncs too, in the background, so it never waits for the network:
@@ -441,8 +462,10 @@ with every setting except `tasks_dir` and `tasks_repo` at its default:
 }
 ```
 
-After that tskmngr only reads the file and never changes it; edit it to
-change your settings. Every setting is optional, so you can also remove the
+After that tskmngr only reads the file, except that
+[`tskmngr remote init`](#synced-tasks) sets `tasks_repo` in it (keeping the
+other settings, but rewriting the file's spacing); edit it to change your
+settings. Every setting is optional, so you can also remove the
 ones you don't need. If the file can't be created, tskmngr says why and exits.
 
 `tskmngr config` shows where the file is and the settings in use, and

@@ -1,8 +1,9 @@
 """The config file: a JSON object of settings, all optional.
 
 It lives at `~/.tskmngr/config.json`. If there's no file there, the CLI and
-the TUI first write `DEFAULT_SETTINGS` to it (`create_default_config`); an
-existing file is never changed. A missing file reads as the defaults.
+the TUI first write `DEFAULT_SETTINGS` to it (`create_default_config`). An
+existing file is only changed by `tskmngr remote init`, which sets
+`tasks_repo` (`set_tasks_repo`). A missing file reads as the defaults.
 Anything wrong with the file (invalid JSON, an unknown key, a value of the
 wrong type) is a `ConfigError`, so nothing runs with a half-read config.
 
@@ -167,6 +168,48 @@ def create_default_config(path: Path) -> bool:
         reason = error.strerror or str(error)
         raise ConfigError(path, f"can't be created: {reason}") from error
     return True
+
+
+def set_tasks_repo(path: Path, location: str) -> None:
+    """Set `tasks_repo` to `location` in the config file at `path`.
+
+    The only change tskmngr makes to an existing config file, for `tskmngr
+    remote init`. Every other key and value is kept, in its order; the file is
+    written as indented JSON like the default one, so its whitespace changes.
+    The new file replaces the old one whole, through a hidden temp file.
+    Raises `ConfigError` if the file can't be read, isn't a JSON object or
+    can't be written.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        reason = getattr(error, "strerror", None) or str(error)
+        raise ConfigError(path, f"can't be read: {reason}") from error
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ConfigError(
+            path, f"line {error.lineno}, column {error.colno}: {error.msg}"
+        ) from None
+    if not isinstance(data, dict):
+        raise ConfigError(
+            path, f"expected an object of settings, got {_describe(data)}"
+        )
+    data["tasks_repo"] = location
+    temp = path.with_name(f".{path.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        # 0o666 lets the umask decide the file's permissions, like open() does.
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as file:
+            file.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temp, path)
+    except OSError as error:
+        reason = error.strerror or str(error)
+        raise ConfigError(path, f"can't be written: {reason}") from error
+    finally:
+        temp.unlink(missing_ok=True)
 
 
 def load_config(path: Path | None = None) -> Config:
