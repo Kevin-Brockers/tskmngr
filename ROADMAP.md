@@ -273,7 +273,7 @@ synced must be agreed with the maintainer before starting M7.2, and
     sync is a warning and catches up on the next one, and a pull conflict is
     reported, never resolved by overwriting a task; document it in the
     README and move it in `AGENTS.md` from planned to the config file and
-    storage sections · `feature/git_sync_core` · #TBD
+    storage sections · `feature/git_sync_core` · [#64](https://github.com/Kevin-Brockers/tskmngr/pull/64)
   - [ ] **M7.2b** TUI: pull at start, commit and push after each change, a
     sync key, and sync errors and conflicts shown to the user ·
     `feature/git_sync_tui` · depends on M7.2a
