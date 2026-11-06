@@ -299,9 +299,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   that isn't installed is reported with the setting to change
 - [#79](https://github.com/Kevin-Brockers/tskmngr/pull/79) - CI runs on its own, on Linux and macOS: the workflow is split into
   `ci-linux.yml` (ruff, and pytest on Python 3.12 to 3.14 and the newest one)
-  and `ci-macos.yml` (pytest on Python 3.12 to 3.14), both run on the pull
-  request from `dev` into `main` and on pushes to `main` instead of only by
-  hand, and the README shows their badges and the tested Python versions
+  and `ci-macos.yml` (pytest on Python 3.12 to 3.14), both run on pull
+  requests into `dev` and `main` (into `main`, only from `dev`) and on pushes
+  to them instead of only by hand, and the README shows their badges and the
+  tested Python versions
 
 ### Removed
 

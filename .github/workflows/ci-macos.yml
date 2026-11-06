@@ -1,19 +1,22 @@
 name: CI macOS
 
 # The tests on macOS, with the same triggers as ci-linux.yml: pull requests
-# from `dev` into `main`, pushes to `main` (the README's badge) and by hand.
-# Linting runs on Linux only; its result doesn't depend on the system.
+# into `dev` and `main` (into `main` only from `dev`), pushes to them (the
+# README's badge shows `main`) and by hand. Linting runs on Linux only; its
+# result doesn't depend on the system.
 on:
   pull_request:
-    branches: [main]
+    branches: [dev, main]
   push:
-    branches: [main]
+    branches: [dev, main]
   workflow_dispatch:
 
 jobs:
   test:
-    # Only the pull request from `dev`, not one from any other branch.
-    if: github.event_name != 'pull_request' || github.head_ref == 'dev'
+    # Into `main`, only the pull request from `dev`.
+    if: >-
+      github.event_name != 'pull_request' || github.base_ref != 'main'
+      || github.head_ref == 'dev'
     runs-on: macos-latest
     strategy:
       fail-fast: false

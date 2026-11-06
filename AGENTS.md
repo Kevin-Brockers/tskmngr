@@ -342,11 +342,11 @@ it worked.
   points `HOME` (and `USERPROFILE`) at an empty temporary folder for every
   test.
 - Run `uv run pytest` before committing; do not commit with failing tests.
-- CI (GitHub Actions) only runs on the pull request from `dev` into `main`
-  and on pushes to `main` (and by hand): `ci-linux.yml` runs ruff and pytest
-  on Python 3.12 to 3.14 and the newest one, `ci-macos.yml` pytest on 3.12
-  to 3.14. Pull requests into `dev` get no CI, so the local lint, format and
-  test runs before every commit are the only check they get.
+- CI (GitHub Actions) runs on every pull request into `dev` and `main` (into
+  `main`, only the one from `dev`) and on pushes to them, and by hand:
+  `ci-linux.yml` runs ruff and pytest on Python 3.12 to 3.14 and the newest
+  one, `ci-macos.yml` pytest on 3.12 to 3.14. It doesn't replace the local
+  lint, format and test runs before every commit.
 
 ### Commit, push, open the pull request, then stop
 The same rules apply in local and cloud sessions.

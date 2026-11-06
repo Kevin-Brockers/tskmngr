@@ -630,13 +630,14 @@ Changes go through pull requests against `dev`. [`AGENTS.md`](AGENTS.md)
 describes how to work on the code, for people and coding agents alike:
 branches, tests, the changelog and the roadmap.
 
-CI runs on GitHub Actions for the release pull request from `dev` into `main`
-and for every push to `main`, and can be started by hand from the Actions
-tab: `ci-linux.yml` lints and runs the tests on Linux with Python 3.12, 3.13,
-3.14 and the newest release, and `ci-macos.yml` runs the tests on macOS with
-Python 3.12, 3.13 and 3.14. The badges at the top show their last result on
-`main`. Pull requests into `dev` get no CI, so run the checks above before
-every commit.
+CI runs on GitHub Actions for every pull request into `dev` and `main` (into
+`main`, only the release pull request from `dev`) and every push to them, and
+can be started by hand from the Actions tab: `ci-linux.yml` lints and runs
+the tests on Linux with Python 3.12, 3.13, 3.14 and the newest release, and
+`ci-macos.yml` runs the tests on macOS with Python 3.12, 3.13 and 3.14. The
+badges at the top show their last result on `main`. Run the checks above
+before every commit too, so a pull request doesn't wait for CI to find a
+problem.
 
 ## License
 

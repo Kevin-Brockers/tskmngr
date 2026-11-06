@@ -358,11 +358,11 @@ Release to install it from.
 - [x] **M14.1** CI runs on its own, on Linux and macOS: the workflow is split
   into `ci-linux.yml` (ruff, and pytest on Python 3.12 to 3.14 and the newest
   one) and `ci-macos.yml` (pytest on Python 3.12 to 3.14); both run on pull
-  requests from `dev` into `main` and on pushes to `main`, and can still be
-  started by hand; the README shows a badge per workflow (its last result on
-  `main`) and one listing the tested Python versions; document in
-  `AGENTS.md` that pull requests into `dev` get no CI, so the local checks
-  stay required · `chore/ci_triggers` ·
+  requests into `dev` and `main` (into `main`, only from `dev`) and on pushes
+  to them, and can still be started by hand; the README shows a badge per
+  workflow (its last result on `main`) and one listing the tested Python
+  versions; document the CI in `AGENTS.md`, next to the local checks it
+  doesn't replace · `chore/ci_triggers` ·
   [#79](https://github.com/Kevin-Brockers/tskmngr/pull/79)
 - [ ] **M14.2** Release workflow: pushing a tag like `v0.1.0` builds the
   wheel and sdist with `uv build` and creates a GitHub Release with them
