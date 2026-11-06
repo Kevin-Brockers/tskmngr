@@ -347,7 +347,8 @@ editor is only for `o` and `tskmngr config edit`.
   installed is an error naming it and the `editor` key; find and fix why
   opening an editor fails on the maintainer's Mac; shown by `tskmngr config`
   and `config get`; document both editors in the README and update
-  `AGENTS.md` to match · `feature/editor_setting` · #TBD
+  `AGENTS.md` to match · `feature/editor_setting` ·
+  [#78](https://github.com/Kevin-Brockers/tskmngr/pull/78)
 
 ### M14 · First release
 
