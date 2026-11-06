@@ -228,6 +228,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `tasks/.trash/.gitkeep`, commits and pushes them, then sets `tasks_repo` in
   the config file. It changes nothing if that folder exists, the repository
   isn't empty or `tasks_repo` is already another repository
+- #TBD - Roadmap milestones M13 and M14: an `editor` config key (`vim` by
+  default, or `nano`) instead of `$VISUAL` and `$EDITOR`, CI on every pull
+  request to `dev` and `main`, a release workflow for tags, and the
+  preparation of the first release, 0.1.0
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

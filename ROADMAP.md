@@ -330,3 +330,43 @@ tasks in `tasks/`, and `tskmngr remote init` sets up a new one.
   task files. Document it in the README and update `AGENTS.md` (the config
   file is no longer only read) · `feature/remote_init` · depends on M12.1 ·
   [#76](https://github.com/Kevin-Brockers/tskmngr/pull/76)
+
+### M13 · Editor setting
+
+Goal: opening a task or the config file in an editor works out of the box on
+macOS and Linux, and the editor is set in the config file. Editing tasks
+inside the TUI (the form, its notes and every other key) stays as it is; the
+editor is only for `o` and `tskmngr config edit`.
+
+- [ ] **M13.1** `editor` config key, `vim` (the default) or `nano`: the
+  editor the TUI's `o` and `tskmngr config edit` open files in, run in the
+  same terminal; `$VISUAL` and `$EDITOR` are no longer read; the default
+  config file gains `"editor": "vim"`, and any other value stops the CLI and
+  the TUI like other invalid settings (`config edit` opens the file in vim
+  when it can't be read, so it can be fixed); an editor that isn't
+  installed is an error naming it and the `editor` key; find and fix why
+  opening an editor fails on the maintainer's Mac; shown by `tskmngr config`
+  and `config get`; document both editors in the README and update
+  `AGENTS.md` to match · `feature/editor_setting`
+
+### M14 · First release
+
+Goal: tskmngr 0.1.0 is released from `main`, checked by CI, with a GitHub
+Release to install it from.
+
+- [ ] **M14.1** CI runs on its own: the existing workflow (ruff and pytest on
+  Python 3.12 to 3.14 and the newest one) runs on every pull request to `dev`
+  and `main` and on every push to `main`, not only by hand ·
+  `chore/ci_triggers`
+- [ ] **M14.2** Release workflow: pushing a tag like `v0.1.0` builds the
+  wheel and sdist with `uv build` and creates a GitHub Release with them
+  attached and that version's changelog section as its notes, using the `gh`
+  CLI on the runner (no new action); it stops if the tag doesn't match the
+  version in `pyproject.toml` · `chore/release_workflow` · depends on M14.1
+- [ ] **M14.3** Prepare 0.1.0: version `0.1.0` in `pyproject.toml` and
+  `uv.lock`; the README's status and installation updated (install with
+  `uv tool install` from the release's tag); a `RELEASING.md` with the steps
+  (the maintainer's `dev` → `main` PR with the changelog's `[Unreleased]`
+  renamed to `[0.1.0] - <date>`, merge, tag `v0.1.0` on `main`, push the
+  tag, then move `dev` to `0.2.0.dev0`) · `chore/release_0_1_0` · depends on
+  M13.1, M14.2
