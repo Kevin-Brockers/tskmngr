@@ -301,8 +301,8 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `ci-linux.yml` (ruff, and pytest on Python 3.12 to 3.14 and the newest one)
   and `ci-macos.yml` (pytest on Python 3.12 to 3.14), both run on pull
   requests into `dev` and `main` (into `main`, only from `dev`) and on pushes
-  to them instead of only by hand, and the README shows their badges and the
-  tested Python versions
+  to them instead of only by hand, and the README shows their badges for
+  `main` and `dev` and the tested Python versions
 
 ### Removed
 
