@@ -371,7 +371,7 @@ Release to install it from.
   wheel and sdist with `uv build` and creates a GitHub Release with them
   attached and that section as its notes, using the `gh` CLI on the runner
   (uv through `astral-sh/setup-uv`, as in CI) · `chore/release_workflow` ·
-  depends on M14.1 · #TBD
+  depends on M14.1 · [#81](https://github.com/Kevin-Brockers/tskmngr/pull/81)
 - [ ] **M14.3** Prepare 0.1.0: version `0.1.0` in `pyproject.toml` and
   `uv.lock`; the README's status and installation updated (install with
   `uv tool install` from the release's tag); a `RELEASING.md` with the steps
