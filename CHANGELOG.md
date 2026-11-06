@@ -303,6 +303,11 @@ its commit for changes that reached `dev` or `main` without a pull request.
   requests into `dev` and `main` (into `main`, only from `dev`) and on pushes
   to them instead of only by hand, and the README shows their badges for
   `main` and `dev` and the tested Python versions
+- #TBD - Roadmap steps M3.6 and M6.2 note that M13.1 replaced `$VISUAL` and
+  `$EDITOR` with the `editor` config key, and M7.2a says, as `AGENTS.md`
+  does, that `tskmngr sync` also commits any changes before it pulls
+- #TBD - `AGENTS.md` says `ci-linux.yml` runs both `ruff check` and
+  `ruff format --check`
 
 ### Removed
 
