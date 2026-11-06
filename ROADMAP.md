@@ -303,7 +303,7 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   `$EDITOR` with the `editor` key; M7.2a says `tskmngr sync` also commits
   any changes first, as `AGENTS.md` does; `AGENTS.md` names both ruff checks
   of `ci-linux.yml` and has its long "Synced tasks" line rewrapped ·
-  `docs/roadmap_agents_consistency` · #TBD
+  `docs/roadmap_agents_consistency` · [#80](https://github.com/Kevin-Brockers/tskmngr/pull/80)
 
 ### M11 · Tag suggestions
 
