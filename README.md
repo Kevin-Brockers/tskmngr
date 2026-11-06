@@ -13,7 +13,7 @@ in short:
 - **Command-line interface** (done): add, list, show, edit, complete and
   delete tasks from the shell
 - **TUI** (done): the full app, with a task list, detail view, forms, a notes
-  editor, editing in `$EDITOR`, filtering and sorting
+  editor, editing in vim or nano, filtering and sorting
 - **External edits and configuration** (done): the TUI picks up changes
   made to the files while it runs, and a config file sets the tasks
   directory, the default sort, the theme, how often the TUI checks the files
@@ -83,7 +83,7 @@ $ tskmngr done m2p
 | `remote init URL` | Set up an existing, empty remote repository to keep the tasks in, and set `tasks_repo` to it (see [Synced tasks](#synced-tasks)) |
 | `config` | Print the [config file](#config-file)'s path and every setting in use; a setting the file leaves out is marked `(default)`, or `(TSKMNGR_DIR)` for a tasks directory that comes from it; while `tasks_repo` is set, the tasks directory is marked `(tasks_repo)` and `tasks_repo` says whether it's a remote URL, and where it's cloned, or a local folder |
 | `config get KEY` | Print the value in use of one setting: `tasks_dir` as the full path of the tasks directory, `tasks_repo` as its URL or full path (an empty line if it isn't set), `columns`, `trash_columns` and `keybindings` as JSON, the rest as plain text |
-| `config edit` | Open the config file in `$VISUAL` or `$EDITOR`, even if it can't be used, then check it like the TUI does and name the key of any problem |
+| `config edit` | Open the config file in the [editor](#editor), even if it can't be used, then check it like the TUI does and name the key of any problem |
 
 `ID` can be any unique prefix of a task's ID, in any case: `m2p` above is
 `M2PT707MDG`. Sorting by priority puts the highest first, by created or updated
@@ -115,7 +115,7 @@ panel above the list.
 | `e` | Edit the task under the cursor |
 | `s` | Move the task to the next status (todo → doing → done → todo) and save it; a [repeating](#recurring-tasks) task that becomes done gets its next occurrence |
 | `d` | Delete the task, after asking (`y` deletes, `n` or `Escape` doesn't) |
-| `o` | Open the task's file in `$VISUAL` or `$EDITOR`; the task is reloaded when the editor exits |
+| `o` | Open the task's file in the [editor](#editor), vim or nano; the task is reloaded when the editor exits |
 | `/` | Filter the list (see below) |
 | `Escape` | Clear the filter |
 | `S` | Sort by the next key: due date, priority, created, updated |
@@ -163,7 +163,7 @@ you delete a task and when files in `.trash/` change.
 | --- | ------ |
 | `Space` | Check or uncheck the subtask under the cursor and save the task (`Enter` or a click works too) |
 | `e` | Edit the task |
-| `o` | Open the task's file in `$VISUAL` or `$EDITOR` |
+| `o` | Open the task's file in the [editor](#editor) |
 | `Escape` | Back to the list |
 
 The detail view lists the task's subtasks above its notes, with the cursor on
@@ -442,6 +442,7 @@ with every setting except `tasks_dir` and `tasks_repo` at its default:
   "sort": "due",
   "reverse": false,
   "theme": "textual-dark",
+  "editor": "vim",
   "poll_interval": 2,
   "columns": [
     "id",
@@ -481,6 +482,7 @@ tasks_repo     not set (default)
 sort           due
 reverse        false
 theme          textual-dark
+editor         vim
 poll_interval  2
 columns        ["id", "status", "priority", "due", "title", "tags"]
 trash_columns  ["title", "tags", "deleted", "id"]
@@ -488,7 +490,7 @@ show_trash     true
 keybindings    {}
 ```
 
-`tskmngr config edit` opens the file in `$VISUAL` or `$EDITOR`. When the
+`tskmngr config edit` opens the file in the [editor](#editor). When the
 editor exits, it checks the file the way the TUI does, theme and keybindings
 included, and names the key of the first problem it finds; the file is kept
 as you saved it, so run `config edit` again to fix it. It's the one command
@@ -523,6 +525,7 @@ exists, tskmngr warns about it on every run: move your settings to
 | `sort` | How the TUI list and `tskmngr list` are sorted: `due`, `priority`, `created` or `updated` | `due` |
 | `reverse` | `true` reverses that order | `false` |
 | `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |
+| `editor` | The [editor](#editor) `o` in the TUI and `tskmngr config edit` open files in: `vim` or `nano` | `vim` |
 | `poll_interval` | Seconds between the TUI's checks for task files changed on disk; `0` turns them off | `2` |
 | `columns` | The TUI task list's columns, in the order shown, from `id`, `status`, `priority`, `due`, `created`, `updated`, `title` and `tags`; the ones left out are hidden (see below) | `["id", "status", "priority", "due", "title", "tags"]` |
 | `trash_columns` | The TUI's deleted tasks view's columns, in the order shown: the `columns` names and `deleted`, the delete time; the ones left out are hidden | `["title", "tags", "deleted", "id"]` |
@@ -544,6 +547,32 @@ still shows them; add `tags` to show them in their own column.
 `trash_columns` follows the same rules, with `deleted` as one more name; the
 deleted tasks are always newest delete first.
 
+### Editor
+
+Tasks are edited inside the TUI: the form (`n`, `e`) holds every field and
+the notes, and `s`, `d` and `Space` change a task right away. Only `o` in the
+TUI and `tskmngr config edit` open a file in an editor, in the same terminal,
+and the `editor` setting picks which:
+
+- **`vim`**, the default. Press `i` to type, `Esc` to stop typing, then `:wq`
+  and `Enter` to save and quit, or `:q!` and `Enter` to quit without saving.
+- **`nano`**, which lists its keys at the bottom: type right away, `Ctrl+O`
+  saves and `Ctrl+X` quits.
+
+```json
+{
+  "editor": "nano"
+}
+```
+
+While the editor runs, the TUI waits; when you quit it, the task is loaded
+again from the file, and a file you left broken is reported, never
+overwritten. If the editor isn't installed, tskmngr says so and names the
+setting, so install it (for example with `brew install nano` on macOS or
+`sudo apt install nano` on Debian and Ubuntu) or pick the other one.
+`$VISUAL` and `$EDITOR` aren't used. `tskmngr config edit` opens a file whose
+`editor` it can't read in vim, so a broken config file can still be fixed.
+
 ### Keybindings
 
 Each entry in `keybindings` replaces the keys of one TUI binding. The keys
@@ -558,7 +587,7 @@ are Textual key names, like `a`, `A`, `f2`, `ctrl+s`, `escape` or `slash`
 | `task_list.edit` | `e` | Edit the task |
 | `task_list.cycle_status` | `s` | Move the task to the next status |
 | `task_list.delete` | `d` | Delete the task |
-| `task_list.external_editor` | `o` | Open the task's file in `$EDITOR` |
+| `task_list.external_editor` | `o` | Open the task's file in the editor |
 | `task_list.sort` | `S` | Sort by the next key |
 | `task_list.reverse_sort` | `R` | Reverse the sort order |
 | `task_list.filter` | `/` | Filter the list |
@@ -566,7 +595,7 @@ are Textual key names, like `a`, `A`, `f2`, `ctrl+s`, `escape` or `slash`
 | `task_list.toggle_trash` | `t` | Hide or show the deleted tasks |
 | `task_detail.close` | `Escape` | Back to the list |
 | `task_detail.edit` | `e` | Edit the task |
-| `task_detail.external_editor` | `o` | Open the task's file in `$EDITOR` |
+| `task_detail.external_editor` | `o` | Open the task's file in the editor |
 | `task_detail.toggle_subtask` | `Space` | Check or uncheck the subtask |
 | `task_form.save` | `Ctrl+S` | Save the task |
 | `task_form.cancel` | `Escape` | Cancel |

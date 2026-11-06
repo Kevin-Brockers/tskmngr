@@ -19,13 +19,14 @@ from tskmngr.config import (
     ConfigError,
     config_path,
     create_default_config,
+    editor_setting,
     load_config,
     old_config_path,
     set_tasks_repo,
     tasks_directory,
 )
 from tskmngr.display import format_next_occurrence, task_fields
-from tskmngr.editor import EditorSettingError, editor_command, run_editor
+from tskmngr.editor import EditorNotFound, editor_command, not_found_hint, run_editor
 from tskmngr.gitsync import (
     SYNC_MESSAGE,
     PullConflict,
@@ -430,8 +431,9 @@ def _parser() -> argparse.ArgumentParser:
         "edit",
         help="open the config file in your editor",
         description=(
-            "Open the config file in $VISUAL or $EDITOR, even if it can't be "
-            "used, and check it once the editor exits."
+            "Open the config file in the editor it sets (vim or nano; vim if "
+            "it can't be read), even if it can't be used, and check it once "
+            "the editor exits."
         ),
     )
     config_edit.set_defaults(
@@ -668,27 +670,24 @@ def _config_get(args: argparse.Namespace) -> int:
 
 
 def _config_edit(args: argparse.Namespace) -> int:
-    """Open the config file in the editor, then check it like the TUI does.
+    """Open the config file in its editor, then check it like the TUI does.
 
-    The file is left as the editor saved it. Returns 1 if the editor failed
-    or the file can't be used, naming the problem.
+    The editor is the file's `editor`, or vim when that can't be read (see
+    `config.editor_setting`). The file is left as the editor saved it.
+    Returns 1 if the editor failed or the file can't be used, naming the
+    problem.
     """
     path = args.config_path
+    editor = editor_setting(path)
     try:
-        command = editor_command()
-    except EditorSettingError as error:
-        raise CommandError(str(error)) from error
-    if command is None:
-        raise CommandError("set $VISUAL or $EDITOR to edit the config file")
-    try:
-        status = run_editor(command, path)
-    except FileNotFoundError as error:
-        raise CommandError(f"editor not found: {command[0]}") from error
+        status = run_editor(editor_command(editor), path)
+    except (EditorNotFound, FileNotFoundError) as error:
+        raise CommandError(not_found_hint(editor, path)) from error
     except OSError as error:
-        raise CommandError(f"can't start {command[0]}: {_reason(error)}") from error
+        raise CommandError(f"can't start {editor}: {_reason(error)}") from error
     if status != 0:
         print(
-            f"tskmngr: warning: {command[0]} exited with status {status}",
+            f"tskmngr: warning: {editor} exited with status {status}",
             file=sys.stderr,
         )
     try:
@@ -745,6 +744,8 @@ def setting_value(config: Config, key: str) -> str:
             return json.dumps(config.reverse)
         case "theme":
             return config.theme or DEFAULT_THEME
+        case "editor":
+            return config.editor.value
         case "poll_interval":
             seconds = config.poll_interval
             return str(int(seconds)) if seconds.is_integer() else str(seconds)

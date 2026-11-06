@@ -1,6 +1,5 @@
 import io
 import json
-import sys
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
@@ -1723,10 +1722,13 @@ def fake_editor(
 ) -> list[tuple[list[str], Path]]:
     """Make `config edit` run a fake editor that writes `text` (None: nothing).
 
-    Returns the list of runs, each the command and the path it got.
+    Returns the list of runs, each the command and the path it got. The
+    command is `fake-vim` or `fake-nano`, for the editor the config picked.
     """
-    monkeypatch.delenv("VISUAL", raising=False)
+    # Not read any more: the config's `editor` picks the editor.
+    monkeypatch.setenv("VISUAL", "fake-editor --wait")
     monkeypatch.setenv("EDITOR", "fake-editor --wait")
+    monkeypatch.setattr(cli, "editor_command", lambda editor: [f"fake-{editor}"])
     runs: list[tuple[list[str], Path]] = []
 
     def run_editor(command: list[str], path: Path) -> int:
@@ -1754,6 +1756,7 @@ def test_config_prints_the_path_and_the_default_settings(
         "sort           due\n"
         "reverse        false\n"
         "theme          textual-dark\n"
+        "editor         vim\n"
         "poll_interval  2\n"
         'columns        ["id", "status", "priority", "due", "title", "tags"]\n'
         'trash_columns  ["title", "tags", "deleted", "id"]\n'
@@ -1780,6 +1783,7 @@ def test_config_marks_the_settings_the_file_leaves_out(
         "sort           due (default)",
         "reverse        false (default)",
         "theme          textual-dark (default)",
+        "editor         vim (default)",
         "poll_interval  0.5",
         'columns        ["title"]',
         'trash_columns  ["title", "tags", "deleted", "id"] (default)',
@@ -1890,7 +1894,7 @@ def test_config_edit_opens_the_file_and_accepts_a_good_edit(
 
     assert cli.main(["config", "edit"]) == 0
 
-    assert runs == [(["fake-editor", "--wait"], config_file)]
+    assert runs == [(["fake-vim"], config_file)]
     assert capsys.readouterr() == ("", "")
     assert config_file.read_text(encoding="utf-8") == '{"sort": "priority"}'
 
@@ -1951,7 +1955,7 @@ def test_config_edit_opens_a_broken_file_so_it_can_be_fixed(
 
     assert cli.main(["config", "edit"]) == 0
 
-    assert len(runs) == 1
+    assert runs == [(["fake-vim"], config_file)]
     assert capsys.readouterr().err == ""
     assert cli.main(["config", "get", "reverse"]) == 0
     assert capsys.readouterr().out == "true\n"
@@ -1983,7 +1987,7 @@ def test_config_edit_warns_when_the_editor_fails_and_still_checks(
     assert cli.main(["config", "edit"]) == 1
 
     err = capsys.readouterr().err.splitlines()
-    assert err[0] == "tskmngr: warning: fake-editor exited with status 3"
+    assert err[0] == "tskmngr: warning: vim exited with status 3"
     assert err[1].startswith(f"tskmngr: error: config file {config_file}: sort:")
 
 
@@ -1994,63 +1998,66 @@ def test_config_edit_returns_1_when_the_editor_fails_on_a_good_file(
 
     assert cli.main(["config", "edit"]) == 1
 
-    assert capsys.readouterr().err == (
-        "tskmngr: warning: fake-editor exited with status 1\n"
-    )
+    assert capsys.readouterr().err == ("tskmngr: warning: vim exited with status 1\n")
 
 
-def test_config_edit_needs_an_editor(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_config_edit_opens_the_editor_the_file_names(
+    config_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    write_config(config_file, '{"editor": "nano"}')
     runs = fake_editor(monkeypatch, None)
-    monkeypatch.setenv("EDITOR", " ")
 
-    assert cli.main(["config", "edit"]) == 1
+    assert cli.main(["config", "edit"]) == 0
 
-    assert runs == []
-    assert capsys.readouterr().err == (
-        "tskmngr: error: set $VISUAL or $EDITOR to edit the config file\n"
-    )
+    assert runs == [(["fake-nano"], config_file)]
 
 
-def test_config_edit_reports_an_editor_setting_it_cant_read(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_config_edit_keeps_the_editor_of_a_file_broken_elsewhere(
+    config_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    runs = fake_editor(monkeypatch, None)
-    monkeypatch.setenv("VISUAL", "'vi")
+    write_config(config_file, '{"editor": "nano", "colour": "red"}')
+    runs = fake_editor(monkeypatch, '{"editor": "nano"}')
 
-    assert cli.main(["config", "edit"]) == 1
+    assert cli.main(["config", "edit"]) == 0
 
-    assert runs == []
-    assert capsys.readouterr().err.startswith(
-        "tskmngr: error: $VISUAL can't be read as a command ("
-    )
+    assert runs == [(["fake-nano"], config_file)]
 
 
-def test_config_edit_reports_a_missing_editor(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("text", "editor", "other"),
+    [("{}", "vim", "nano"), ('{"editor": "nano"}', "nano", "vim")],
+)
+def test_config_edit_reports_an_editor_that_isnt_installed(
+    tmp_path: Path,
+    config_file: Path,
+    text: str,
+    editor: str,
+    other: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.delenv("VISUAL", raising=False)
-    monkeypatch.setenv("EDITOR", str(tmp_path / "no-such-editor"))
+    write_config(config_file, text)
+    monkeypatch.setenv("PATH", str(tmp_path))
 
     assert cli.main(["config", "edit"]) == 1
 
     assert capsys.readouterr().err == (
-        f"tskmngr: error: editor not found: {tmp_path / 'no-such-editor'}\n"
+        f"tskmngr: error: {editor} isn't installed; install it, or set editor to "
+        f"{other} in {config_file}\n"
     )
+    assert config_file.read_text(encoding="utf-8") == text
 
 
 def test_config_edit_runs_the_real_editor_on_the_file(
     tmp_path: Path, config_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    script = tmp_path / "editor.py"
-    script.write_text(
-        "import sys\n"
-        "open(sys.argv[1], 'w', encoding='utf-8').write('{\"theme\": \"nord\"}')\n",
-        encoding="utf-8",
-    )
-    monkeypatch.delenv("VISUAL", raising=False)
-    monkeypatch.setenv("EDITOR", f'"{sys.executable}" "{script}"')
+    folder = tmp_path / "bin"
+    folder.mkdir()
+    vim = folder / "vim"
+    vim.write_text('#!/bin/sh\nprintf \'{"theme": "nord"}\' > "$1"\n')
+    vim.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder))
+    monkeypatch.setenv("EDITOR", "nano")
 
     assert cli.main(["config", "edit"]) == 0
 

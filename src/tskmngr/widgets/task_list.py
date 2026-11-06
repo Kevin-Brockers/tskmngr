@@ -7,8 +7,8 @@ opens the task under the cursor in the detail screen, `n` creates a task and
 next status (todo → doing → done → todo) and saves it right away; a repeating
 task that becomes done gets its next occurrence (see `tskmngr.recurrence`); `d` asks
 whether to delete it and moves its file to `.trash/`; `o` opens its file in
-`$VISUAL` or `$EDITOR`. The list is reloaded from disk after each of these, and
-a save or delete that hits a conflict is shown instead of overwriting the file.
+the editor (the config's `editor`). The list is reloaded from disk after each
+of these, and a save or delete that hits a conflict is shown instead of overwriting the file.
 It's also reloaded when the app notices task files changed on disk, keeping the
 cursor on the same task.
 

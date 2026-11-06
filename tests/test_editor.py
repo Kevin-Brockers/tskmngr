@@ -3,50 +3,71 @@ from pathlib import Path
 
 import pytest
 
-from tskmngr.editor import EditorSettingError, editor_command, run_editor
+from tskmngr.editor import (
+    DEFAULT_EDITOR,
+    Editor,
+    EditorNotFound,
+    editor_command,
+    not_found_hint,
+    run_editor,
+)
 
 
-def test_visual_comes_before_editor() -> None:
-    assert editor_command({"VISUAL": "code --wait", "EDITOR": "vi"}) == [
-        "code",
-        "--wait",
-    ]
+def fake_program(folder: Path, name: str) -> Path:
+    """An executable called `name` in `folder`, to put on `PATH`."""
+    folder.mkdir(exist_ok=True)
+    program = folder / name
+    program.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    program.chmod(0o755)
+    return program
 
 
-def test_editor_is_used_without_visual() -> None:
-    assert editor_command({"EDITOR": "nano"}) == ["nano"]
+def test_the_editors_are_vim_and_nano_with_vim_the_default() -> None:
+    assert [editor.value for editor in Editor] == ["vim", "nano"]
+    assert DEFAULT_EDITOR is Editor.VIM
 
 
-@pytest.mark.parametrize("visual", ["", "   ", '""'])
-def test_empty_visual_counts_as_unset(visual: str) -> None:
-    assert editor_command({"VISUAL": visual, "EDITOR": "nano"}) == ["nano"]
+@pytest.mark.parametrize("editor", list(Editor))
+def test_editor_command_is_the_program_found_on_the_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, editor: Editor
+) -> None:
+    program = fake_program(tmp_path / "bin", editor.value)
+    monkeypatch.setenv("PATH", str(program.parent))
+
+    assert editor_command(editor) == [str(program)]
 
 
-def test_neither_set_is_none() -> None:
-    assert editor_command({}) is None
-    assert editor_command({"VISUAL": "", "EDITOR": " "}) is None
+def test_visual_and_editor_are_not_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    program = fake_program(tmp_path / "bin", "vim")
+    fake_program(tmp_path / "bin", "emacs")
+    monkeypatch.setenv("PATH", str(program.parent))
+    monkeypatch.setenv("VISUAL", "emacs")
+    monkeypatch.setenv("EDITOR", "emacs")
+
+    assert editor_command(Editor.VIM) == [str(program)]
 
 
-def test_value_is_split_like_a_shell_command_line() -> None:
-    command = editor_command({"EDITOR": "'/opt/My Editor/edit' -n --wait"})
+def test_an_editor_that_isnt_installed_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PATH", str(tmp_path))
 
-    assert command == ["/opt/My Editor/edit", "-n", "--wait"]
+    with pytest.raises(EditorNotFound) as info:
+        editor_command(Editor.NANO)
 
-
-def test_unsplittable_value_names_the_variable() -> None:
-    with pytest.raises(EditorSettingError) as info:
-        editor_command({"VISUAL": "'vi", "EDITOR": "nano"})
-
-    assert info.value.name == "VISUAL"
-    assert info.value.value == "'vi"
-    assert str(info.value).startswith("$VISUAL can't be read as a command (")
+    assert info.value.editor is Editor.NANO
+    assert str(info.value) == "nano isn't installed"
 
 
-def test_reads_the_environment_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("VISUAL", raising=False)
-    monkeypatch.setenv("EDITOR", "nano -w")
+def test_not_found_hint_names_the_other_editor_and_the_file() -> None:
+    path = Path("/home/me/.tskmngr/config.json")
 
-    assert editor_command() == ["nano", "-w"]
+    assert not_found_hint(Editor.VIM, path) == (
+        f"vim isn't installed; install it, or set editor to nano in {path}"
+    )
+    assert not_found_hint(Editor.NANO, path).endswith(f"set editor to vim in {path}")
 
 
 def test_run_editor_passes_the_path_and_returns_the_exit_status(

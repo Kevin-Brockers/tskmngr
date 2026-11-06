@@ -293,6 +293,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   folder, the deleted ones in `tasks/.trash/`, instead of at its root. A
   repository without `tasks/` stops every command but `config` with an error
   saying to move the task files there; tskmngr doesn't move them
+- #TBD - The editor `o` in the TUI and `tskmngr config edit` open files in is
+  set by the new `editor` config key, `vim` (the default) or `nano`, instead
+  of `$VISUAL` and `$EDITOR`, so it works without setting anything. An editor
+  that isn't installed is reported with the setting to change
 
 ### Removed
 

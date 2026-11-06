@@ -10,8 +10,8 @@ overwriting the file.
 
 The notes are rendered as Markdown, checklist items included. The header shows the task's file, so it's
 easy to find for editing by hand. `e` edits the task in the form and `o` opens
-its file in `$VISUAL` or `$EDITOR`; afterwards it is reloaded from disk. It's
-also reloaded when the app notices task files changed on disk.
+its file in the editor (the config's `editor`); afterwards it is reloaded
+from disk. It's also reloaded when the app notices task files changed on disk.
 """
 
 from datetime import UTC, datetime
