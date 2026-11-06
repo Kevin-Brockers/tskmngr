@@ -1,15 +1,20 @@
-name: CI
+name: CI Linux
 
-# Disabled for now: the workflow only runs when started by hand from the
-# Actions tab. To run it on pull requests to `dev`, add this trigger:
-#
-#   pull_request:
-#     branches: [dev]
+# Runs on pull requests from `dev` into `main` (the release pull request) and
+# on pushes to `main`, whose result the README's badge shows; it can also be
+# started by hand from the Actions tab. Pull requests into `dev` get no CI:
+# contributors run the same checks locally before every commit (AGENTS.md).
 on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   lint:
+    # Only the pull request from `dev`, not one from any other branch.
+    if: github.event_name != 'pull_request' || github.head_ref == 'dev'
     runs-on: ubuntu-latest
     env:
       UV_PYTHON: "3.12"
@@ -24,6 +29,7 @@ jobs:
         run: uv run ruff format --check .
 
   test:
+    if: github.event_name != 'pull_request' || github.head_ref == 'dev'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -42,6 +48,7 @@ jobs:
   # Tests on the newest stable CPython that uv can download, so a new Python
   # release is covered before it's added to the matrix above.
   python_latest:
+    if: github.event_name != 'pull_request' || github.head_ref == 'dev'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

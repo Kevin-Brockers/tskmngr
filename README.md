@@ -1,5 +1,9 @@
 # tskmngr
 
+[![CI Linux](https://github.com/Kevin-Brockers/tskmngr/actions/workflows/ci-linux.yml/badge.svg?branch=main)](https://github.com/Kevin-Brockers/tskmngr/actions/workflows/ci-linux.yml?query=branch%3Amain)
+[![CI macOS](https://github.com/Kevin-Brockers/tskmngr/actions/workflows/ci-macos.yml/badge.svg?branch=main)](https://github.com/Kevin-Brockers/tskmngr/actions/workflows/ci-macos.yml?query=branch%3Amain)
+![Python 3.12 | 3.13 | 3.14](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)
+
 A terminal task manager with an interactive TUI, written in Python. Tasks are
 plain Markdown files, so they stay readable and editable outside the app.
 
@@ -625,6 +629,14 @@ prek install             # install the git pre-commit hook (once per clone)
 Changes go through pull requests against `dev`. [`AGENTS.md`](AGENTS.md)
 describes how to work on the code, for people and coding agents alike:
 branches, tests, the changelog and the roadmap.
+
+CI runs on GitHub Actions for the release pull request from `dev` into `main`
+and for every push to `main`, and can be started by hand from the Actions
+tab: `ci-linux.yml` lints and runs the tests on Linux with Python 3.12, 3.13,
+3.14 and the newest release, and `ci-macos.yml` runs the tests on macOS with
+Python 3.12, 3.13 and 3.14. The badges at the top show their last result on
+`main`. Pull requests into `dev` get no CI, so run the checks above before
+every commit.
 
 ## License
 
