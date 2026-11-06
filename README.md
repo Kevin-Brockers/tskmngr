@@ -642,6 +642,13 @@ badges at the top show their last result on `main`, the released code, and on
 before every commit too, so a pull request doesn't wait for CI to find a
 problem.
 
+Releases are made by `release.yml` when the maintainer pushes a tag like
+`v0.1.0` on `main`. It checks that the tagged commit is on `main`, that the
+tag matches the version in `pyproject.toml` and that `CHANGELOG.md` has a
+section with entries for that version, and stops if not. It then lints and
+tests that commit, builds the wheel and sdist with `uv build` and creates a
+GitHub Release with them attached and the changelog section as its notes.
+
 ## License
 
 [MIT](LICENSE)

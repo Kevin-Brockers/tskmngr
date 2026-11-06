@@ -236,7 +236,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   checks that the tagged commit is on `main`, the tag matches the version in
   `pyproject.toml` and `CHANGELOG.md` has a section with entries for it, runs
   ruff and pytest, builds the wheel and sdist with `uv build` and creates a
-  GitHub Release with them and that section as its notes
+  GitHub Release with them and that section as its notes; described in the
+  README and `AGENTS.md`, whose release rule now also sets the version in
+  `pyproject.toml` before the `dev` → `main` merge
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

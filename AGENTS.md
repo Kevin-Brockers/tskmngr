@@ -101,6 +101,9 @@ src/tskmngr/
                 #   tasks repository
   widgets/      # Textual widgets and screens
 tests/          # mirrors src/ layout; test_<module>.py
+scripts/
+  release_notes.py  # the release workflow's tag, version and changelog
+                #   checks; not part of the package
 ```
 
 Keep the layers separate: `models`, `taskfile`, `storage`, `query`,
@@ -347,6 +350,13 @@ it worked.
   `ci-linux.yml` runs ruff and pytest on Python 3.12 to 3.14 and the newest
   one, `ci-macos.yml` pytest on 3.12 to 3.14. It doesn't replace the local
   lint, format and test runs before every commit.
+- `release.yml` runs when a tag like `v0.1.0` is pushed. It stops unless the
+  tagged commit is on `main`, the tag is `v` followed by the version in
+  `pyproject.toml` and `CHANGELOG.md` has a section with entries for that
+  version (checked by `scripts/release_notes.py`), then runs ruff and pytest,
+  builds the wheel and sdist with `uv build` and creates a GitHub Release
+  with them attached and that section as its notes. Only the maintainer
+  pushes release tags.
 
 ### Commit, push, open the pull request, then stop
 The same rules apply in local and cloud sessions.
@@ -410,8 +420,10 @@ The same rules apply in local and cloud sessions.
   that.
 - Never invent a PR number or commit hash. Look it up (`git log`, the PR page).
 - On a release (in the maintainer's `dev` → `main` PR), rename `[Unreleased]`
-  to the version and date, e.g. `## [0.1.0] - 2026-11-15`, and start a new
-  empty `[Unreleased]` section.
+  to the version and date, e.g. `## [0.1.0] - 2026-11-15`, start a new
+  empty `[Unreleased]` section and set that version in `pyproject.toml`, all
+  before the merge: the release workflow stops on a tag whose version or
+  changelog section isn't on `main`.
 
 ### Ask before adding dependencies
 - Do not add a new dependency (runtime or dev) without asking the maintainer
