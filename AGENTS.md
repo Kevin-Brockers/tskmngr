@@ -88,7 +88,8 @@ src/tskmngr/
   display.py    # format task fields for display, and the column names of the
                 #   task list (`Column`) and the deleted tasks view
                 #   (`TrashColumn`); shared by CLI and TUI
-  editor.py     # find $VISUAL/$EDITOR and run it on a file
+  editor.py     # the editors (vim, nano): find one on PATH and run it on a
+                #   file
   gitsync.py    # clone, pull, commit and push the tasks directory's git repo
   models.py     # Task dataclass and enums (status, priority)
   query.py      # filter, search, sort, ID-prefix lookup; shared by CLI and TUI
@@ -180,28 +181,36 @@ Notes go here, in **Markdown**.
 
 A JSON object (read with `json`) at `~/.tskmngr/config.json`, the only
 place it's read from, with the keys `tasks_dir`, `tasks_repo`, `sort`,
-`reverse`, `theme`, `poll_interval`, `columns`, `trash_columns`, `show_trash`
-and `keybindings`.
+`reverse`, `theme`, `editor`, `poll_interval`, `columns`, `trash_columns`,
+`show_trash` and `keybindings`.
 All are flat values except `columns` and `trash_columns`, lists of column
 names, and `keybindings`, an object mapping TUI binding ids to keys as in
 Textual's keymap. All are optional.
 
 - On every run (any CLI command or the TUI), if nothing is at that path, the
   app writes the default config there: every key except `tasks_dir` and
-  `tasks_repo`, at its default (`sort` `due`, `reverse` false, `theme` `textual-dark`,
-  `poll_interval` 2, `columns`
+  `tasks_repo`, at its default (`sort` `due`, `reverse` false, `theme`
+  `textual-dark`, `editor` `vim`, `poll_interval` 2, `columns`
   `["id", "status", "priority", "due", "title", "tags"]`, `trash_columns`
   `["title", "tags", "deleted", "id"]`, `show_trash` true,
   `keybindings` `{}`). The write is atomic and never
   overwrites an existing file; otherwise the app only reads the file, except
   `tskmngr remote init` (see "Synced tasks"), which sets `tasks_repo` in it:
   every other key and value is kept in its order, and the file is rewritten
-  atomically as indented JSON, so its spacing changes. If it can't be written, the CLI and the TUI stop with an error naming the file.
+  atomically as indented JSON, so its spacing changes. If it can't be
+  written, the CLI and the TUI stop with an error naming the file.
   `--help` and usage errors exit before this, so they don't write the file
   (or print the warning below).
 - `tasks_repo` comes first for the tasks directory (see "Synced tasks"), then
   `tasks_dir`, then `TSKMNGR_DIR`, then the default. A relative `tasks_dir`
   or local `tasks_repo` is read from the config file's folder.
+- `editor` is the editor `o` in the TUI and `tskmngr config edit` open files
+  in: `vim` or `nano`, found on `PATH` and run in the same terminal (the TUI
+  is suspended meanwhile). Any other value stops the CLI and the TUI.
+  `$VISUAL` and `$EDITOR` aren't read. An editor that isn't installed is an
+  error naming it, the other editor and the config file, and the TUI
+  doesn't hand over the terminal. Editing inside the TUI (the form, its
+  notes and every other key) doesn't use it.
 - `columns` sets the TUI task list's columns in display order, from `id`,
   `status`, `priority`, `due`, `created`, `updated`, `title` and `tags`; the
   ones left out are hidden. `tags` lists a task's tags separated by commas;
@@ -231,7 +240,9 @@ Textual's keymap. All are optional.
   `config get KEY` prints one: plain text, `tasks_dir` as the full path,
   `tasks_repo` as its URL or full path (an empty line if not set), `columns`,
   `trash_columns` and `keybindings` as JSON. `config edit` opens the file in
-  `$VISUAL`/`$EDITOR`, then runs every check above, the TUI's included. It
+  its `editor`, or vim when that can't be read (only that key is read
+  first, so a file broken elsewhere keeps its editor), then runs every check
+  above, the TUI's included. It
   names the key of the first problem and exits 1, and never rewrites the
   file.
 
