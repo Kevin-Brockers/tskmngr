@@ -16,6 +16,7 @@ from tskmngr.config import (
     config_path,
     create_default_config,
     default_config_text,
+    editor_setting,
     load_config,
     old_config_path,
     parse_config,
@@ -23,6 +24,7 @@ from tskmngr.config import (
     tasks_directory,
 )
 from tskmngr.display import DEFAULT_COLUMNS, DEFAULT_TRASH_COLUMNS, Column, TrashColumn
+from tskmngr.editor import Editor
 from tskmngr.gitsync import TasksRepo
 from tskmngr.query import SortKey
 
@@ -73,6 +75,7 @@ def test_the_default_file_has_every_setting_but_tasks_dir_and_tasks_repo() -> No
         "sort",
         "reverse",
         "theme",
+        "editor",
         "poll_interval",
         "columns",
         "trash_columns",
@@ -95,6 +98,7 @@ def test_the_default_file_is_indented_json() -> None:
         '  "sort": "due",\n'
         '  "reverse": false,\n'
         '  "theme": "textual-dark",\n'
+        '  "editor": "vim",\n'
         '  "poll_interval": 2,\n'
         '  "columns": [\n'
         '    "id",\n'
@@ -289,6 +293,7 @@ def test_setting_keys_are_every_known_key_in_the_documented_order() -> None:
         "sort",
         "reverse",
         "theme",
+        "editor",
         "poll_interval",
         "columns",
         "trash_columns",
@@ -388,8 +393,8 @@ def test_the_file_must_hold_an_object(text: str, got: str) -> None:
 def test_unknown_keys_are_refused() -> None:
     assert error_message('{"sort": "due", "colour": "red"}') == (
         "unknown key 'colour'; the known keys are tasks_dir, tasks_repo, sort, "
-        "reverse, theme, poll_interval, columns, trash_columns, show_trash, "
-        "keybindings"
+        "reverse, theme, editor, poll_interval, columns, trash_columns, "
+        "show_trash, keybindings"
     )
 
 
@@ -583,3 +588,56 @@ def test_set_tasks_repo_reports_a_file_that_cant_be_written(
     assert str(error.value) == f"{path}: can't be written: Permission denied"
     assert path.read_text() == "{}"
     assert sorted(item.name for item in tmp_path.iterdir()) == ["config.json"]
+
+
+def test_the_editor_is_vim_by_default() -> None:
+    assert Config().editor is Editor.VIM
+    assert parse_config("{}", PATH).editor is Editor.VIM
+
+
+def test_the_editor_can_be_nano() -> None:
+    assert parse_config('{"editor": "nano"}', PATH).editor is Editor.NANO
+
+
+@pytest.mark.parametrize(
+    ("value", "shown"),
+    [
+        ('"code"', "the text 'code'"),
+        ('"VIM"', "the text 'VIM'"),
+        ('"nano -w"', "the text 'nano -w'"),
+        ("null", "null"),
+        ("1", "the number 1"),
+    ],
+)
+def test_any_other_editor_is_refused(value: str, shown: str) -> None:
+    assert error_message(f'{{"editor": {value}}}') == (
+        f"editor: expected vim or nano, got {shown}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "editor"),
+    [
+        ('{"editor": "nano"}', Editor.NANO),
+        # Other keys aren't checked, so a file broken elsewhere keeps its editor.
+        ('{"editor": "nano", "sort": "size", "colour": "red"}', Editor.NANO),
+        ('{"editor": "vim"}', Editor.VIM),
+        ("{}", Editor.VIM),
+        ('{"editor": "code"}', Editor.VIM),
+        ('{"editor": 1}', Editor.VIM),
+        ('{"editor": "nano"', Editor.VIM),
+        ('["nano"]', Editor.VIM),
+        ("\udcff", Editor.VIM),
+    ],
+)
+def test_editor_setting_reads_only_the_editor_and_falls_back_to_vim(
+    tmp_path: Path, text: str, editor: Editor
+) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(text, encoding="utf-8", errors="surrogateescape")
+
+    assert editor_setting(path) is editor
+
+
+def test_editor_setting_of_a_missing_file_is_vim(tmp_path: Path) -> None:
+    assert editor_setting(tmp_path / "config.json") is Editor.VIM

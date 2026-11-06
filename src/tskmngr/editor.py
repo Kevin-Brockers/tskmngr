@@ -1,48 +1,52 @@
-"""Find the user's text editor and open a file in it.
+"""Open a file in the editor the config file sets.
 
-The editor comes from `$VISUAL`, then `$EDITOR`, the same order as git and
-most Unix tools. Their value is split like a shell command line, so an editor
-with arguments (`code --wait`) works. There's no fallback editor: if neither is
-set, the caller tells the user.
+The config's `editor` key picks it: vim (the default) or nano, both run in the
+same terminal as tskmngr. `$VISUAL` and `$EDITOR` aren't read, so the editor
+is the same wherever tskmngr runs, and works without setting anything.
 """
 
-import os
-import shlex
+import shutil
 import subprocess
-from collections.abc import Mapping
+from enum import StrEnum
 from pathlib import Path
 
-ENV_VARS = ("VISUAL", "EDITOR")
+
+class Editor(StrEnum):
+    """The editors the config's `editor` key can name."""
+
+    VIM = "vim"
+    NANO = "nano"
 
 
-class EditorSettingError(Exception):
-    """`$VISUAL` or `$EDITOR` is set but can't be split into a command."""
-
-    def __init__(self, name: str, value: str, reason: str) -> None:
-        super().__init__(f"${name} can't be read as a command ({reason}): {value}")
-        self.name = name
-        self.value = value
+DEFAULT_EDITOR = Editor.VIM
 
 
-def editor_command(environ: Mapping[str, str] | None = None) -> list[str] | None:
-    """The editor command from `$VISUAL` or `$EDITOR`, or None if neither is set.
+class EditorNotFound(Exception):
+    """The editor the config names isn't installed (not on `PATH`)."""
 
-    `environ` defaults to `os.environ`. Variables that are empty or only
-    whitespace count as unset. Raises `EditorSettingError` for a value that
-    can't be split, like one with an unclosed quote.
+    def __init__(self, editor: Editor) -> None:
+        super().__init__(f"{editor} isn't installed")
+        self.editor = editor
+
+
+def editor_command(editor: Editor) -> list[str]:
+    """The command that runs `editor`: the full path of its program on `PATH`.
+
+    Raises `EditorNotFound` if it isn't installed.
     """
-    environ = os.environ if environ is None else environ
-    for name in ENV_VARS:
-        value = environ.get(name, "")
-        if not value.strip():
-            continue
-        try:
-            words = shlex.split(value)
-        except ValueError as error:
-            raise EditorSettingError(name, value, str(error)) from None
-        if words and words[0]:
-            return words
-    return None
+    program = shutil.which(editor.value)
+    if program is None:
+        raise EditorNotFound(editor)
+    return [program]
+
+
+def not_found_hint(editor: Editor, config_file: Path) -> str:
+    """What to do about a missing `editor`: install it, or pick the other one."""
+    other = next(choice for choice in Editor if choice is not editor)
+    return (
+        f"{editor} isn't installed; install it, or set editor to {other} in "
+        f"{config_file}"
+    )
 
 
 def run_editor(command: list[str], path: Path) -> int:

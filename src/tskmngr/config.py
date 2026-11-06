@@ -12,6 +12,7 @@ wrong type) is a `ConfigError`, so nothing runs with a half-read config.
       "sort": "priority",
       "reverse": false,
       "theme": "nord",
+      "editor": "nano",
       "poll_interval": 2,
       "columns": ["id", "due", "title"],
       "trash_columns": ["title", "deleted"],
@@ -29,6 +30,8 @@ type is checked here.
 `display.Column`); the ones left out are hidden. `trash_columns` does the same
 for the deleted tasks view (`display.TrashColumn`), and `show_trash` says
 whether that view starts shown.
+`editor` is the editor `o` in the TUI and `tskmngr config edit` open files
+in: vim (the default) or nano (see `tskmngr.editor`).
 `keybindings` maps binding ids to keys, as Textual's keymap does. The theme
 and the binding ids are checked by the TUI, which knows the theme names and
 the bindings.
@@ -46,6 +49,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from tskmngr.display import DEFAULT_COLUMNS, DEFAULT_TRASH_COLUMNS, Column, TrashColumn
+from tskmngr.editor import DEFAULT_EDITOR, Editor
 from tskmngr.gitsync import TasksRepo, parse_tasks_repo
 from tskmngr.query import SortKey
 from tskmngr.storage import tasks_dir
@@ -66,6 +70,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "sort": SortKey.DUE.value,
     "reverse": False,
     "theme": DEFAULT_THEME,
+    "editor": DEFAULT_EDITOR.value,
     "poll_interval": 2,
     "columns": [column.value for column in DEFAULT_COLUMNS],
     "trash_columns": [column.value for column in DEFAULT_TRASH_COLUMNS],
@@ -97,6 +102,8 @@ class Config:
     reverse: bool = False
     # None means Textual's default theme.
     theme: str | None = None
+    # The editor `o` in the TUI and `tskmngr config edit` open files in.
+    editor: Editor = DEFAULT_EDITOR
     poll_interval: float = DEFAULT_POLL_INTERVAL
     # The TUI task list's columns, in display order.
     columns: tuple[Column, ...] = DEFAULT_COLUMNS
@@ -212,6 +219,25 @@ def set_tasks_repo(path: Path, location: str) -> None:
         temp.unlink(missing_ok=True)
 
 
+def editor_setting(path: Path) -> Editor:
+    """The editor the config file at `path` names, for `tskmngr config edit`.
+
+    That command opens the file even when it can't be used, so it can be
+    fixed: anything that keeps `editor` from being read (no file, not JSON,
+    not an object, a bad value) gives the default editor. Other keys aren't
+    checked.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return DEFAULT_EDITOR
+    value = data.get("editor") if isinstance(data, dict) else None
+    try:
+        return _editor(value, path) if value is not None else DEFAULT_EDITOR
+    except _BadValue:
+        return DEFAULT_EDITOR
+
+
 def load_config(path: Path | None = None) -> Config:
     """Read the config file at `path` (default: `config_path()`).
 
@@ -289,6 +315,13 @@ def _sort(value: object, path: Path) -> SortKey:
     return SortKey(value)
 
 
+def _editor(value: object, path: Path) -> Editor:
+    names = " or ".join(editor.value for editor in Editor)
+    if not isinstance(value, str) or value not in set(Editor):
+        raise _BadValue(f"expected {names}, got {_describe(value)}")
+    return Editor(value)
+
+
 def _boolean(value: object, path: Path) -> bool:
     if not isinstance(value, bool):
         raise _BadValue(f"expected true or false, got {_describe(value)}")
@@ -363,6 +396,7 @@ _READERS: dict[str, Callable[[object, Path], object]] = {
     "sort": _sort,
     "reverse": _boolean,
     "theme": _theme,
+    "editor": _editor,
     "poll_interval": _poll_interval,
     "columns": _columns,
     "trash_columns": _trash_columns,

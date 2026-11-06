@@ -8,6 +8,8 @@ import pytest
 from textual.widgets import Static
 
 from tskmngr.app import TskmngrApp
+from tskmngr.config import Config, config_path
+from tskmngr.editor import Editor
 from tskmngr.models import Task
 from tskmngr.storage import save_task
 from tskmngr.widgets import external_editor
@@ -23,18 +25,36 @@ def make_task(task_id: str, title: str, **fields: object) -> Task:
 
 @dataclass
 class Recorder:
-    """What happened: suspends, editor runs and notifications."""
+    """What happened: suspends, editor runs and notifications.
 
+    `bin` is the only folder on `PATH`, with a fake `vim` and `nano` in it.
+    """
+
+    bin: Path
     events: list[str] = field(default_factory=list)
     runs: list[tuple[list[str], Path]] = field(default_factory=list)
     notifications: list[tuple[str, str]] = field(default_factory=list)
 
 
 @pytest.fixture
-def recorder(monkeypatch: pytest.MonkeyPatch) -> Recorder:
-    monkeypatch.delenv("VISUAL", raising=False)
+def recorder(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> Recorder:
+    folder = tmp_path_factory.mktemp("bin")
+    for editor in Editor:
+        program = folder / editor.value
+        program.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        program.chmod(0o755)
+    monkeypatch.setenv("PATH", str(folder))
+    # Not read any more: the config's `editor` picks the editor.
+    monkeypatch.setenv("VISUAL", "fake-editor --wait")
     monkeypatch.setenv("EDITOR", "fake-editor --wait")
-    return Recorder()
+    return Recorder(folder)
+
+
+def vim(recorder: Recorder) -> list[str]:
+    """The command the default editor, vim, runs as."""
+    return [str(recorder.bin / "vim")]
 
 
 def install(
@@ -97,7 +117,7 @@ async def test_o_on_the_list_opens_the_task_under_the_cursor_and_reloads(
         await pilot.press("down", "o")
 
         assert recorder.events == ["suspend", "editor", "resume"]
-        assert recorder.runs == [(["fake-editor", "--wait"], path)]
+        assert recorder.runs == [(vim(recorder), path)]
         assert recorder.notifications == []
         assert list_titles(app) == ["First", "Edited"]
         assert app.screen.tasks[1].text == path.read_text(encoding="utf-8")
@@ -122,7 +142,7 @@ async def test_o_on_the_detail_screen_opens_the_task_and_shows_it_again(
 
         screen = app.screen
         assert isinstance(screen, TaskDetailScreen)
-        assert recorder.runs == [(["fake-editor", "--wait"], tmp_path / "AAAA.md")]
+        assert recorder.runs == [(vim(recorder), tmp_path / "AAAA.md")]
         assert screen.source.task.notes == "New notes.\n"
 
         await pilot.press("escape")
@@ -185,41 +205,44 @@ async def test_a_file_left_malformed_is_reported_not_overwritten(
 
 
 @pytest.mark.asyncio
-async def test_without_an_editor_setting_nothing_is_opened(
+async def test_o_opens_the_editor_the_config_names(
     tmp_path: Path, recorder: Recorder, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("VISUAL", " ")
-    monkeypatch.delenv("EDITOR")
     save_task(tmp_path, make_task("AAAA", "First"), None)
 
-    app = TskmngrApp(tmp_path)
+    app = TskmngrApp(tmp_path, config=Config(editor=Editor.NANO))
+    async with app.run_test() as pilot:
+        install(app, recorder, monkeypatch, retitle("Edited"))
+        await pilot.press("o")
+
+        assert recorder.runs == [([str(recorder.bin / "nano")], tmp_path / "AAAA.md")]
+        assert list_titles(app) == ["Edited"]
+
+
+@pytest.mark.asyncio
+async def test_an_editor_that_isnt_installed_is_reported_without_suspending(
+    tmp_path: Path, recorder: Recorder, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (recorder.bin / "nano").unlink()
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+    config_file = tmp_path.parent / "config.json"
+
+    app = TskmngrApp(tmp_path, config=Config(path=config_file, editor=Editor.NANO))
     async with app.run_test() as pilot:
         install(app, recorder, monkeypatch)
         await pilot.press("o")
 
         assert recorder.events == []
         assert recorder.notifications == [
-            ("error", "Set $VISUAL or $EDITOR to open tasks in an editor.")
+            (
+                "error",
+                (
+                    "Nano isn't installed; install it, or set editor to vim in "
+                    f"{config_file}."
+                ),
+            )
         ]
         assert isinstance(app.screen, TaskListScreen)
-
-
-@pytest.mark.asyncio
-async def test_an_unreadable_editor_setting_is_reported(
-    tmp_path: Path, recorder: Recorder, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("VISUAL", "'vi")
-    save_task(tmp_path, make_task("AAAA", "First"), None)
-
-    app = TskmngrApp(tmp_path)
-    async with app.run_test() as pilot:
-        install(app, recorder, monkeypatch)
-        await pilot.press("o")
-
-        assert recorder.events == []
-        [(severity, message)] = recorder.notifications
-        assert severity == "error"
-        assert message.startswith("$VISUAL can't be read as a command (")
 
 
 @pytest.mark.asyncio
@@ -237,7 +260,17 @@ async def test_a_missing_editor_is_reported_and_the_app_resumed(
         await pilot.press("o")
 
         assert recorder.events == ["suspend", "editor", "resume"]
-        assert recorder.notifications == [("error", "Editor not found: fake-editor")]
+        # Found on PATH but gone by the time it ran; the default config file
+        # is named, since this app has none.
+        assert recorder.notifications == [
+            (
+                "error",
+                (
+                    "Vim isn't installed; install it, or set editor to nano in "
+                    f"{config_path()}."
+                ),
+            )
+        ]
         assert list_titles(app) == ["First"]
 
 
@@ -257,7 +290,7 @@ async def test_an_editor_that_cant_start_is_reported(
 
         assert recorder.events == ["suspend", "editor", "resume"]
         assert recorder.notifications == [
-            ("error", "Can't start fake-editor: Permission denied")
+            ("error", "Can't start vim: Permission denied")
         ]
 
 
@@ -276,7 +309,7 @@ async def test_a_failed_editor_is_a_warning_and_the_task_still_reloaded(
         assert recorder.notifications == [
             (
                 "warning",
-                "fake-editor exited with status 1; the task was reloaded from disk.",
+                "vim exited with status 1; the task was reloaded from disk.",
             )
         ]
         assert list_titles(app) == ["Saved anyway"]

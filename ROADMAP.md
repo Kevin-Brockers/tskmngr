@@ -338,7 +338,7 @@ macOS and Linux, and the editor is set in the config file. Editing tasks
 inside the TUI (the form, its notes and every other key) stays as it is; the
 editor is only for `o` and `tskmngr config edit`.
 
-- [ ] **M13.1** `editor` config key, `vim` (the default) or `nano`: the
+- [x] **M13.1** `editor` config key, `vim` (the default) or `nano`: the
   editor the TUI's `o` and `tskmngr config edit` open files in, run in the
   same terminal; `$VISUAL` and `$EDITOR` are no longer read; the default
   config file gains `"editor": "vim"`, and any other value stops the CLI and
@@ -347,7 +347,8 @@ editor is only for `o` and `tskmngr config edit`.
   installed is an error naming it and the `editor` key; find and fix why
   opening an editor fails on the maintainer's Mac; shown by `tskmngr config`
   and `config get`; document both editors in the README and update
-  `AGENTS.md` to match · `feature/editor_setting`
+  `AGENTS.md` to match · `feature/editor_setting` ·
+  [#78](https://github.com/Kevin-Brockers/tskmngr/pull/78)
 
 ### M14 · First release
 
