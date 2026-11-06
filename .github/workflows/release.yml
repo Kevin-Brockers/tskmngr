@@ -1,0 +1,57 @@
+name: Release
+
+# Runs when a version tag like `v0.1.0` is pushed, after the maintainer's
+# `dev` → `main` release pull request is merged and the tag is set on `main`.
+# It stops, creating nothing, unless the tagged commit is on `main`, the tag
+# is `v` followed by the version in `pyproject.toml`, `CHANGELOG.md` has a
+# section with entries for that version (`## [0.1.0] - <date>`), and ruff and
+# pytest pass. Then it builds the wheel and sdist with `uv build` and creates
+# a GitHub Release with them attached and that section as its notes, through
+# the `gh` CLI on the runner.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      UV_PYTHON: "3.12"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The whole history, so the tagged commit can be found on `main`.
+          fetch-depth: 0
+      - name: Check that the tagged commit is on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Tag $GITHUB_REF_NAME points at $(git rev-parse HEAD), which isn't on main"
+            exit 1
+          fi
+      - uses: astral-sh/setup-uv@v6
+      - name: Check the version and write the notes from the changelog
+        run: >-
+          uv run --no-project python scripts/release_notes.py
+          "$GITHUB_REF_NAME" --output "$RUNNER_TEMP/release-notes.md"
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check .
+      - name: Check formatting
+        run: uv run ruff format --check .
+      - name: Test
+        run: uv run pytest
+      - name: Build the wheel and sdist
+        run: uv build
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" dist/*
+          --verify-tag
+          --title "tskmngr ${GITHUB_REF_NAME#v}"
+          --notes-file "$RUNNER_TEMP/release-notes.md"
