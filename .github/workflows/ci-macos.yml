@@ -1,0 +1,33 @@
+name: CI macOS
+
+# The tests on macOS, with the same triggers as ci-linux.yml: pull requests
+# into `dev` and `main` (into `main` only from `dev`), pushes to them (the
+# README's badge shows `main`) and by hand. Linting runs on Linux only; its
+# result doesn't depend on the system.
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    # Into `main`, only the pull request from `dev`.
+    if: >-
+      github.event_name != 'pull_request' || github.base_ref != 'main'
+      || github.head_ref == 'dev'
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Test
+        run: uv run pytest

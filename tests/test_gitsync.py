@@ -45,6 +45,17 @@ def write(repo: TasksRepo, name: str, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def no_git_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make git refuse to commit for want of an identity, on any system.
+
+    An empty name is always refused. Leaving the name out isn't enough: git
+    then makes one up from the system's user, and an email from `$EMAIL` or
+    the host name, which works on macOS but not in a Linux container.
+    """
+    for role in ("AUTHOR", "COMMITTER"):
+        monkeypatch.setenv(f"GIT_{role}_NAME", "")
+
+
 def subjects(git: Git, directory: Path) -> list[str]:
     """The commit messages' first lines, newest first."""
     return git(directory, "log", "--format=%s").splitlines()
@@ -218,12 +229,7 @@ def test_commit_all_without_a_git_identity_fails(
     tmp_path: Path, remote: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo = cloned(remote, tmp_path / "clone")
-    for name in ("AUTHOR", "COMMITTER"):
-        monkeypatch.delenv(f"GIT_{name}_NAME")
-        monkeypatch.delenv(f"GIT_{name}_EMAIL")
-    # Without a name, git falls back to the system's user and host name,
-    # which may make up a usable identity; this one it refuses.
-    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "")
+    no_git_identity(monkeypatch)
     write(repo, "T1.md", "one")
 
     with pytest.raises(SyncError, match="can't commit"):
@@ -527,11 +533,7 @@ def test_init_remote_reports_a_failed_clone(
 def test_init_remote_without_a_git_identity_changes_nothing(
     remote: Path, user_home: Path, git: Git, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    for name in ("AUTHOR", "COMMITTER"):
-        monkeypatch.delenv(f"GIT_{name}_NAME")
-        monkeypatch.delenv(f"GIT_{name}_EMAIL")
-    # As in test_commit_all_without_a_git_identity_fails.
-    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "")
+    no_git_identity(monkeypatch)
 
     with pytest.raises(RepoError, match="can't commit the setup"):
         init_remote(remote.as_uri(), FILES)

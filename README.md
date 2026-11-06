@@ -1,5 +1,11 @@
 # tskmngr
 
+[![CI Linux (main)](https://img.shields.io/github/actions/workflow/status/Kevin-Brockers/tskmngr/ci-linux.yml?branch=main&label=Linux%20%28main%29)](https://github.com/Kevin-Brockers/tskmngr/actions/workflows/ci-linux.yml?query=branch%3Amain)
+[![CI macOS (main)](https://img.shields.io/github/actions/workflow/status/Kevin-Brockers/tskmngr/ci-macos.yml?branch=main&label=macOS%20%28main%29)](https://github.com/Kevin-Brockers/tskmngr/actions/workflows/ci-macos.yml?query=branch%3Amain)
+[![CI Linux (dev)](https://img.shields.io/github/actions/workflow/status/Kevin-Brockers/tskmngr/ci-linux.yml?branch=dev&label=Linux%20%28dev%29)](https://github.com/Kevin-Brockers/tskmngr/actions/workflows/ci-linux.yml?query=branch%3Adev)
+[![CI macOS (dev)](https://img.shields.io/github/actions/workflow/status/Kevin-Brockers/tskmngr/ci-macos.yml?branch=dev&label=macOS%20%28dev%29)](https://github.com/Kevin-Brockers/tskmngr/actions/workflows/ci-macos.yml?query=branch%3Adev)
+![Python 3.12 | 3.13 | 3.14](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)
+
 A terminal task manager with an interactive TUI, written in Python. Tasks are
 plain Markdown files, so they stay readable and editable outside the app.
 
@@ -625,6 +631,16 @@ prek install             # install the git pre-commit hook (once per clone)
 Changes go through pull requests against `dev`. [`AGENTS.md`](AGENTS.md)
 describes how to work on the code, for people and coding agents alike:
 branches, tests, the changelog and the roadmap.
+
+CI runs on GitHub Actions for every pull request into `dev` and `main` (into
+`main`, only the release pull request from `dev`) and every push to them, and
+can be started by hand from the Actions tab: `ci-linux.yml` lints and runs
+the tests on Linux with Python 3.12, 3.13, 3.14 and the newest release, and
+`ci-macos.yml` runs the tests on macOS with Python 3.12, 3.13 and 3.14. The
+badges at the top show their last result on `main`, the released code, and on
+`dev`, the work towards the next release. Run the checks above
+before every commit too, so a pull request doesn't wait for CI to find a
+problem.
 
 ## License
 

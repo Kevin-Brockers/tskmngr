@@ -355,10 +355,15 @@ editor is only for `o` and `tskmngr config edit`.
 Goal: tskmngr 0.1.0 is released from `main`, checked by CI, with a GitHub
 Release to install it from.
 
-- [ ] **M14.1** CI runs on its own: the existing workflow (ruff and pytest on
-  Python 3.12 to 3.14 and the newest one) runs on every pull request to `dev`
-  and `main` and on every push to `main`, not only by hand ·
-  `chore/ci_triggers`
+- [x] **M14.1** CI runs on its own, on Linux and macOS: the workflow is split
+  into `ci-linux.yml` (ruff, and pytest on Python 3.12 to 3.14 and the newest
+  one) and `ci-macos.yml` (pytest on Python 3.12 to 3.14); both run on pull
+  requests into `dev` and `main` (into `main`, only from `dev`) and on pushes
+  to them, and can still be started by hand; the README shows a badge per
+  workflow and branch (its last result on `main` and on `dev`) and one
+  listing the tested Python versions; document the CI in `AGENTS.md`, next to the local checks it
+  doesn't replace · `chore/ci_triggers` ·
+  [#79](https://github.com/Kevin-Brockers/tskmngr/pull/79)
 - [ ] **M14.2** Release workflow: pushing a tag like `v0.1.0` builds the
   wheel and sdist with `uv build` and creates a GitHub Release with them
   attached and that version's changelog section as its notes, using the `gh`
