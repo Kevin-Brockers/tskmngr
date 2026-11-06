@@ -364,11 +364,14 @@ Release to install it from.
   listing the tested Python versions; document the CI in `AGENTS.md`, next to the local checks it
   doesn't replace · `chore/ci_triggers` ·
   [#79](https://github.com/Kevin-Brockers/tskmngr/pull/79)
-- [ ] **M14.2** Release workflow: pushing a tag like `v0.1.0` builds the
+- [x] **M14.2** Release workflow: pushing a tag like `v0.1.0` checks that the
+  tagged commit is on `main`, that the tag matches the version in
+  `pyproject.toml` and that `CHANGELOG.md` has a non-empty section for that
+  version, and stops otherwise; it then runs ruff and pytest, builds the
   wheel and sdist with `uv build` and creates a GitHub Release with them
-  attached and that version's changelog section as its notes, using the `gh`
-  CLI on the runner (no new action); it stops if the tag doesn't match the
-  version in `pyproject.toml` · `chore/release_workflow` · depends on M14.1
+  attached and that section as its notes, using the `gh` CLI on the runner
+  (uv through `astral-sh/setup-uv`, as in CI) · `chore/release_workflow` ·
+  depends on M14.1 · #TBD
 - [ ] **M14.3** Prepare 0.1.0: version `0.1.0` in `pyproject.toml` and
   `uv.lock`; the README's status and installation updated (install with
   `uv tool install` from the release's tag); a `RELEASING.md` with the steps
