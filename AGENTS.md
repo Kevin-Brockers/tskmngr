@@ -256,11 +256,11 @@ its `tasks/` folder, and stops with an error if it can't be used.
 
 - A remote URL (`scheme://…`, e.g. `https://github.com/me/tasks.git`, or
   `user@host:path`) is cloned into `~/.tskmngr/remote_task_dir`. If that
-  folder doesn't exist, it's cloned the first
-  time the tasks are needed, into a temp folder next to it that's renamed
-  into place, so a failed clone leaves nothing behind. If it exists but isn't a git repository, or its `origin` is another
-  URL, the command stops with an error naming the folder and nothing in it is
-  changed.
+  folder doesn't exist, it's cloned the first time the tasks are needed, into
+  a temp folder next to it that's renamed into place, so a failed clone leaves
+  nothing behind. If it exists but isn't a git repository, or its `origin` is
+  another URL, the command stops with an error naming the folder and nothing
+  in it is changed.
 - Anything else is a local path (a relative one is read from the config
   file's folder) to a folder that's already a git repository. It's pulled
   from and pushed to its upstream branch; without one, changes are only
@@ -344,8 +344,9 @@ it worked.
 - Run `uv run pytest` before committing; do not commit with failing tests.
 - CI (GitHub Actions) runs on every pull request into `dev` and `main` (into
   `main`, only the one from `dev`) and on pushes to them, and by hand:
-  `ci-linux.yml` runs ruff and pytest on Python 3.12 to 3.14 and the newest
-  one, `ci-macos.yml` pytest on 3.12 to 3.14. It doesn't replace the local
+  `ci-linux.yml` runs `ruff check`, `ruff format --check` and pytest on
+  Python 3.12 to 3.14 and the newest one, `ci-macos.yml` pytest on 3.12 to
+  3.14. It doesn't replace the local
   lint, format and test runs before every commit.
 
 ### Commit, push, open the pull request, then stop

@@ -127,7 +127,10 @@ the user and the task reloaded, never overwritten.
 - [x] **M3.5** Edit notes in a built-in text area ·
   `feature/tui_notes_editor` · [#29](https://github.com/Kevin-Brockers/tskmngr/pull/29)
 - [x] **M3.6** Open the task file in `$EDITOR` (TUI suspended) and reload it
-  afterwards · `feature/tui_external_editor` · [#30](https://github.com/Kevin-Brockers/tskmngr/pull/30)
+  afterwards · `feature/tui_external_editor` · [#30](https://github.com/Kevin-Brockers/tskmngr/pull/30).
+  Changed in [#78](https://github.com/Kevin-Brockers/tskmngr/pull/78) (M13.1):
+  the file opens in the config's `editor` (vim or nano); `$VISUAL` and
+  `$EDITOR` aren't read
 - [x] **M3.7** Filter and search the task list · `feature/tui_filter_search` ·
   [#31](https://github.com/Kevin-Brockers/tskmngr/pull/31)
 - [x] **M3.8** Sort the task list · `feature/tui_sorting` · [#32](https://github.com/Kevin-Brockers/tskmngr/pull/32)
@@ -180,7 +183,10 @@ Goal: the TUI's task list columns can be arranged, and the config file can be vi
   `tskmngr config edit` opens the file in `$VISUAL`/`$EDITOR`, then checks it
   the way loading does and reports any error naming the key; document the
   command in the README and update `AGENTS.md` to match ·
-  `feature/cli_config` · [#52](https://github.com/Kevin-Brockers/tskmngr/pull/52)
+  `feature/cli_config` · [#52](https://github.com/Kevin-Brockers/tskmngr/pull/52).
+  Changed in [#78](https://github.com/Kevin-Brockers/tskmngr/pull/78) (M13.1):
+  `config edit` opens the file in the config's `editor` (vim or nano);
+  `$VISUAL` and `$EDITOR` aren't read
 
 ### M8 · Deleted tasks view
 
@@ -271,8 +277,9 @@ synced must be agreed with the maintainer before starting M7.2, and
     whether it's local or remote; a fine-grained access token read from the
     `TSKMNGR_GIT_TOKEN` env var and handed to git per command, never written
     to `.git/config`, the remote URL or any output; `add`, `edit`, `done` and
-    `delete` pull, commit and push, `list` pulls, and `tskmngr sync` pulls
-    and pushes (an error while `tasks_repo` isn't set); a failed or offline
+    `delete` pull, commit and push, `list` pulls, and `tskmngr sync` commits
+    any changes, pulls, then pushes the commits not pushed yet (an error
+    while `tasks_repo` isn't set); a failed or offline
     sync is a warning and catches up on the next one, and a pull conflict is
     reported, never resolved by overwriting a task; document it in the
     README and move it in `AGENTS.md` from planned to the config file and
@@ -292,6 +299,11 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   (`["title", "deleted", "id"]`); note on it that M9.3 changed it, the way
   M0.1 notes #45 · `docs/roadmap_trash_default` ·
   [#70](https://github.com/Kevin-Brockers/tskmngr/pull/70)
+- [x] **M10.3** M3.6 and M6.2 note that M13.1 replaced `$VISUAL` and
+  `$EDITOR` with the `editor` key; M7.2a says `tskmngr sync` also commits
+  any changes first, as `AGENTS.md` does; `AGENTS.md` names both ruff checks
+  of `ci-linux.yml` and has its long "Synced tasks" line rewrapped ·
+  `docs/roadmap_agents_consistency` · [#80](https://github.com/Kevin-Brockers/tskmngr/pull/80)
 
 ### M11 · Tag suggestions
 
