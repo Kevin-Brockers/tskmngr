@@ -362,7 +362,8 @@ Release to install it from.
   started by hand; the README shows a badge per workflow (its last result on
   `main`) and one listing the tested Python versions; document in
   `AGENTS.md` that pull requests into `dev` get no CI, so the local checks
-  stay required · `chore/ci_triggers` · #TBD
+  stay required · `chore/ci_triggers` ·
+  [#79](https://github.com/Kevin-Brockers/tskmngr/pull/79)
 - [ ] **M14.2** Release workflow: pushing a tag like `v0.1.0` builds the
   wheel and sdist with `uv build` and creates a GitHub Release with them
   attached and that version's changelog section as its notes, using the `gh`

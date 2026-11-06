@@ -297,7 +297,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   set by the new `editor` config key, `vim` (the default) or `nano`, instead
   of `$VISUAL` and `$EDITOR`, so it works without setting anything. An editor
   that isn't installed is reported with the setting to change
-- #TBD - CI runs on its own, on Linux and macOS: the workflow is split into
+- [#79](https://github.com/Kevin-Brockers/tskmngr/pull/79) - CI runs on its own, on Linux and macOS: the workflow is split into
   `ci-linux.yml` (ruff, and pytest on Python 3.12 to 3.14 and the newest one)
   and `ci-macos.yml` (pytest on Python 3.12 to 3.14), both run on the pull
   request from `dev` into `main` and on pushes to `main` instead of only by
