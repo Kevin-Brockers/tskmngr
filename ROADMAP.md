@@ -299,6 +299,11 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   (`["title", "deleted", "id"]`); note on it that M9.3 changed it, the way
   M0.1 notes #45 · `docs/roadmap_trash_default` ·
   [#70](https://github.com/Kevin-Brockers/tskmngr/pull/70)
+- [x] **M10.3** M3.6 and M6.2 note that M13.1 replaced `$VISUAL` and
+  `$EDITOR` with the `editor` key; M7.2a says `tskmngr sync` also commits
+  any changes first, as `AGENTS.md` does; `AGENTS.md` names both ruff checks
+  of `ci-linux.yml` and has its long "Synced tasks" line rewrapped ·
+  `docs/roadmap_agents_consistency` · #TBD
 
 ### M11 · Tag suggestions
 
