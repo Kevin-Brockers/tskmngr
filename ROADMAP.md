@@ -147,7 +147,10 @@ Goal: the app stays in sync with hand-edited files and can be configured.
 - [x] **M4.2** Config file (JSON via `json`) at `~/.tskmngr/config.json`:
   tasks directory (the config's `tasks_dir` first, then `TSKMNGR_DIR`, then
   the default), default sort, theme, and how often M4.1 polls the tasks
-  directory · `feature/config_file` · [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36)
+  directory · `feature/config_file` · [#36](https://github.com/Kevin-Brockers/tskmngr/pull/36).
+  Changed in [#64](https://github.com/Kevin-Brockers/tskmngr/pull/64) (M7.2a):
+  the config's `tasks_repo` comes first for the tasks directory, before
+  `tasks_dir`
 - [x] **M4.3** Custom keybindings from the config file, applied through
   Textual's keymap · `feature/custom_keybindings` · [#37](https://github.com/Kevin-Brockers/tskmngr/pull/37)
 
@@ -263,7 +266,10 @@ synced must be agreed with the maintainer before starting M7.2, and
   the default (so the default config leaves `tasks_dir` out); document the
   location, that it's created on first run, what the default file contains
   and the tasks directory order in the README, and update `AGENTS.md` to
-  match · `feature/config_home` · [#42](https://github.com/Kevin-Brockers/tskmngr/pull/42)
+  match · `feature/config_home` · [#42](https://github.com/Kevin-Brockers/tskmngr/pull/42).
+  Changed in [#64](https://github.com/Kevin-Brockers/tskmngr/pull/64) (M7.2a):
+  the config's `tasks_repo` comes first for the tasks directory, before
+  `tasks_dir`
 - [x] **M7.2** Tasks directory in a separate git repository, through the `git`
   CLI (`subprocess`, no new dependency), as agreed with the maintainer and
   described in `AGENTS.md` ("Synced tasks"): pull before changing or listing
@@ -304,10 +310,10 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   any changes first, as `AGENTS.md` does; `AGENTS.md` names both ruff checks
   of `ci-linux.yml` and has its long "Synced tasks" line rewrapped ·
   `docs/roadmap_agents_consistency` · [#80](https://github.com/Kevin-Brockers/tskmngr/pull/80)
-- [ ] **M10.4** M4.2 and M7.1 still give the tasks directory as `tasks_dir`
+- [x] **M10.4** M4.2 and M7.1 still give the tasks directory as `tasks_dir`
   first; note on them that M7.2a ([#64](https://github.com/Kevin-Brockers/tskmngr/pull/64))
   put `tasks_repo` before it, the way M3.6 notes #78 ·
-  `docs/roadmap_tasks_repo_order`
+  `docs/roadmap_tasks_repo_order` · #TBD
 - [ ] **M10.5** `AGENTS.md`'s task storage format and the README name the
   `-N` that a file in `.trash/` gets after its delete time when the task is
   deleted again in the same second, as M8.1 and `storage.py` do ·
