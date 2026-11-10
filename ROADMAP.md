@@ -313,7 +313,8 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
 - [x] **M10.4** M4.2 and M7.1 still give the tasks directory as `tasks_dir`
   first; note on them that M7.2a ([#64](https://github.com/Kevin-Brockers/tskmngr/pull/64))
   put `tasks_repo` before it, the way M3.6 notes #78 ·
-  `docs/roadmap_tasks_repo_order` · #TBD
+  `docs/roadmap_tasks_repo_order` ·
+  [#86](https://github.com/Kevin-Brockers/tskmngr/pull/86)
 - [ ] **M10.5** `AGENTS.md`'s task storage format and the README name the
   `-N` that a file in `.trash/` gets after its delete time when the task is
   deleted again in the same second, as M8.1 and `storage.py` do ·

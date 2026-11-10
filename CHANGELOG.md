@@ -324,7 +324,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `ruff format --check`
 - [#85](https://github.com/Kevin-Brockers/tskmngr/pull/85) - `AGENTS.md`: commit messages and pull request descriptions don't
   link to the agent's session
-- #TBD - Roadmap steps M4.2 and M7.1 note that M7.2a put the config's
+- [#86](https://github.com/Kevin-Brockers/tskmngr/pull/86) - Roadmap steps M4.2 and M7.1 note that M7.2a put the config's
   `tasks_repo` before `tasks_dir` for the tasks directory
 
 ### Removed
