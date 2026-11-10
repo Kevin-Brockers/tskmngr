@@ -395,13 +395,13 @@ sorted by status. From issues
 and built before its M14.3, so both are in 0.1.0; the step IDs keep their
 numbers.
 
-- [ ] **M15.1** Suggestions in the TUI's filter bar, like the Tags field's
+- [x] **M15.1** Suggestions in the TUI's filter bar, like the Tags field's
   (M11.1): while a word is being typed, the rest of the first match is shown
   greyed out and → accepts it, through Textual's `Suggester` (no new
   dependency); `#er` completes to the first existing tag (alphabetically,
   from the loaded tasks) that starts with it, `status:d` to a status and
   `priority:h` to a priority; plain words aren't completed; document it in
-  the README · `feature/filter_suggestions` · closes #82
+  the README · `feature/filter_suggestions` · closes #82 · #TBD
 - [ ] **M15.2** Sort by status, in the order doing → todo → done
   (`reverse` flips it), with ties broken by created time, then ID, as for the
   other keys: `status` joins the sort keys of the TUI's `S` (after priority:
