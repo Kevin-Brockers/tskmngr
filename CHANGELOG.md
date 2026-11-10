@@ -246,7 +246,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#84](https://github.com/Kevin-Brockers/tskmngr/pull/84) - Roadmap milestone M15, before the 0.1.0 release: suggestions in
   the TUI's filter bar like the Tags field's (#82), and sorting by status,
   doing → todo → done (#83); M14.3 now depends on both steps
-- #TBD - Suggestions in the TUI's filter bar: while a `#tag`, status or
+- [#89](https://github.com/Kevin-Brockers/tskmngr/pull/89) - Suggestions in the TUI's filter bar: while a `#tag`, status or
   priority is typed, the rest of the first match is shown greyed out and →
   accepts it; `#tag` completes from the tags of every task, leaving out those
   already in the filter (#82)

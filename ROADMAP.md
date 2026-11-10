@@ -401,7 +401,8 @@ numbers.
   dependency); `#er` completes to the first existing tag (alphabetically,
   from the loaded tasks) that starts with it, `status:d` to a status and
   `priority:h` to a priority; plain words aren't completed; document it in
-  the README · `feature/filter_suggestions` · closes #82 · #TBD
+  the README · `feature/filter_suggestions` · closes #82 ·
+  [#89](https://github.com/Kevin-Brockers/tskmngr/pull/89)
 - [ ] **M15.2** Sort by status, in the order doing → todo → done
   (`reverse` flips it), with ties broken by created time, then ID, as for the
   other keys: `status` joins the sort keys of the TUI's `S` (after priority:
