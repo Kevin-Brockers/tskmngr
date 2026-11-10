@@ -318,7 +318,8 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
 - [x] **M10.5** `AGENTS.md`'s task storage format and the README name the
   `-N` that a file in `.trash/` gets after its delete time when the task is
   deleted again in the same second, as M8.1 and `storage.py` do ·
-  `docs/trash_name_sequence` · #TBD
+  `docs/trash_name_sequence` ·
+  [#87](https://github.com/Kevin-Brockers/tskmngr/pull/87)
 - [ ] **M10.6** Release process: agree with the maintainer how the release
   version and the changelog's `[Unreleased]` rename reach `dev`, which
   changes only through pull requests (`AGENTS.md` puts both in the
