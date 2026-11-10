@@ -408,7 +408,8 @@ numbers.
   other keys: `status` joins the sort keys of the TUI's `S` (after priority:
   due → priority → status → created → updated), `tskmngr list --sort` and
   the config's `sort`; document it in the README · `feature/sort_by_status` ·
-  closes #83 · #TBD
+  closes #83 ·
+  [#90](https://github.com/Kevin-Brockers/tskmngr/pull/90)
 
 ### M14 · First release
 
