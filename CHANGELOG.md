@@ -315,7 +315,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   does, that `tskmngr sync` also commits any changes before it pulls
 - [#80](https://github.com/Kevin-Brockers/tskmngr/pull/80) - `AGENTS.md` says `ci-linux.yml` runs both `ruff check` and
   `ruff format --check`
-- #TBD - `AGENTS.md`: commit messages and pull request descriptions don't
+- [#85](https://github.com/Kevin-Brockers/tskmngr/pull/85) - `AGENTS.md`: commit messages and pull request descriptions don't
   link to the agent's session
 
 ### Removed
