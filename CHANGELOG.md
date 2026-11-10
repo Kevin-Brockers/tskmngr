@@ -243,6 +243,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   M4.2 and M7.1 that `tasks_repo` now comes first, the `-N` in trashed file
   names in `AGENTS.md` and the README, and an agreed release process in
   `AGENTS.md` and M14.3, which now depends on M10.6
+- [#84](https://github.com/Kevin-Brockers/tskmngr/pull/84) - Roadmap milestone M15, before the 0.1.0 release: suggestions in
+  the TUI's filter bar like the Tags field's (#82), and sorting by status,
+  doing → todo → done (#83); M14.3 now depends on both steps
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

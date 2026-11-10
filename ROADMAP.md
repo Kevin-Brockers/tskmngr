@@ -377,6 +377,29 @@ editor is only for `o` and `tskmngr config edit`.
   `AGENTS.md` to match · `feature/editor_setting` ·
   [#78](https://github.com/Kevin-Brockers/tskmngr/pull/78)
 
+### M15 · Filter suggestions and status sort
+
+Goal: the TUI's filter bar suggests what's being typed, and tasks can be
+sorted by status. From issues
+[#82](https://github.com/Kevin-Brockers/tskmngr/issues/82) and
+[#83](https://github.com/Kevin-Brockers/tskmngr/issues/83). Listed before M14
+and built before its M14.3, so both are in 0.1.0; the step IDs keep their
+numbers.
+
+- [ ] **M15.1** Suggestions in the TUI's filter bar, like the Tags field's
+  (M11.1): while a word is being typed, the rest of the first match is shown
+  greyed out and → accepts it, through Textual's `Suggester` (no new
+  dependency); `#er` completes to the first existing tag (alphabetically,
+  from the loaded tasks) that starts with it, `status:d` to a status and
+  `priority:h` to a priority; plain words aren't completed; document it in
+  the README · `feature/filter_suggestions` · closes #82
+- [ ] **M15.2** Sort by status, in the order doing → todo → done
+  (`reverse` flips it), with ties broken by created time, then ID, as for the
+  other keys: `status` joins the sort keys of the TUI's `S` (after priority:
+  due → priority → status → created → updated), `tskmngr list --sort` and
+  the config's `sort`; document it in the README · `feature/sort_by_status` ·
+  closes #83
+
 ### M14 · First release
 
 Goal: tskmngr 0.1.0 is released from `main`, checked by CI, with a GitHub
@@ -405,4 +428,4 @@ Release to install it from.
   (the maintainer's `dev` → `main` PR with the changelog's `[Unreleased]`
   renamed to `[0.1.0] - <date>`, merge, tag `v0.1.0` on `main`, push the
   tag, then move `dev` to `0.2.0.dev0`) · `chore/release_0_1_0` · depends on
-  M13.1, M14.2, M10.6
+  M13.1, M14.2, M10.6, M15.1, M15.2
