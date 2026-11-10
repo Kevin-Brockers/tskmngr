@@ -425,11 +425,18 @@ The same rules apply in local and cloud sessions.
   replace every `#TBD` from this branch with the linked PR number and commit
   that.
 - Never invent a PR number or commit hash. Look it up (`git log`, the PR page).
-- On a release (in the maintainer's `dev` → `main` PR), rename `[Unreleased]`
-  to the version and date, e.g. `## [0.1.0] - 2026-11-15`, start a new
-  empty `[Unreleased]` section and set that version in `pyproject.toml`, all
-  before the merge: the release workflow stops on a tag whose version or
-  changelog section isn't on `main`.
+- A release is prepared in a pull request into `dev`, like any other change:
+  it renames `[Unreleased]` to the version and the planned release date,
+  e.g. `## [0.1.0] - 2026-11-15`, starts a new empty `[Unreleased]` section
+  above it and sets that version in `pyproject.toml` and `uv.lock`; the
+  rename and the version get no changelog entry of their own. From its merge
+  until the release is tagged, no other pull request merges into `dev`; if
+  the date slips, a pull request into `dev` corrects it first. The
+  maintainer's `dev` → `main` pull request then carries it to `main`
+  unchanged: the release workflow stops on a tag whose version or changelog
+  section isn't on `main`. After the tag, a pull request into `dev` sets the
+  next development version (e.g. `0.2.0.dev0`) in `pyproject.toml` and
+  `uv.lock`, also without a changelog entry.
 
 ### Ask before adding dependencies
 - Do not add a new dependency (runtime or dev) without asking the maintainer
