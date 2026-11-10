@@ -315,10 +315,10 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   put `tasks_repo` before it, the way M3.6 notes #78 ·
   `docs/roadmap_tasks_repo_order` ·
   [#86](https://github.com/Kevin-Brockers/tskmngr/pull/86)
-- [ ] **M10.5** `AGENTS.md`'s task storage format and the README name the
+- [x] **M10.5** `AGENTS.md`'s task storage format and the README name the
   `-N` that a file in `.trash/` gets after its delete time when the task is
   deleted again in the same second, as M8.1 and `storage.py` do ·
-  `docs/trash_name_sequence`
+  `docs/trash_name_sequence` · #TBD
 - [ ] **M10.6** Release process: agree with the maintainer how the release
   version and the changelog's `[Unreleased]` rename reach `dev`, which
   changes only through pull requests (`AGENTS.md` puts both in the
