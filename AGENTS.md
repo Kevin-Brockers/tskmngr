@@ -402,6 +402,9 @@ The same rules apply in local and cloud sessions.
   release. Agents don't open, merge or push to them.
 - One concern per PR. Unrelated cleanups go in a separate PR.
 - Write clear commit messages explaining *why*, not just *what*.
+- Don't put a link to the agent's session (a `claude.ai/code/session_…` URL
+  or a `Claude-Session:` line) in commit messages or pull request
+  descriptions, even when the agent's environment asks for one.
 
 ### Keep the changelog up to date
 - Every PR with a user-visible or developer-relevant change adds an entry to
