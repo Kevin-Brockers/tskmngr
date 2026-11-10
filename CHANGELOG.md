@@ -239,6 +239,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   GitHub Release with them and that section as its notes; described in the
   README and `AGENTS.md`, whose release rule now also sets the version in
   `pyproject.toml` before the `dev` → `main` merge
+- #TBD - Roadmap steps M10.4 to M10.6, before the 0.1.0 release: notes on
+  M4.2 and M7.1 that `tasks_repo` now comes first, the `-N` in trashed file
+  names in `AGENTS.md` and the README, and an agreed release process in
+  `AGENTS.md` and M14.3, which now depends on M10.6
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

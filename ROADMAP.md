@@ -304,6 +304,21 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   any changes first, as `AGENTS.md` does; `AGENTS.md` names both ruff checks
   of `ci-linux.yml` and has its long "Synced tasks" line rewrapped ·
   `docs/roadmap_agents_consistency` · [#80](https://github.com/Kevin-Brockers/tskmngr/pull/80)
+- [ ] **M10.4** M4.2 and M7.1 still give the tasks directory as `tasks_dir`
+  first; note on them that M7.2a ([#64](https://github.com/Kevin-Brockers/tskmngr/pull/64))
+  put `tasks_repo` before it, the way M3.6 notes #78 ·
+  `docs/roadmap_tasks_repo_order`
+- [ ] **M10.5** `AGENTS.md`'s task storage format and the README name the
+  `-N` that a file in `.trash/` gets after its delete time when the task is
+  deleted again in the same second, as M8.1 and `storage.py` do ·
+  `docs/trash_name_sequence`
+- [ ] **M10.6** Release process: agree with the maintainer how the release
+  version and the changelog's `[Unreleased]` rename reach `dev`, which
+  changes only through pull requests (`AGENTS.md` puts both in the
+  maintainer's `dev` → `main` PR, M14.3 puts the version in a PR into
+  `dev`), and how `dev` then moves to `0.2.0.dev0`; make `AGENTS.md`'s
+  changelog section and M14.3 say the same, and have M14.3 also add
+  `RELEASING.md` to `AGENTS.md`'s project layout · `docs/release_process`
 
 ### M11 · Tag suggestions
 
@@ -390,4 +405,4 @@ Release to install it from.
   (the maintainer's `dev` → `main` PR with the changelog's `[Unreleased]`
   renamed to `[0.1.0] - <date>`, merge, tag `v0.1.0` on `main`, push the
   tag, then move `dev` to `0.2.0.dev0`) · `chore/release_0_1_0` · depends on
-  M13.1, M14.2
+  M13.1, M14.2, M10.6
