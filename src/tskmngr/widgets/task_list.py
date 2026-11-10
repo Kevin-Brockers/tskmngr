@@ -23,10 +23,11 @@ Enter goes back to the table and keeps the filter; Escape clears it.
 `tskmngr.widgets.trash_view`), which takes the bottom quarter of the screen; it
 starts shown, and is reloaded with the list.
 
-`S` sorts by the next key (due → priority → created → updated → due), each in
-its default direction (see `query.sort_tasks`), and `R` reverses the order. The
-header of the sorted column gets ▲ when the smallest value is at the top
-(earliest date, lowest priority) and ▼ when it's at the bottom.
+`S` sorts by the next key (due → priority → status → created → updated →
+due), each in its default direction (see `query.sort_tasks`), and `R` reverses
+the order. The header of the sorted column gets ▲ when the smallest value is
+at the top (earliest date, lowest priority, doing for status, whose order is
+doing → todo → done) and ▼ when it's at the bottom.
 
 The config file's `columns` sets which columns are shown, in which order (see
 `shown_columns`). By default created and updated have a column only while the
@@ -82,7 +83,13 @@ from tskmngr.widgets.tasks_changed import TasksChanged
 from tskmngr.widgets.trash_view import TrashView
 
 # The order `S` steps through.
-SORT_KEYS = (SortKey.DUE, SortKey.PRIORITY, SortKey.CREATED, SortKey.UPDATED)
+SORT_KEYS = (
+    SortKey.DUE,
+    SortKey.PRIORITY,
+    SortKey.STATUS,
+    SortKey.CREATED,
+    SortKey.UPDATED,
+)
 
 # The header of each column.
 COLUMN_LABELS = {
@@ -100,6 +107,7 @@ COLUMN_LABELS = {
 SORT_COLUMNS = {
     SortKey.DUE: Column.DUE,
     SortKey.PRIORITY: Column.PRIORITY,
+    SortKey.STATUS: Column.STATUS,
     SortKey.CREATED: Column.CREATED,
     SortKey.UPDATED: Column.UPDATED,
 }
@@ -129,8 +137,9 @@ def column_labels(
 ) -> tuple[str, ...]:
     """The headers of `shown_columns`, with ▲ or ▼ on the sorted one.
 
-    ▲ means the smallest value is at the top: the earliest date or the lowest
-    priority. A hidden sorted column means no arrow.
+    ▲ means the smallest value is at the top: the earliest date, the lowest
+    priority, or doing first for status (doing → todo → done, its default
+    order). A hidden sorted column means no arrow.
     """
     # Priority sorts highest first by default, the others smallest first.
     descending = (sort_key is SortKey.PRIORITY) != reverse

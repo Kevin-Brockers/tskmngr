@@ -30,7 +30,7 @@ from tskmngr.query import SortKey
 
 PATH = Path("/home/me/.tskmngr/config.json")
 
-SORT = "sort: expected one of due, priority, created, updated, got "
+SORT = "sort: expected one of due, priority, status, created, updated, got "
 POLL = "poll_interval: expected a number of seconds, 0 or more, got "
 NAMES = "id, status, priority, due, created, updated, title, tags"
 COLUMNS = f"columns: expected names from {NAMES}, got "

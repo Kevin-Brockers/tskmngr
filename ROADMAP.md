@@ -403,12 +403,12 @@ numbers.
   `priority:h` to a priority; plain words aren't completed; document it in
   the README · `feature/filter_suggestions` · closes #82 ·
   [#89](https://github.com/Kevin-Brockers/tskmngr/pull/89)
-- [ ] **M15.2** Sort by status, in the order doing → todo → done
+- [x] **M15.2** Sort by status, in the order doing → todo → done
   (`reverse` flips it), with ties broken by created time, then ID, as for the
   other keys: `status` joins the sort keys of the TUI's `S` (after priority:
   due → priority → status → created → updated), `tskmngr list --sort` and
   the config's `sort`; document it in the README · `feature/sort_by_status` ·
-  closes #83
+  closes #83 · #TBD
 
 ### M14 · First release
 

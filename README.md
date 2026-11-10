@@ -80,7 +80,7 @@ $ tskmngr done m2p
 | Command | What it does |
 | ------- | ------------ |
 | `add TITLE` | Add a task and print its ID. Options: `-p/--priority low\|normal\|high` (default `normal`), `-d/--due YYYY-MM-DD`, `--repeat RULE` to make it [recurring](#recurring-tasks), `-t/--tag TAG` (repeat for more tags) |
-| `list [WORD ...]` | List tasks, by default the ones not done yet, soonest due first. Words are searched in titles and notes; a task needs all of them. Options: `-s/--status` (repeat for more), `-a/--all` to include done tasks, `-p/--priority` (repeat for more), `-t/--tag` (repeat to require more tags); each also takes the start of a value, like `-s do` for doing and done, `-p hi` for high or `-t err` for `#errands`, and words and tags may have [typos](#tui-keys), `--sort due\|priority\|created\|updated` (default: the config file's `sort`, else `due`), `-r/--reverse` to reverse that order |
+| `list [WORD ...]` | List tasks, by default the ones not done yet, soonest due first. Words are searched in titles and notes; a task needs all of them. Options: `-s/--status` (repeat for more), `-a/--all` to include done tasks, `-p/--priority` (repeat for more), `-t/--tag` (repeat to require more tags); each also takes the start of a value, like `-s do` for doing and done, `-p hi` for high or `-t err` for `#errands`, and words and tags may have [typos](#tui-keys), `--sort due\|priority\|status\|created\|updated` (default: the config file's `sort`, else `due`), `-r/--reverse` to reverse that order |
 | `show ID` | Show all fields of a task, including its subtasks done and total, then its notes |
 | `edit ID` | Change the given fields: `--title`, `-s/--status`, `-p/--priority`, `-d/--due` or `--no-due`, `--repeat RULE` or `--no-repeat`, `-t/--tag` to add a tag, `--untag` to remove one or `--clear-tags` to remove all (each tag option can be repeated) |
 | `done ID` | Mark a task as done. If it [repeats](#recurring-tasks), its next occurrence is added and its ID and due date printed |
@@ -92,9 +92,10 @@ $ tskmngr done m2p
 | `config edit` | Open the config file in the [editor](#editor), even if it can't be used, then check it like the TUI does and name the key of any problem |
 
 `ID` can be any unique prefix of a task's ID, in any case: `m2p` above is
-`M2PT707MDG`. Sorting by priority puts the highest first, by created or updated
-the oldest first, and tasks without a due date always come last. `list`
-reports task files it can't load on stderr and lists the rest.
+`M2PT707MDG`. Sorting by priority puts the highest first, by status doing,
+then todo, then done, by created or updated the oldest first, and tasks
+without a due date always come last. `list` reports task files it can't load
+on stderr and lists the rest.
 
 Commands exit with 0 on success, 2 for invalid arguments and 1 for any other
 error: no task or several tasks match the ID, a task file can't be loaded,
@@ -124,7 +125,7 @@ panel above the list.
 | `o` | Open the task's file in the [editor](#editor), vim or nano; the task is reloaded when the editor exits |
 | `/` | Filter the list (see below) |
 | `Escape` | Clear the filter |
-| `S` | Sort by the next key: due date, priority, created, updated |
+| `S` | Sort by the next key: due date, priority, status, created, updated |
 | `R` | Reverse the sort order |
 | `t` | Hide or show the deleted tasks below the list |
 | `y` | Sync with the git repository, like `tskmngr sync`; only there while `tasks_repo` is set (see [Synced tasks](#synced-tasks)) |
@@ -536,7 +537,7 @@ exists, tskmngr warns about it on every run: move your settings to
 | ------- | ----- | ------- |
 | `tasks_dir` | The tasks directory; `~` is your home, and a relative path is read from the config file's folder (`~/.tskmngr`). Comes before `TSKMNGR_DIR` | `TSKMNGR_DIR`, else `~/.local/share/tskmngr/tasks` |
 | `tasks_repo` | A git repository to keep the tasks in, in its `tasks/` folder: a remote URL, cloned into `~/.tskmngr/remote_task_dir`, or a local folder that's a repository; while it's set, `tasks_dir` and `TSKMNGR_DIR` aren't used (see [Synced tasks](#synced-tasks)) | not set: no sync |
-| `sort` | How the TUI list and `tskmngr list` are sorted: `due`, `priority`, `created` or `updated` | `due` |
+| `sort` | How the TUI list and `tskmngr list` are sorted: `due`, `priority`, `status`, `created` or `updated` | `due` |
 | `reverse` | `true` reverses that order | `false` |
 | `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |
 | `editor` | The [editor](#editor) `o` in the TUI and `tskmngr config edit` open files in: `vim` or `nano` | `vim` |
@@ -553,11 +554,11 @@ guessing. A theme name or binding id that doesn't exist only stops the TUI.
 
 `columns` needs at least one column, and each only once. Sorting by created
 or updated shows that column even when `columns` leaves it out, last, at the
-far right, as long as that sort lasts. A hidden due
-date or priority column stays hidden when the list is sorted by it. The title
-column also holds the repeat marker and the subtasks done, and the tags while
-`tags` isn't listed, so a config file written before the tags column existed
-still shows them; add `tags` to show them in their own column.
+far right, as long as that sort lasts. A hidden due date, priority or status
+column stays hidden when the list is sorted by it. The title column also
+holds the repeat marker and the subtasks done, and the tags while `tags` isn't
+listed, so a config file written before the tags column existed still shows
+them; add `tags` to show them in their own column.
 `trash_columns` follows the same rules, with `deleted` as one more name; the
 deleted tasks are always newest delete first.
 
