@@ -329,7 +329,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#87](https://github.com/Kevin-Brockers/tskmngr/pull/87) - `AGENTS.md` and the README name the `-N` (`-1`, `-2`, …) a file in
   `.trash/` gets after its delete time when the task is deleted again in the
   same second, as `storage.py` does
-- #TBD - `AGENTS.md`: a release is prepared in a pull request into `dev`
+- [#88](https://github.com/Kevin-Brockers/tskmngr/pull/88) - `AGENTS.md`: a release is prepared in a pull request into `dev`
   (version and changelog rename), `dev` is frozen until the tag, and a later
   pull request into `dev` sets the next development version; roadmap step
   M14.3 follows it

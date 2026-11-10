@@ -327,7 +327,7 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   `dev`), and how `dev` then moves to `0.2.0.dev0`; make `AGENTS.md`'s
   changelog section and M14.3 say the same, and have M14.3 also add
   `RELEASING.md` to `AGENTS.md`'s project layout · `docs/release_process` ·
-  #TBD
+  [#88](https://github.com/Kevin-Brockers/tskmngr/pull/88)
 
 ### M11 · Tag suggestions
 
