@@ -14,8 +14,10 @@ cursor on the same task.
 
 `/` opens a filter bar above the table that narrows the list as you type (see
 `query.parse_filter`): words are searched in titles and notes, `#tag` needs a
-tag, `status:` and `priority:` restrict to a value. Enter goes back to the
-table and keeps the filter; Escape clears it.
+tag, `status:` and `priority:` restrict to a value. While a `#tag`, status
+or priority is typed, the rest of the first match is suggested (see
+`query.suggest_filter`), with the tags of every loaded task, and → accepts it.
+Enter goes back to the table and keeps the filter; Escape clears it.
 
 `t` shows or hides the deleted tasks view below the table (see
 `tskmngr.widgets.trash_view`), which takes the bottom quarter of the screen; it
@@ -31,7 +33,7 @@ The config file's `columns` sets which columns are shown, in which order (see
 list is sorted by them.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -43,6 +45,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.screen import Screen
+from textual.suggester import Suggester
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
 from tskmngr.display import (
@@ -53,7 +56,13 @@ from tskmngr.display import (
     task_cell,
 )
 from tskmngr.models import Status, Task, next_status
-from tskmngr.query import SortKey, TaskFilter, parse_filter, sort_tasks
+from tskmngr.query import (
+    SortKey,
+    TaskFilter,
+    parse_filter,
+    sort_tasks,
+    suggest_filter,
+)
 from tskmngr.recurrence import RecurrenceError
 from tskmngr.storage import (
     BadFile,
@@ -172,6 +181,19 @@ def _display_path(directory: Path, path: Path) -> Path:
     return path.relative_to(directory) if path.is_relative_to(directory) else path
 
 
+class FilterSuggester(Suggester):
+    """Completes the `#tag`, status or priority being typed in the filter bar."""
+
+    def __init__(self, tags: Callable[[], Iterable[str]]) -> None:
+        # Case-sensitive so the text as typed is kept; `suggest_filter` ignores
+        # case itself. No cache: the tags change when the list is reloaded.
+        super().__init__(use_cache=False, case_sensitive=True)
+        self.tags = tags
+
+    async def get_suggestion(self, value: str) -> str | None:
+        return suggest_filter(value, self.tags())
+
+
 class TaskListScreen(Screen):
     """All tasks in `directory`, done ones included, soonest due first.
 
@@ -285,6 +307,7 @@ class TaskListScreen(Screen):
         yield Input(
             placeholder=self.FILTER_PLACEHOLDER,
             select_on_focus=False,
+            suggester=FilterSuggester(self._loaded_tags),
             id="filter-input",
         )
         yield Static(id="filter-error")
@@ -300,6 +323,10 @@ class TaskListScreen(Screen):
     def on_mount(self) -> None:
         self.sub_title = str(self.directory)
         self.load()
+
+    def _loaded_tags(self) -> set[str]:
+        """The tags of every loaded task, for the filter bar to suggest."""
+        return {tag for source in self.loaded for tag in source.task.tags}
 
     def load(self) -> None:
         """(Re)load the tasks, and the deleted ones, from disk and show them."""

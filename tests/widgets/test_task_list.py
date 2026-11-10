@@ -661,6 +661,71 @@ async def test_the_filter_bar_takes_the_start_of_tags_and_values(
 
 
 @pytest.mark.asyncio
+async def test_the_filter_bar_suggests_tags_statuses_and_priorities(
+    tmp_path: Path,
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        bar = filter_bar(app)
+        await pilot.press("slash", *"#E")
+        await pilot.pause()
+        await pilot.press("right")
+        assert bar.value == "#Errands"
+
+        await pilot.press(*" status:d")
+        await pilot.pause()
+        await pilot.press("right")
+        assert bar.value == "#Errands status:doing"
+
+        await pilot.press(*" priority:h")
+        await pilot.pause()
+        await pilot.press("right")
+        assert bar.value == "#Errands status:doing priority:high"
+
+
+@pytest.mark.asyncio
+async def test_right_in_the_filter_bar_without_a_suggestion_only_moves_the_cursor(
+    tmp_path: Path,
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        bar = filter_bar(app)
+        # A plain word isn't completed, even if a tag starts with it.
+        await pilot.press("slash", *"err")
+        await pilot.pause()
+        await pilot.press("right")
+        assert bar.value == "err"
+
+        await pilot.press(*" #")
+        await pilot.pause()
+        await pilot.press("right")
+        assert bar.value == "err #"
+
+
+@pytest.mark.asyncio
+async def test_the_filter_bar_suggests_tags_of_tasks_loaded_later(
+    tmp_path: Path,
+) -> None:
+    save_filter_tasks(tmp_path)
+
+    app = TskmngrApp(tmp_path)
+    async with app.run_test() as pilot:
+        # DDDD is loaded after the bar is opened and the filter hides it, but
+        # its tag is suggested.
+        await pilot.press("slash", *"#errands status:todo")
+        save_task(tmp_path, make_task("DDDD", "Garden", tags=("garden",)), None)
+        app.screen.load()
+        await pilot.press(*" #g")
+        await pilot.pause()
+        await pilot.press("right")
+        assert filter_bar(app).value == "#errands status:todo #garden"
+
+
+@pytest.mark.asyncio
 async def test_the_filter_bar_finds_words_and_tags_with_a_typo(
     tmp_path: Path,
 ) -> None:

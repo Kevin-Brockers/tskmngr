@@ -18,6 +18,7 @@ from tskmngr.query import (
     match_id_prefix,
     parse_filter,
     sort_tasks,
+    suggest_filter,
     values_starting_with,
 )
 from tskmngr.taskfile import TaskFile
@@ -604,3 +605,61 @@ def test_functions_accept_and_return_task_files() -> None:
     assert filter_tasks(files, tags=["work"]) == files[:2]
     assert sort_tasks(files, SortKey.PRIORITY) == [files[1], files[2], files[0]]
     assert find_by_prefix(files, "c") is files[2]
+
+
+TAGS = ("work", "errands", "home", "homework")
+
+
+def test_suggest_filter_completes_the_tag_being_typed() -> None:
+    assert suggest_filter("#e", TAGS) == "#errands"
+    assert suggest_filter("milk #ho", TAGS) == "milk #home"
+
+
+def test_suggest_filter_takes_the_first_tag_alphabetically() -> None:
+    assert suggest_filter("#h", ("homework", "home")) == "#home"
+
+
+def test_suggest_filter_keeps_the_text_as_typed() -> None:
+    assert suggest_filter("Milk  #Er", TAGS) == "Milk  #Errands"
+    assert suggest_filter("Status:D", TAGS) == "Status:Doing"
+    assert suggest_filter("PRIORITY:H", TAGS) == "PRIORITY:High"
+
+
+def test_suggest_filter_skips_tags_already_typed() -> None:
+    assert suggest_filter("#home #ho", TAGS) == "#home #homework"
+    assert suggest_filter("#Errands #e", TAGS) is None
+
+
+def test_suggest_filter_completes_statuses_and_priorities() -> None:
+    assert suggest_filter("status:t", ()) == "status:todo"
+    assert suggest_filter("status:d", ()) == "status:doing"
+    assert suggest_filter("status:don", ()) == "status:done"
+    assert suggest_filter("#home priority:h", TAGS) == "#home priority:high"
+    assert suggest_filter("priority:n", ()) == "priority:normal"
+
+
+@pytest.mark.parametrize(
+    "text", ["#home", "status:done", "priority:low", "status:Todo"]
+)
+def test_suggest_filter_suggests_nothing_for_a_whole_value(text: str) -> None:
+    assert suggest_filter(text, TAGS) is None
+
+
+@pytest.mark.parametrize(
+    "text", ["#x", "status:x", "priority:x", "status:doing:", "#e"]
+)
+def test_suggest_filter_suggests_nothing_without_a_match(text: str) -> None:
+    assert suggest_filter(text, ("home",)) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["", " ", "#e ", "status:d ", "#", "milk #", "status:", "priority:"],
+)
+def test_suggest_filter_suggests_nothing_while_no_value_is_typed(text: str) -> None:
+    assert suggest_filter(text, TAGS) is None
+
+
+@pytest.mark.parametrize("text", ["mi", "milk", "due:2026", "e", "stat"])
+def test_suggest_filter_suggests_nothing_for_plain_words(text: str) -> None:
+    assert suggest_filter(text, TAGS) is None

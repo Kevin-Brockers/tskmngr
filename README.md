@@ -135,6 +135,12 @@ repeat them for any of several, as in `status:todo status:doing`. All three
 take the start of one too: `#err` finds `#errands`, `status:do` finds doing
 and done, and `priority:hi` finds high.
 
+While you type a `#tag`, a status or a priority, the rest of the first match
+is shown greyed out, and `→` accepts it: `#er` suggests the first tag of any
+task that starts with it (alphabetically, leaving out tags already in the
+filter), `status:d` suggests `doing` and `priority:h` suggests `high`. Plain
+words aren't completed.
+
 Words and tags may have typos: `mlik` finds "Buy milk" and `#erands` finds
 `#errands`. A typo is a wrong, missing or extra letter, or two neighbouring
 letters swapped. A word of 4 to 7 letters may have one, a longer word two, and

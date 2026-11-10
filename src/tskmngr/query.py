@@ -132,6 +132,52 @@ def values_starting_with[E: StrEnum](enum: type[E], prefix: str) -> list[E]:
     return [member for member in enum if member.value.startswith(prefix)]
 
 
+# The `key:value` words of a filter whose values `suggest_filter` completes.
+_VALUE_KEYS: dict[str, type[StrEnum]] = {"status": Status, "priority": Priority}
+
+
+def suggest_filter(text: str, tags: Iterable[str]) -> str | None:
+    """`text` with the `#tag`, status or priority being typed completed, or None.
+
+    The word being typed is the last one in `text`. `#<start>` completes to
+    the alphabetically first of `tags` that starts with it, ignoring case and
+    leaving out the tags already typed as `#tag` before it. `status:<start>`
+    and `priority:<start>` complete to the first value that starts with it,
+    in the order of `values_starting_with`. The text as typed is kept and the
+    rest of the match added. Nothing is suggested for a plain word, while no
+    word is being typed (empty text or whitespace at the end), before a letter
+    follows `#` or the colon, or when the match is what's typed already.
+    """
+    if not text or text[-1].isspace():
+        return None
+    word = text.split()[-1]
+    if word.startswith("#"):
+        before = text[: len(text) - len(word)].split()
+        entered = {typed[1:].lower() for typed in before if typed.startswith("#")}
+        matches = (tag for tag in sorted(set(tags)) if tag not in entered)
+        return _complete(text, word[1:], matches)
+    key, colon, value = word.partition(":")
+    enum = _VALUE_KEYS.get(key.lower()) if colon else None
+    if enum is None:
+        return None
+    return _complete(text, value, (member.value for member in enum))
+
+
+def _complete(text: str, typed: str, values: Iterable[str]) -> str | None:
+    """`text` plus the rest of the first of `values` that starts with `typed`.
+
+    Ignoring case; None if `typed` is empty, nothing starts with it, or the
+    first match is `typed` itself.
+    """
+    start = typed.lower()
+    if not start:
+        return None
+    for value in values:
+        if value.lower().startswith(start):
+            return None if value.lower() == start else text + value[len(typed) :]
+    return None
+
+
 def filter_tasks[T: (Task, TaskFile)](
     items: Iterable[T],
     *,
