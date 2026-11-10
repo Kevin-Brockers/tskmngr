@@ -411,6 +411,27 @@ numbers.
   closes #83 ·
   [#90](https://github.com/Kevin-Brockers/tskmngr/pull/90)
 
+### M16 · Push frequency
+
+Goal: the TUI can push its changes less often, every hour or when it's
+closed, as set in the config file. Listed before M14 and built before its
+M14.3, so it's in 0.1.0; the step ID keeps its number.
+
+- [ ] **M16.1** `push` config key for the TUI: `change` (the default),
+  `hourly` or `exit`. Each change the TUI makes is still committed right
+  away with its usual message; only the push waits. `change` pushes after
+  each change, as now; `hourly` runs a full sync (commit leftovers, pull,
+  push) an hour after the TUI starts and every hour after that; `exit`
+  pushes only when the TUI closes. At every level, closing the TUI pushes
+  the commits not pushed yet and waits for it (git's 60-second limit
+  applies), showing that it's syncing, and a failure is printed after the
+  TUI has closed; the sync at start and on `y` stay as they are. CLI
+  commands ignore the key and keep committing and pushing each change.
+  The default config file gains `"push": "change"`, any other value stops
+  the CLI and the TUI like other invalid settings, and `tskmngr config` and
+  `config get` show it; document it in the README (config file and synced
+  tasks) and update `AGENTS.md` to match · `feature/push_frequency`
+
 ### M14 · First release
 
 Goal: tskmngr 0.1.0 is released from `main`, checked by CI, with a GitHub
@@ -443,4 +464,4 @@ Release to install it from.
   push the tag, then a pull request into `dev` that sets `0.2.0.dev0`),
   listed in `AGENTS.md`'s project layout; the README and `RELEASING.md`
   changes get an entry in the `[0.1.0]` section · `chore/release_0_1_0` ·
-  depends on M13.1, M14.2, M10.6, M15.1, M15.2
+  depends on M13.1, M14.2, M10.6, M15.1, M15.2, M16.1

@@ -253,6 +253,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#90](https://github.com/Kevin-Brockers/tskmngr/pull/90) - Sort by status, doing → todo → done (`reverse` flips it): the TUI's
   `S` steps through it after priority, and `tskmngr list --sort` and the
   config's `sort` take `status` (#83)
+- #TBD - Roadmap milestone M16, before the 0.1.0 release: a `push` config
+  key (`change`, `hourly` or `exit`) for how often the TUI pushes; M14.3 now
+  depends on it
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
