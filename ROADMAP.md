@@ -320,13 +320,14 @@ Goal: `AGENTS.md` and `ROADMAP.md` match the code and each other.
   deleted again in the same second, as M8.1 and `storage.py` do ·
   `docs/trash_name_sequence` ·
   [#87](https://github.com/Kevin-Brockers/tskmngr/pull/87)
-- [ ] **M10.6** Release process: agree with the maintainer how the release
+- [x] **M10.6** Release process: agree with the maintainer how the release
   version and the changelog's `[Unreleased]` rename reach `dev`, which
   changes only through pull requests (`AGENTS.md` puts both in the
   maintainer's `dev` → `main` PR, M14.3 puts the version in a PR into
   `dev`), and how `dev` then moves to `0.2.0.dev0`; make `AGENTS.md`'s
   changelog section and M14.3 say the same, and have M14.3 also add
-  `RELEASING.md` to `AGENTS.md`'s project layout · `docs/release_process`
+  `RELEASING.md` to `AGENTS.md`'s project layout · `docs/release_process` ·
+  [#88](https://github.com/Kevin-Brockers/tskmngr/pull/88)
 
 ### M11 · Tag suggestions
 
@@ -430,10 +431,14 @@ Release to install it from.
   attached and that section as its notes, using the `gh` CLI on the runner
   (uv through `astral-sh/setup-uv`, as in CI) · `chore/release_workflow` ·
   depends on M14.1 · [#81](https://github.com/Kevin-Brockers/tskmngr/pull/81)
-- [ ] **M14.3** Prepare 0.1.0: version `0.1.0` in `pyproject.toml` and
-  `uv.lock`; the README's status and installation updated (install with
-  `uv tool install` from the release's tag); a `RELEASING.md` with the steps
-  (the maintainer's `dev` → `main` PR with the changelog's `[Unreleased]`
-  renamed to `[0.1.0] - <date>`, merge, tag `v0.1.0` on `main`, push the
-  tag, then move `dev` to `0.2.0.dev0`) · `chore/release_0_1_0` · depends on
-  M13.1, M14.2, M10.6, M15.1, M15.2
+- [ ] **M14.3** Prepare 0.1.0, as agreed in M10.6: version `0.1.0` in
+  `pyproject.toml` and `uv.lock`; the changelog's `[Unreleased]` renamed to
+  `[0.1.0] - <planned date>` with a new empty `[Unreleased]` above it; the
+  README's status and installation updated (install with `uv tool install`
+  from the release's tag); a `RELEASING.md` with the steps (this pull
+  request into `dev`, no other merges into `dev` until the tag, the
+  maintainer's `dev` → `main` pull request, merge, tag `v0.1.0` on `main`,
+  push the tag, then a pull request into `dev` that sets `0.2.0.dev0`),
+  listed in `AGENTS.md`'s project layout; the README and `RELEASING.md`
+  changes get an entry in the `[0.1.0]` section · `chore/release_0_1_0` ·
+  depends on M13.1, M14.2, M10.6, M15.1, M15.2
