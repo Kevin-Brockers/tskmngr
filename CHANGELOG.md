@@ -326,6 +326,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   link to the agent's session
 - [#86](https://github.com/Kevin-Brockers/tskmngr/pull/86) - Roadmap steps M4.2 and M7.1 note that M7.2a put the config's
   `tasks_repo` before `tasks_dir` for the tasks directory
+- [#87](https://github.com/Kevin-Brockers/tskmngr/pull/87) - `AGENTS.md` and the README name the `-N` (`-1`, `-2`, …) a file in
+  `.trash/` gets after its delete time when the task is deleted again in the
+  same second, as `storage.py` does
 
 ### Removed
 

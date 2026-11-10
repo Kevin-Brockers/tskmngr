@@ -433,7 +433,9 @@ its own credentials, like your SSH key or a credential manager.
 
 Deleting a task moves its file into `.trash/` inside the tasks directory,
 renamed to `<id>.<delete time>.md` in UTC, for example
-`01JB3K7Q2X.2026-10-30T12-00-05Z.md`. To restore the task, move the file back
+`01JB3K7Q2X.2026-10-30T12-00-05Z.md`. If the same task is deleted again within
+the same second, the later files get `-1`, `-2`, … after the time, like
+`01JB3K7Q2X.2026-10-30T12-00-05Z-1.md`. To restore the task, move the file back
 as `<id>.md`. tskmngr never empties `.trash/`. The TUI lists the deleted tasks
 below the task list (see [TUI keys](#tui-keys)).
 

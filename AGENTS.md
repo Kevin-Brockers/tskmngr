@@ -144,7 +144,9 @@ Notes go here, in **Markdown**.
   leaves a half-written task.
 - Deleting a task moves its file into `.trash/` inside the tasks directory,
   renamed to `<id>.<delete time>.md` in UTC (e.g.
-  `01JB3K7Q2X.2026-10-30T12-00-05Z.md`) so earlier deletes are kept. Files
+  `01JB3K7Q2X.2026-10-30T12-00-05Z.md`) so earlier deletes are kept; a
+  later delete of the task in the same second gets `-N` after the time
+  (`-1`, `-2`, …, e.g. `01JB3K7Q2X.2026-10-30T12-00-05Z-1.md`). Files
   there aren't loaded as tasks; the TUI only lists them, read-only, in its
   deleted tasks view (a file whose name has no delete time is reported as
   malformed). Moving one back as `<id>.md` restores the task, and the app
