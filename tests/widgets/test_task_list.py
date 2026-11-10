@@ -1001,7 +1001,8 @@ def save_sort_tasks(directory: Path) -> None:
     """Three tasks in a different order for every sort key.
 
     Due: BBBB, AAAA, CCCC (no due date). Priority: BBBB, CCCC, AAAA.
-    Created: AAAA, CCCC, BBBB. Updated: CCCC, AAAA, BBBB.
+    Created: AAAA, CCCC, BBBB. Updated: CCCC, AAAA, BBBB. All are todo, so a
+    sort by status keeps the created order.
     """
     for task_id, due, priority, created, updated in [
         ("AAAA", date(2026, 11, 3), Priority.LOW, (10, 1), (10, 10)),
@@ -1038,6 +1039,16 @@ def header_labels(app: TskmngrApp) -> list[str]:
             SortKey.PRIORITY,
             True,
             ["ID", "Status", "Priority ▲", "Due", "Title", "Tags"],
+        ),
+        (
+            SortKey.STATUS,
+            False,
+            ["ID", "Status ▲", "Priority", "Due", "Title", "Tags"],
+        ),
+        (
+            SortKey.STATUS,
+            True,
+            ["ID", "Status ▼", "Priority", "Due", "Title", "Tags"],
         ),
         (
             SortKey.CREATED,
@@ -1102,6 +1113,18 @@ async def test_capital_s_steps_through_the_sort_keys(tmp_path: Path) -> None:
             "Tags",
         ]
 
+        # All todo, so ties are broken by created time.
+        await pilot.press("S")
+        assert shown_ids(app) == ["AAAA", "CCCC", "BBBB"]
+        assert header_labels(app) == [
+            "ID",
+            "Status ▲",
+            "Priority",
+            "Due",
+            "Title",
+            "Tags",
+        ]
+
         await pilot.press("S")
         assert shown_ids(app) == ["AAAA", "CCCC", "BBBB"]
         assert header_labels(app)[-1] == "Created ▲"
@@ -1123,6 +1146,27 @@ async def test_capital_s_steps_through_the_sort_keys(tmp_path: Path) -> None:
             "Tags",
         ]
         assert len(table_rows(app.screen)[0]) == 6
+
+
+@pytest.mark.asyncio
+async def test_sorting_by_status_puts_doing_first_and_done_last(
+    tmp_path: Path,
+) -> None:
+    for task_id, status in [
+        ("AAAA", Status.DONE),
+        ("BBBB", Status.TODO),
+        ("CCCC", Status.DOING),
+    ]:
+        save_task(tmp_path, make_task(task_id, f"Task {task_id}", status=status), None)
+
+    app = TskmngrApp(tmp_path, config=Config(sort=SortKey.STATUS))
+    async with app.run_test() as pilot:
+        assert shown_ids(app) == ["CCCC", "BBBB", "AAAA"]
+        assert header_labels(app)[1] == "Status ▲"
+
+        await pilot.press("R")
+        assert shown_ids(app) == ["AAAA", "BBBB", "CCCC"]
+        assert header_labels(app)[1] == "Status ▼"
 
 
 @pytest.mark.asyncio
@@ -1148,7 +1192,7 @@ async def test_capital_r_reverses_and_undated_tasks_stay_last(
         # The next key starts in its default direction again.
         await pilot.press("S")
         assert shown_ids(app) == ["AAAA", "CCCC", "BBBB"]
-        assert header_labels(app)[-1] == "Created ▲"
+        assert header_labels(app)[1] == "Status ▲"
         assert not app.screen.sort_reverse
 
 
@@ -1198,7 +1242,7 @@ async def test_sort_is_kept_on_reload_and_applies_to_the_filtered_list(
 async def test_sorting_an_empty_list_changes_the_headers(tmp_path: Path) -> None:
     app = TskmngrApp(tmp_path)
     async with app.run_test() as pilot:
-        await pilot.press("S", "S", "R")
+        await pilot.press("S", "S", "S", "R")
 
         assert header_labels(app)[-1] == "Created ▼"
         assert app.screen.query_one("#no-tasks").has_class("-shown")
@@ -1236,6 +1280,8 @@ def test_sorting_by_a_hidden_due_or_priority_leaves_it_hidden() -> None:
 
     assert shown_columns(SortKey.DUE, columns) == columns
     assert shown_columns(SortKey.PRIORITY, columns) == columns
+    assert shown_columns(SortKey.STATUS, columns) == columns
+    assert column_labels(SortKey.STATUS, False, columns) == ("ID", "Title")
     assert column_labels(SortKey.DUE, False, columns) == ("ID", "Title")
 
 
@@ -1284,7 +1330,7 @@ async def test_the_table_has_the_configured_columns(tmp_path: Path) -> None:
 
         # Created isn't configured, so it's shown only while sorting by it,
         # at the far right.
-        await pilot.press("S", "S")
+        await pilot.press("S", "S", "S")
         assert header_labels(app) == ["Title", "Due", "ID", "Created ▲"]
         assert table_rows(app.screen)[0] == [
             "Task AAAA",
@@ -1309,7 +1355,7 @@ async def test_a_configured_time_column_stays_in_its_place(tmp_path: Path) -> No
     async with app.run_test() as pilot:
         assert header_labels(app) == ["ID", "Title", "Created"]
 
-        await pilot.press("S", "S")
+        await pilot.press("S", "S", "S")
         assert header_labels(app) == ["ID", "Title", "Created ▲"]
 
 

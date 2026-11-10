@@ -14,6 +14,8 @@ from tskmngr.models import Priority, Status, Task
 from tskmngr.taskfile import TaskFile
 
 PRIORITY_RANK = {Priority.LOW: 0, Priority.NORMAL: 1, Priority.HIGH: 2}
+# The order of a sort by status: the tasks being worked on first, done last.
+STATUS_RANK = {Status.DOING: 0, Status.TODO: 1, Status.DONE: 2}
 
 # The words of a title or notes, for typo matches: runs of letters and digits.
 _WORD = re.compile(r"[^\W_]+")
@@ -22,6 +24,7 @@ _WORD = re.compile(r"[^\W_]+")
 class SortKey(StrEnum):
     DUE = "due"
     PRIORITY = "priority"
+    STATUS = "status"
     CREATED = "created"
     UPDATED = "updated"
 
@@ -209,9 +212,10 @@ def sort_tasks[T: (Task, TaskFile)](
 ) -> list[T]:
     """Return the tasks sorted by `key`.
 
-    By default the due date is soonest first, priority highest first, and
-    created and updated oldest first. `reverse` flips that, but tasks without
-    a due date always come last. Ties are broken by created time, then ID.
+    By default the due date is soonest first, priority highest first, status
+    doing, then todo, then done (`STATUS_RANK`), and created and updated
+    oldest first. `reverse` flips that, but tasks without a due date always
+    come last. Ties are broken by created time, then ID.
     """
     ordered = sorted(items, key=lambda item: (_task(item).created, _task(item).id))
     if key is SortKey.DUE:
@@ -225,6 +229,12 @@ def sort_tasks[T: (Task, TaskFile)](
         return sorted(
             ordered,
             key=lambda item: -PRIORITY_RANK[_task(item).priority],
+            reverse=reverse,
+        )
+    if key is SortKey.STATUS:
+        return sorted(
+            ordered,
+            key=lambda item: STATUS_RANK[_task(item).status],
             reverse=reverse,
         )
     return sorted(

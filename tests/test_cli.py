@@ -411,6 +411,15 @@ def test_list_searches_title_and_notes(
     ("argv", "expected"),
     [
         (["--sort", "priority"], ["DOING00002", "TODO000001", "TODO000004"]),
+        (["--sort", "status"], ["DOING00002", "TODO000001", "TODO000004"]),
+        (
+            ["--sort", "status", "-a"],
+            ["DOING00002", "TODO000001", "TODO000004", "DONE000003"],
+        ),
+        (
+            ["--sort", "status", "-a", "-r"],
+            ["DONE000003", "TODO000001", "TODO000004", "DOING00002"],
+        ),
         (["--sort", "created"], ["TODO000001", "DOING00002", "TODO000004"]),
         (["--sort", "updated", "-r"], ["TODO000004", "DOING00002", "TODO000001"]),
         (["--reverse"], ["DOING00002", "TODO000004", "TODO000001"]),
@@ -1302,6 +1311,11 @@ def test_the_old_config_file_is_warned_about_before_config_errors(
             ["TODO000001", "DOING00002", "TODO000004"],
         ),
         ('{"reverse": true}', [], ["DOING00002", "TODO000004", "TODO000001"]),
+        (
+            '{"sort": "status", "reverse": true}',
+            ["-a"],
+            ["DONE000003", "TODO000001", "TODO000004", "DOING00002"],
+        ),
     ],
 )
 def test_list_sorts_as_the_config_file_says(
@@ -1387,7 +1401,7 @@ def test_a_broken_config_file_stops_every_command(
     assert captured.out == ""
     assert captured.err == (
         f"tskmngr: error: config file {config_file}: sort: expected one of due, "
-        "priority, created, updated, got the text 'size'\n"
+        "priority, status, created, updated, got the text 'size'\n"
     )
     assert not tasks.exists()
 

@@ -250,6 +250,9 @@ its commit for changes that reached `dev` or `main` without a pull request.
   priority is typed, the rest of the first match is shown greyed out and →
   accepts it; `#tag` completes from the tags of every task, leaving out those
   already in the filter (#82)
+- [#90](https://github.com/Kevin-Brockers/tskmngr/pull/90) - Sort by status, doing → todo → done (`reverse` flips it): the TUI's
+  `S` steps through it after priority, and `tskmngr list --sort` and the
+  config's `sort` take `status` (#83)
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

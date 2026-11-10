@@ -455,6 +455,34 @@ def test_sort_by_priority_highest_first() -> None:
     assert ids(sort_tasks(tasks, SortKey.PRIORITY, reverse=True)) == ["A", "C", "B"]
 
 
+def test_sort_by_status_doing_then_todo_then_done() -> None:
+    tasks = [
+        make_task("A", status=Status.DONE),
+        make_task("B", status=Status.TODO),
+        make_task("C", status=Status.DOING),
+    ]
+
+    assert ids(sort_tasks(tasks, SortKey.STATUS)) == ["C", "B", "A"]
+    assert ids(sort_tasks(tasks, SortKey.STATUS, reverse=True)) == ["A", "B", "C"]
+
+
+def test_sort_by_status_breaks_ties_by_created_then_id() -> None:
+    tasks = [
+        make_task("B", status=Status.TODO),
+        make_task("A", status=Status.TODO, created=CREATED + timedelta(hours=1)),
+        make_task("C", status=Status.TODO),
+        make_task("D", status=Status.DOING),
+    ]
+
+    assert ids(sort_tasks(tasks, SortKey.STATUS)) == ["D", "B", "C", "A"]
+    assert ids(sort_tasks(tasks, SortKey.STATUS, reverse=True)) == [
+        "B",
+        "C",
+        "A",
+        "D",
+    ]
+
+
 @pytest.mark.parametrize("key", [SortKey.CREATED, SortKey.UPDATED])
 def test_sort_by_timestamp_oldest_first(key: SortKey) -> None:
     later = CREATED + timedelta(days=1)
