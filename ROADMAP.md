@@ -413,24 +413,32 @@ numbers.
 
 ### M16 · Push frequency
 
-Goal: the TUI can push its changes less often, every hour or when it's
-closed, as set in the config file. Listed before M14 and built before its
-M14.3, so it's in 0.1.0; the step ID keeps its number.
+Goal: fewer commits reach GitHub: the TUI and the CLI can push every hour or
+when the TUI is closed instead of after every change, as set in the config
+file, and every push bundles the commits not pushed yet into one. Listed
+before M14 and built before its M14.3, so it's in 0.1.0; the step ID keeps
+its number.
 
-- [ ] **M16.1** `push` config key for the TUI: `change` (the default),
-  `hourly` or `exit`. Each change the TUI makes is still committed right
-  away with its usual message; only the push waits. `change` pushes after
-  each change, as now; `hourly` runs a full sync (commit leftovers, pull,
-  push) an hour after the TUI starts and every hour after that; `exit`
-  pushes only when the TUI closes. At every level, closing the TUI pushes
-  the commits not pushed yet and waits for it (git's 60-second limit
-  applies), showing that it's syncing, and a failure is printed after the
-  TUI has closed; the sync at start and on `y` stay as they are. CLI
-  commands ignore the key and keep committing and pushing each change.
-  The default config file gains `"push": "change"`, any other value stops
-  the CLI and the TUI like other invalid settings, and `tskmngr config` and
-  `config get` show it; document it in the README (config file and synced
-  tasks) and update `AGENTS.md` to match · `feature/push_frequency`
+- [ ] **M16.1** `push` config key: `change` (the default), `hourly` or
+  `exit`. Each change is still committed right away with its usual
+  message, so nothing is lost if the app stops. Before every push (the TUI's
+  and the CLI's, `y` and `tskmngr sync` included), the commits not pushed
+  yet are squashed into one: a single commit keeps its message, several
+  become `tskmngr: N changes` with one line per change in the message body;
+  pushed commits are never rewritten. `change` pushes after each change, as
+  now; `hourly` makes the TUI run a full sync (commit leftovers, pull, push)
+  an hour after it starts and every hour after that; `exit` makes the TUI
+  push only when it closes. At every level, closing the TUI pushes the
+  commits not pushed yet and waits for it (git's 60-second limit applies),
+  showing that it's syncing, and a failure is printed after the TUI has
+  closed; the sync at start and on `y` stay as they are. Under `hourly` and
+  `exit`, CLI commands still pull first and commit their change, but don't
+  push; the next push (the TUI's, `tskmngr sync` or a command under
+  `change`) takes them along. The default config file gains
+  `"push": "change"`, any other value stops the CLI and the TUI like other
+  invalid settings, and `tskmngr config` and `config get` show it; document
+  it in the README (config file and synced tasks) and update `AGENTS.md` to
+  match · `feature/push_frequency`
 
 ### M14 · First release
 
