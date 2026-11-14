@@ -411,6 +411,26 @@ numbers.
   closes #83 ·
   [#90](https://github.com/Kevin-Brockers/tskmngr/pull/90)
 
+### M16 · Commit author in tasks repositories
+
+Goal: the commits tskmngr makes in a tasks repository don't count on the
+user's GitHub profile: they're authored by tskmngr, with an email GitHub
+can't link to anyone's account. Listed before M14 and built before its
+M14.3, so it's in 0.1.0; the step ID keeps its number.
+
+- [ ] **M16.1** Commit author `tskmngr <tskmngr@localhost>`: `tskmngr remote
+  init` and the first clone of a remote `tasks_repo` set `user.name`
+  `tskmngr` and `user.email` `tskmngr@localhost` in the clone's own git
+  config (its `.git/config`, not the global one) before anything is
+  committed, so the setup commit and every later one have that author and
+  committer; GitHub only counts a commit on a profile when its email is
+  linked to that account. A local-folder `tasks_repo` and a clone that
+  already exists aren't changed: the README gives the two `git config`
+  commands to run there by hand, and tskmngr never rewrites a `user.name`
+  or `user.email` set there. Document it in the README (synced tasks: what
+  it sets, why, and how to change or undo it) and update `AGENTS.md`
+  ("Synced tasks") to match · `feature/tasks_repo_author`
+
 ### M14 · First release
 
 Goal: tskmngr 0.1.0 is released from `main`, checked by CI, with a GitHub
@@ -443,4 +463,4 @@ Release to install it from.
   push the tag, then a pull request into `dev` that sets `0.2.0.dev0`),
   listed in `AGENTS.md`'s project layout; the README and `RELEASING.md`
   changes get an entry in the `[0.1.0]` section · `chore/release_0_1_0` ·
-  depends on M13.1, M14.2, M10.6, M15.1, M15.2
+  depends on M13.1, M14.2, M10.6, M15.1, M15.2, M16.1
