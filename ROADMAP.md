@@ -411,34 +411,25 @@ numbers.
   closes #83 ·
   [#90](https://github.com/Kevin-Brockers/tskmngr/pull/90)
 
-### M16 · Push frequency
+### M16 · Commit author in tasks repositories
 
-Goal: fewer commits reach GitHub: the TUI and the CLI can push every hour or
-when the TUI is closed instead of after every change, as set in the config
-file, and every push bundles the commits not pushed yet into one. Listed
-before M14 and built before its M14.3, so it's in 0.1.0; the step ID keeps
-its number.
+Goal: the commits tskmngr makes in a tasks repository don't count on the
+user's GitHub profile: they're authored by tskmngr, with an email GitHub
+can't link to anyone's account. Listed before M14 and built before its
+M14.3, so it's in 0.1.0; the step ID keeps its number.
 
-- [ ] **M16.1** `push` config key: `change` (the default), `hourly` or
-  `exit`. Each change is still committed right away with its usual
-  message, so nothing is lost if the app stops. Before every push (the TUI's
-  and the CLI's, `y` and `tskmngr sync` included), the commits not pushed
-  yet are squashed into one: a single commit keeps its message, several
-  become `tskmngr: N changes` with one line per change in the message body;
-  pushed commits are never rewritten. `change` pushes after each change, as
-  now; `hourly` makes the TUI run a full sync (commit leftovers, pull, push)
-  an hour after it starts and every hour after that; `exit` makes the TUI
-  push only when it closes. At every level, closing the TUI pushes the
-  commits not pushed yet and waits for it (git's 60-second limit applies),
-  showing that it's syncing, and a failure is printed after the TUI has
-  closed; the sync at start and on `y` stay as they are. Under `hourly` and
-  `exit`, CLI commands still pull first and commit their change, but don't
-  push; the next push (the TUI's, `tskmngr sync` or a command under
-  `change`) takes them along. The default config file gains
-  `"push": "change"`, any other value stops the CLI and the TUI like other
-  invalid settings, and `tskmngr config` and `config get` show it; document
-  it in the README (config file and synced tasks) and update `AGENTS.md` to
-  match · `feature/push_frequency`
+- [ ] **M16.1** Commit author `tskmngr <tskmngr@localhost>`: `tskmngr remote
+  init` and the first clone of a remote `tasks_repo` set `user.name`
+  `tskmngr` and `user.email` `tskmngr@localhost` in the clone's own git
+  config (its `.git/config`, not the global one) before anything is
+  committed, so the setup commit and every later one have that author and
+  committer; GitHub only counts a commit on a profile when its email is
+  linked to that account. A local-folder `tasks_repo` and a clone that
+  already exists aren't changed: the README gives the two `git config`
+  commands to run there by hand, and tskmngr never rewrites a `user.name`
+  or `user.email` set there. Document it in the README (synced tasks: what
+  it sets, why, and how to change or undo it) and update `AGENTS.md`
+  ("Synced tasks") to match · `feature/tasks_repo_author`
 
 ### M14 · First release
 
