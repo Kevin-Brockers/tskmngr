@@ -257,7 +257,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   in a tasks repository as `tskmngr <tskmngr@localhost>`, set by `remote init`
   and the first clone, so they don't count on the user's GitHub profile;
   M14.3 now depends on it
-- #TBD - Commits in a tasks repository are made as
+- [#92](https://github.com/Kevin-Brockers/tskmngr/pull/92) - Commits in a tasks repository are made as
   `tskmngr <tskmngr@localhost>`, so they don't count on your GitHub profile:
   `tskmngr remote init` and the first clone of a remote `tasks_repo` set
   `user.name` and `user.email` in the clone's own git config; existing clones
