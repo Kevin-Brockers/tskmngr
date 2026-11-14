@@ -288,6 +288,15 @@ its `tasks/` folder, and stops with an error if it can't be used.
   already another URL, or the clone, commit or push fails. Only it writes the
   repository's `AGENTS.md`; it's never rewritten. A local path is a usage
   error.
+- A clone tskmngr makes (`remote init`, and the first clone of a remote URL)
+  gets `user.name` `tskmngr` and `user.email` `tskmngr@localhost` in its own
+  `.git/config` before anything is committed in it, so its commits don't
+  count on the user's GitHub profile: GitHub only counts a commit there when
+  its email is linked to the account. If git can't set them, the clone or
+  `remote init` fails and leaves nothing behind. A clone that already exists
+  and a local repository aren't changed, a `user.name` or `user.email` set
+  in a clone is never rewritten, and git's `GIT_AUTHOR_*` and
+  `GIT_COMMITTER_*` variables still come first.
 - `tasks_repo` must be a string, like other keys' types; beyond that it isn't
   checked when the config is loaded. `tskmngr config` notes whether it's a
   remote URL or a local folder, and for a remote URL the clone's folder. The

@@ -56,6 +56,36 @@ def no_git_identity(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(f"GIT_{role}_NAME", "")
 
 
+def only_config_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Drop the `git` fixture's identity variables, so git reads its config.
+
+    They'd come before the repository's `user.name` and `user.email`.
+    """
+    for role in ("AUTHOR", "COMMITTER"):
+        for part in ("NAME", "EMAIL"):
+            monkeypatch.delenv(f"GIT_{role}_{part}", raising=False)
+
+
+def local_identity(directory: Path) -> str:
+    """The `user.*` keys in the repository's own `.git/config`, one per line."""
+    result = subprocess.run(
+        ["git", "config", "--local", "--get-regexp", "^user\\."],
+        cwd=directory,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip()
+
+
+def people(git: Git, directory: Path) -> list[str]:
+    """Each commit's author and committer, newest first."""
+    return git(directory, "log", "--format=%an <%ae> | %cn <%ce>").splitlines()
+
+
+TSKMNGR = "tskmngr <tskmngr@localhost> | tskmngr <tskmngr@localhost>"
+
+
 def subjects(git: Git, directory: Path) -> list[str]:
     """The commit messages' first lines, newest first."""
     return git(directory, "log", "--format=%s").splitlines()
@@ -148,6 +178,77 @@ def test_open_repo_clones_a_remote_once(tmp_path: Path, remote: Path, git: Git) 
     assert open_repo(repo) is False
     # Only the clone is left, no temp folder.
     assert sorted(path.name for path in tmp_path.iterdir()) == ["clone", "remote.git"]
+
+
+def test_a_clone_commits_as_tskmngr(
+    tmp_path: Path, remote: Path, git: Git, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = cloned(remote, tmp_path / "clone")
+    only_config_identity(monkeypatch)
+    write(repo, "T1.md", "one")
+
+    assert commit_all(repo, "tskmngr: add T1 One") is True
+
+    assert local_identity(repo.directory) == (
+        "user.name tskmngr\nuser.email tskmngr@localhost"
+    )
+    assert people(git, repo.directory) == [TSKMNGR]
+
+
+def test_the_environments_identity_comes_before_the_clones(
+    tmp_path: Path, remote: Path, git: Git
+) -> None:
+    # The `git` fixture sets GIT_AUTHOR_* and GIT_COMMITTER_*.
+    repo = cloned(remote, tmp_path / "clone")
+    write(repo, "T1.md", "one")
+    commit_all(repo, "add")
+
+    assert people(git, repo.directory) == [
+        "Test <test@example.com> | Test <test@example.com>"
+    ]
+
+
+def test_an_existing_clone_keeps_its_identity(
+    tmp_path: Path, remote: Path, git: Git
+) -> None:
+    directory = tmp_path / "clone"
+    git(tmp_path, "clone", "--quiet", remote.as_uri(), str(directory))
+    git(directory, "config", "user.email", "me@example.com")
+
+    assert open_repo(clone_repo(remote, directory)) is False
+
+    assert local_identity(directory) == "user.email me@example.com"
+
+
+def test_a_local_repository_keeps_its_identity(tmp_path: Path, git: Git) -> None:
+    git(tmp_path, "init", "--quiet", "tasks")
+
+    repo = TasksRepo(str(tmp_path / "tasks"), False, tmp_path / "tasks")
+
+    assert open_repo(repo) is False
+
+    assert local_identity(tmp_path / "tasks") == ""
+
+
+def test_a_clone_whose_author_cant_be_set_leaves_nothing_behind(
+    tmp_path: Path, remote: Path, git: Git, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_git = gitsync._git
+
+    def refuse_config(
+        directory: Path, *args: str, network: bool = False
+    ) -> subprocess.CompletedProcess[str]:
+        if args[0] == "config":
+            return subprocess.CompletedProcess(args, 1, "", "could not lock config")
+        return run_git(directory, *args, network=network)
+
+    monkeypatch.setattr(gitsync, "_git", refuse_config)
+    repo = clone_repo(remote, tmp_path / "clone")
+
+    with pytest.raises(RepoError, match="can't set the commit author"):
+        open_repo(repo)
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["remote.git"]
 
 
 def test_a_failed_clone_leaves_nothing_behind(tmp_path: Path, git: Git) -> None:
@@ -479,6 +580,19 @@ def test_init_remote_sets_up_an_empty_remote(
     check_layout(repo)
     assert not has_changes(repo)
     assert push(repo) is False
+
+
+def test_init_remote_commits_and_leaves_the_clone_as_tskmngr(
+    remote: Path, user_home: Path, git: Git, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    only_config_identity(monkeypatch)
+
+    repo = init_remote(remote.as_uri(), FILES)
+
+    assert people(git, remote) == [TSKMNGR]
+    assert local_identity(repo.directory) == (
+        "user.name tskmngr\nuser.email tskmngr@localhost"
+    )
 
 
 def test_init_remote_refuses_a_repository_that_isnt_empty(
