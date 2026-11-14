@@ -257,6 +257,12 @@ its commit for changes that reached `dev` or `main` without a pull request.
   in a tasks repository as `tskmngr <tskmngr@localhost>`, set by `remote init`
   and the first clone, so they don't count on the user's GitHub profile;
   M14.3 now depends on it
+- [#92](https://github.com/Kevin-Brockers/tskmngr/pull/92) - Commits in a tasks repository are made as
+  `tskmngr <tskmngr@localhost>`, so they don't count on your GitHub profile:
+  `tskmngr remote init` and the first clone of a remote `tasks_repo` set
+  `user.name` and `user.email` in the clone's own git config; existing clones
+  and local repositories aren't changed, and the README shows how to set or
+  undo it by hand
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

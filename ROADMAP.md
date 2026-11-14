@@ -418,7 +418,7 @@ user's GitHub profile: they're authored by tskmngr, with an email GitHub
 can't link to anyone's account. Listed before M14 and built before its
 M14.3, so it's in 0.1.0; the step ID keeps its number.
 
-- [ ] **M16.1** Commit author `tskmngr <tskmngr@localhost>`: `tskmngr remote
+- [x] **M16.1** Commit author `tskmngr <tskmngr@localhost>`: `tskmngr remote
   init` and the first clone of a remote `tasks_repo` set `user.name`
   `tskmngr` and `user.email` `tskmngr@localhost` in the clone's own git
   config (its `.git/config`, not the global one) before anything is
@@ -429,7 +429,8 @@ M14.3, so it's in 0.1.0; the step ID keeps its number.
   commands to run there by hand, and tskmngr never rewrites a `user.name`
   or `user.email` set there. Document it in the README (synced tasks: what
   it sets, why, and how to change or undo it) and update `AGENTS.md`
-  ("Synced tasks") to match · `feature/tasks_repo_author`
+  ("Synced tasks") to match · `feature/tasks_repo_author` ·
+  [#92](https://github.com/Kevin-Brockers/tskmngr/pull/92)
 
 ### M14 · First release
 

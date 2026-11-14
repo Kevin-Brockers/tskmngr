@@ -340,8 +340,8 @@ license: create it on GitHub (or another host), then run
 tskmngr remote init git@github.com:me/tasks.git
 ```
 
-It clones the repository into `~/.tskmngr/remote_task_dir`, adds an
-`AGENTS.md` that tells AI coding agents how the task files work and that they
+It clones the repository into `~/.tskmngr/remote_task_dir`, makes tskmngr the
+clone's [commit author](#commit-author), adds an `AGENTS.md` that tells AI coding agents how the task files work and that they
 must not delete any, and `tasks/.trash/.gitkeep`, commits them as
 `tskmngr: remote init` and pushes that, then sets `tasks_repo` to the URL in
 the config file. If the folder already exists, the repository isn't empty or
@@ -353,7 +353,8 @@ afterwards.
 
 - **A remote URL**, like `https://github.com/me/tasks.git` or
   `git@github.com:me/tasks.git`. tskmngr clones it into
-  `~/.tskmngr/remote_task_dir` the first time it needs the tasks. If that
+  `~/.tskmngr/remote_task_dir` the first time it needs the tasks, with
+  tskmngr as the clone's [commit author](#commit-author). If that
   folder already exists but isn't a clone of this URL, tskmngr stops with an
   error and leaves the folder alone; move it away to clone there.
 - **A local folder** that's already a git repository: `~` is your home, and a
@@ -424,6 +425,52 @@ The TUI syncs too, in the background, so it never waits for the network:
   the command still works on the files on disk. The commits that weren't
   pushed go out with the next push. Each git command that talks to the
   remote is stopped after 60 seconds, and git never asks for a password.
+
+#### Commit author
+
+tskmngr commits in the clones it makes as `tskmngr <tskmngr@localhost>`, so
+syncing your tasks doesn't fill your GitHub profile: GitHub only counts a
+commit in your contributions when its email is linked to your account, and
+`tskmngr@localhost` can't be. The commits are still in the repository, with
+tskmngr as their author and committer.
+
+`tskmngr remote init` and the first clone of a remote `tasks_repo` on a
+computer set this in the clone's own git config, `.git/config` in
+`~/.tskmngr/remote_task_dir`, before anything is committed there, so even
+the setup commit is tskmngr's. Your global git config isn't touched, and
+neither are other repositories. If git can't write the setting, the command
+stops and leaves no clone behind.
+
+tskmngr doesn't change:
+
+- **A clone that already exists**, for example one made before tskmngr did
+  this. To get the same there, run:
+
+  ```bash
+  cd ~/.tskmngr/remote_task_dir
+  git config user.name tskmngr
+  git config user.email tskmngr@localhost
+  ```
+
+- **A local folder** as `tasks_repo`: it's your own repository, so tskmngr
+  leaves its git config alone. Run the two `git config` commands in it to
+  commit as tskmngr there too.
+- **A name or email set in the clone**: tskmngr writes them only when it
+  makes the clone, and never again. Change them with `git config` as you
+  like; to commit as yourself again, remove them, and git goes back to your
+  global identity:
+
+  ```bash
+  cd ~/.tskmngr/remote_task_dir
+  git config --unset user.name
+  git config --unset user.email
+  ```
+
+The environment variables `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`,
+`GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL` come before any git config, so
+if you set them, tskmngr's commits have those instead.
+
+#### Access token
 
 For an HTTPS remote, put a fine-grained access token (with read and write
 access to the repository's contents) in `TSKMNGR_GIT_TOKEN`:

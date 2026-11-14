@@ -19,6 +19,13 @@ sides; the caller reports these as warnings, since the files on disk are
 still fine. Nothing here overwrites a task: a conflicting rebase is aborted,
 and uncommitted changes are never stashed.
 
+A clone tskmngr makes, by `open_repo` or `init_remote`, gets the commit
+author `tskmngr <tskmngr@localhost>` (`AUTHOR_NAME`, `AUTHOR_EMAIL`) in its
+own `.git/config`, before anything is committed in it, so its commits don't
+count on the user's GitHub profile: GitHub only counts a commit there when
+its email is linked to the account. A local repository and a clone that
+already exists are never changed.
+
 The access token comes from `TSKMNGR_GIT_TOKEN` (`TOKEN_VAR`) and reaches git
 through a credential helper that reads the variable by name, so the token is
 never in a command line, `.git/config`, the remote URL or any output.
@@ -50,6 +57,9 @@ NETWORK_TIMEOUT = 60
 SYNC_MESSAGE = "tskmngr: sync"
 # The message of the commit `init_remote` sets up a repository with.
 INIT_MESSAGE = "tskmngr: remote init"
+# The commit author set in each clone tskmngr makes (see `_set_author`).
+AUTHOR_NAME = "tskmngr"
+AUTHOR_EMAIL = "tskmngr@localhost"
 # The user name sent with the token; GitHub and most hosts ignore it.
 TOKEN_USER = "x-access-token"
 # A credential helper that answers git's `get` with the token. It reads the
@@ -124,9 +134,9 @@ def parse_tasks_repo(value: str, base: Path) -> TasksRepo:
 def open_repo(repo: TasksRepo) -> bool:
     """Make sure the tasks directory is the repository; returns whether it cloned.
 
-    A remote URL is cloned into its folder if that doesn't exist; the clone
-    is made next to it and renamed into place, so a failed clone leaves
-    nothing behind. Raises `RepoError` if the clone fails, if the folder isn't
+    A remote URL is cloned into its folder if that doesn't exist, with
+    tskmngr as its commit author (`_set_author`); the clone is made next to it
+    and renamed into place, so a failed clone leaves nothing behind. Raises `RepoError` if the clone fails, if the folder isn't
     a git repository (tskmngr never runs `git init`), or if a clone's
     `origin` is another URL.
     """
@@ -269,14 +279,16 @@ def push(repo: TasksRepo) -> bool:
 def init_remote(location: str, files: Mapping[str, str]) -> TasksRepo:
     """Set up the empty remote repository at `location` for tskmngr.
 
-    Clones it, writes `files` (text by path relative to the repository's root,
-    with `/` between folders), commits them as `INIT_MESSAGE` and pushes that
+    Clones it, sets the clone's commit author (`_set_author`), writes `files`
+    (text by path relative to the repository's root, with `/` between
+    folders), commits them as `INIT_MESSAGE` and pushes that
     to the clone's branch; the clone is then `remote_tasks_dir()`, as
     `open_repo` would have made it. It's all done in a temp folder next to
     that, renamed into place only once the push worked, so on any error
     nothing is changed, here or in the remote. Raises `RepoError` if the
     folder already exists, if the repository can't be cloned or isn't empty
-    (it has any branch or tag), or if the commit or push fails.
+    (it has any branch or tag), or if setting the author, the commit or the
+    push fails.
     """
     repo = TasksRepo(location, True, remote_tasks_dir())
     directory = repo.directory
@@ -291,6 +303,7 @@ def init_remote(location: str, files: Mapping[str, str]) -> TasksRepo:
             raise RepoError(
                 f"{location} isn't empty; remote init only sets up an empty repository"
             )
+        _set_author(temp)
         for name, text in files.items():
             path = temp / PurePosixPath(name)
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -347,11 +360,26 @@ def _clone_into(location: str, folder: Path) -> None:
         raise RepoError(f"can't clone {location}: {_why(result)}")
 
 
+def _set_author(directory: Path) -> None:
+    """Make tskmngr the author and committer of the commits in `directory`.
+
+    Sets `user.name` and `user.email` in the repository's own `.git/config`,
+    never the global one. Git's `GIT_AUTHOR_*` and `GIT_COMMITTER_*`
+    environment variables still come first. Raises `RepoError` if git can't
+    write them.
+    """
+    for key, value in (("user.name", AUTHOR_NAME), ("user.email", AUTHOR_EMAIL)):
+        result = _git(directory, "config", "--local", key, value)
+        if result.returncode != 0:
+            raise RepoError(f"can't set the commit author: {_why(result)}")
+
+
 def _clone(repo: TasksRepo) -> None:
     directory = repo.directory
     temp = directory.with_name(f".{directory.name}.{secrets.token_hex(4)}.tmp")
     try:
         _clone_into(repo.location, temp)
+        _set_author(temp)
         os.rename(temp, directory)
     except OSError as error:
         reason = error.strerror or str(error)
