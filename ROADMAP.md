@@ -432,6 +432,60 @@ M14.3, so it's in 0.1.0; the step ID keeps its number.
   ("Synced tasks") to match · `feature/tasks_repo_author` ·
   [#92](https://github.com/Kevin-Brockers/tskmngr/pull/92)
 
+### M17 · Complete default config, joining a tasks repository, lean releases
+
+Goal: the default config file shows every setting, an existing tasks
+repository can be used on another machine with `remote init --sync`, and a
+release holds only what users need while `dev` keeps the project's working
+files. From issues
+[#93](https://github.com/Kevin-Brockers/tskmngr/issues/93),
+[#94](https://github.com/Kevin-Brockers/tskmngr/issues/94) and
+[#95](https://github.com/Kevin-Brockers/tskmngr/issues/95), as agreed with the
+maintainer. Listed before M14 and built before its M14.3, so it's in 0.1.0;
+the step IDs keep their numbers.
+
+- [ ] **M17.1** Every key in the default config file: `tasks_dir` and
+  `tasks_repo` are written as `null`, and `null` is accepted for both and
+  means not set (so `TSKMNGR_DIR` and the default tasks directory still
+  apply, and existing config files work as before); `keybindings` lists
+  every TUI binding id with its default key instead of `{}`, checked like
+  any other `keybindings`; existing config files aren't changed. Document it
+  in the README and update `AGENTS.md` ("Config file") to match ·
+  `feature/default_config_all_keys` · closes #94
+- [ ] **M17.2** `tskmngr remote init --sync URL` uses a remote repository
+  that's already a tasks repository: one with a `tasks/` folder, the same
+  layout check as M12.1. It clones it into `~/.tskmngr/remote_task_dir`
+  (through a temp folder, as the first clone does), sets the tskmngr commit
+  author in the clone (M16.1), adds and commits nothing (the repository's
+  `AGENTS.md` is left as it is) and sets `tasks_repo` to the URL. It stops,
+  changing nothing, in the cases `remote init` does (the clone folder exists,
+  `tasks_repo` is already another URL, the clone fails) and when the
+  repository is empty or has no `tasks/`, with an error saying which `remote
+  init` to use. Without `--sync`, a repository that isn't empty still stops,
+  and the error now points to `--sync`. Document it in the README and update
+  `AGENTS.md` ("Synced tasks") to match · `feature/remote_init_sync` ·
+  closes #93
+- [ ] **M17.3** Finished roadmap steps in `docs/finished_roadmap.md`: every
+  `[x]` step (and every `[-]` one) moves there with its line, sub-steps and
+  notes unchanged, under its milestone's heading and goal; `ROADMAP.md`
+  keeps its format and rules and the open steps, with a milestone's heading
+  and goal staying in both files while it has open and finished steps. From
+  then on, the pull request that implements a step moves it to
+  `docs/finished_roadmap.md`, marked `[x]` with its link. Update the rules at
+  the top of `ROADMAP.md`, `AGENTS.md` ("Follow the roadmap"; the files its
+  two no-approval updates touch) and the `init-work` skill to match ·
+  `docs/finished_roadmap` · part of #95
+- [ ] **M17.4** Lean release content: the wheel, the sdist and the GitHub
+  Release's source archives leave out `AGENTS.md`, `ROADMAP.md`,
+  `docs/finished_roadmap.md` and `.claude/` (the build config's excludes,
+  and `export-ignore` in `.gitattributes` for the archives), and the README
+  in them has no Status section (cut by the release workflow, between
+  markers in the README); `main` and `dev` stay identical and always keep
+  all of these files. Document what a release leaves out in `release.yml`,
+  the README and `AGENTS.md` (the release workflow, and that `dev` always
+  has the README, `AGENTS.md` and `ROADMAP.md`) · `chore/release_excludes` ·
+  depends on M17.3 · closes #95
+
 ### M14 · First release
 
 Goal: tskmngr 0.1.0 is released from `main`, checked by CI, with a GitHub
@@ -464,4 +518,5 @@ Release to install it from.
   push the tag, then a pull request into `dev` that sets `0.2.0.dev0`),
   listed in `AGENTS.md`'s project layout; the README and `RELEASING.md`
   changes get an entry in the `[0.1.0]` section · `chore/release_0_1_0` ·
-  depends on M13.1, M14.2, M10.6, M15.1, M15.2, M16.1
+  depends on M13.1, M14.2, M10.6, M15.1, M15.2, M16.1, M17.1, M17.2, M17.3,
+  M17.4
