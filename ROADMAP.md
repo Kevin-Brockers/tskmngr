@@ -444,14 +444,14 @@ files. From issues
 maintainer. Listed before M14 and built before its M14.3, so it's in 0.1.0;
 the step IDs keep their numbers.
 
-- [ ] **M17.1** Every key in the default config file: `tasks_dir` and
+- [x] **M17.1** Every key in the default config file: `tasks_dir` and
   `tasks_repo` are written as `null`, and `null` is accepted for both and
   means not set (so `TSKMNGR_DIR` and the default tasks directory still
   apply, and existing config files work as before); `keybindings` lists
   every TUI binding id with its default key instead of `{}`, checked like
   any other `keybindings`; existing config files aren't changed. Document it
   in the README and update `AGENTS.md` ("Config file") to match ·
-  `feature/default_config_all_keys` · closes #94
+  `feature/default_config_all_keys` · closes #94 · #TBD
 - [ ] **M17.2** `tskmngr remote init --sync URL` uses a remote repository
   that's already a tasks repository: one with a `tasks/` folder, the same
   layout check as M12.1. It clones it into `~/.tskmngr/remote_task_dir`

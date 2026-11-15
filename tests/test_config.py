@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from tskmngr.config import (
+    DEFAULT_KEYBINDINGS,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_SETTINGS,
     DEFAULT_THEME,
@@ -69,32 +70,41 @@ def test_old_config_path_is_in_dot_config(user_home: Path) -> None:
 # Writing the default file
 
 
-def test_the_default_file_has_every_setting_but_tasks_dir_and_tasks_repo() -> None:
+def test_the_default_file_has_every_setting() -> None:
     assert json.loads(default_config_text()) == DEFAULT_SETTINGS
-    assert set(DEFAULT_SETTINGS) == {
-        "sort",
-        "reverse",
-        "theme",
-        "editor",
-        "poll_interval",
-        "columns",
-        "trash_columns",
-        "show_trash",
-        "keybindings",
-    }
+    assert tuple(DEFAULT_SETTINGS) == SETTING_KEYS
 
 
 def test_the_default_file_reads_as_the_defaults() -> None:
     config = parse_config(default_config_text(), PATH)
 
-    assert config == Config(path=PATH, theme=DEFAULT_THEME)
+    assert config == Config(
+        path=PATH, theme=DEFAULT_THEME, keybindings=DEFAULT_KEYBINDINGS
+    )
     assert config.tasks_dir is None
+    assert config.tasks_repo is None
     assert config.poll_interval == DEFAULT_POLL_INTERVAL
+
+
+def test_the_default_file_leaves_tasks_dir_and_tasks_repo_unset() -> None:
+    config = parse_config(default_config_text(), PATH)
+
+    assert DEFAULT_SETTINGS["tasks_dir"] is None
+    assert DEFAULT_SETTINGS["tasks_repo"] is None
+    assert config.keys == frozenset(SETTING_KEYS) - {"tasks_dir", "tasks_repo"}
+
+
+def test_the_default_file_lists_every_keybinding() -> None:
+    assert DEFAULT_SETTINGS["keybindings"] == DEFAULT_KEYBINDINGS
+    # A copy, so changing one doesn't change the other.
+    assert DEFAULT_SETTINGS["keybindings"] is not DEFAULT_KEYBINDINGS
 
 
 def test_the_default_file_is_indented_json() -> None:
     assert default_config_text() == (
         "{\n"
+        '  "tasks_dir": null,\n'
+        '  "tasks_repo": null,\n'
         '  "sort": "due",\n'
         '  "reverse": false,\n'
         '  "theme": "textual-dark",\n'
@@ -115,7 +125,30 @@ def test_the_default_file_is_indented_json() -> None:
         '    "id"\n'
         "  ],\n"
         '  "show_trash": true,\n'
-        '  "keybindings": {}\n'
+        '  "keybindings": {\n'
+        '    "task_list.open": "enter",\n'
+        '    "task_list.new": "n",\n'
+        '    "task_list.edit": "e",\n'
+        '    "task_list.cycle_status": "s",\n'
+        '    "task_list.delete": "d",\n'
+        '    "task_list.external_editor": "o",\n'
+        '    "task_list.sort": "S",\n'
+        '    "task_list.reverse_sort": "R",\n'
+        '    "task_list.filter": "slash",\n'
+        '    "task_list.clear_filter": "escape",\n'
+        '    "task_list.toggle_trash": "t",\n'
+        '    "task_list.sync": "y",\n'
+        '    "task_detail.close": "escape",\n'
+        '    "task_detail.edit": "e",\n'
+        '    "task_detail.external_editor": "o",\n'
+        '    "task_detail.toggle_subtask": "space",\n'
+        '    "task_form.save": "ctrl+s",\n'
+        '    "task_form.cancel": "escape",\n'
+        '    "confirm_delete.yes": "y",\n'
+        '    "confirm_delete.no": "n,escape",\n'
+        '    "confirm_discard.yes": "y",\n'
+        '    "confirm_discard.no": "n,escape"\n'
+        "  }\n"
         "}\n"
     )
 
@@ -303,7 +336,26 @@ def test_setting_keys_are_every_known_key_in_the_documented_order() -> None:
 
 
 def test_no_keybindings_by_default() -> None:
+    # A file without `keybindings` keeps every binding's own key.
     assert Config().keybindings == {}
+
+
+@pytest.mark.parametrize("key", ["tasks_dir", "tasks_repo"])
+def test_null_tasks_dir_or_tasks_repo_is_not_set(key: str) -> None:
+    config = parse_config(f'{{"{key}": null, "sort": "priority"}}', PATH)
+
+    assert config == Config(path=PATH, sort=SortKey.PRIORITY)
+    assert config.keys == {"sort"}
+
+
+def test_null_tasks_dir_falls_back_to_tskmngr_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TSKMNGR_DIR", str(tmp_path / "env"))
+
+    config = parse_config('{"tasks_dir": null, "tasks_repo": null}', PATH)
+
+    assert tasks_directory(config) == tmp_path / "env"
 
 
 def test_spaces_around_keybinding_keys_are_dropped() -> None:
@@ -511,7 +563,8 @@ def test_tasks_repo_comes_before_tasks_dir_and_tskmngr_dir(
     assert tasks_directory(Config(tasks_dir=Path("/mine"))) == Path("/mine")
 
 
-@pytest.mark.parametrize("value", ["5", '" "', '["a"]', "null"])
+# null is accepted: it means not set.
+@pytest.mark.parametrize("value", ["5", '" "', '["a"]'])
 def test_tasks_repo_must_be_text(value: str) -> None:
     assert error_message(f'{{"tasks_repo": {value}}}').startswith(
         "tasks_repo: expected a git repository's URL or folder, got "
@@ -550,6 +603,21 @@ def test_set_tasks_repo_replaces_the_old_value(tmp_path: Path) -> None:
         "tasks_repo": "https://example.com/new.git",
         "sort": "due",
     }
+
+
+def test_set_tasks_repo_replaces_a_null_in_its_place(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.write_text('{"tasks_dir": null, "tasks_repo": null, "sort": "due"}')
+
+    set_tasks_repo(path, "https://example.com/new.git")
+
+    settings = json.loads(path.read_text())
+    assert settings == {
+        "tasks_dir": None,
+        "tasks_repo": "https://example.com/new.git",
+        "sort": "due",
+    }
+    assert list(settings) == ["tasks_dir", "tasks_repo", "sort"]
 
 
 @pytest.mark.parametrize(

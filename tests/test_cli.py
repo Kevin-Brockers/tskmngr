@@ -8,7 +8,12 @@ import pytest
 
 from tskmngr import cli, models
 from tskmngr.app import TskmngrApp
-from tskmngr.config import DEFAULT_SETTINGS, ConfigError, default_config_text
+from tskmngr.config import (
+    DEFAULT_KEYBINDINGS,
+    DEFAULT_SETTINGS,
+    ConfigError,
+    default_config_text,
+)
 from tskmngr.models import Priority, Repeat, Status, Task, Unit
 from tskmngr.storage import load_tasks, save_task
 from tskmngr.taskfile import TaskFile
@@ -1357,12 +1362,13 @@ def test_the_config_file_comes_before_tskmngr_dir(
     assert not tasks.exists()
 
 
-def test_tskmngr_dir_is_used_when_the_config_file_has_no_tasks_dir(
+def test_tskmngr_dir_is_used_when_the_config_files_tasks_dir_is_null(
     tasks: Path, config_file: Path
 ) -> None:
     assert cli.main(["add", "Buy milk"]) == 0
 
-    assert "tasks_dir" not in config_file.read_text(encoding="utf-8")
+    # The default config file written on this first run.
+    assert json.loads(config_file.read_text(encoding="utf-8"))["tasks_dir"] is None
     assert len(load_all(tasks)) == 1
 
 
@@ -1775,7 +1781,7 @@ def test_config_prints_the_path_and_the_default_settings(
         'columns        ["id", "status", "priority", "due", "title", "tags"]\n'
         'trash_columns  ["title", "tags", "deleted", "id"]\n'
         "show_trash     true\n"
-        "keybindings    {}\n"
+        f"keybindings    {json.dumps(DEFAULT_KEYBINDINGS)}\n"
     )
 
 
@@ -1812,6 +1818,22 @@ def test_config_says_when_tskmngr_dir_sets_the_tasks_directory(
     assert cli.main(["config"]) == 0
 
     assert f"tasks_dir      {tasks} (TSKMNGR_DIR)\n" in capsys.readouterr().out
+
+
+def test_config_marks_a_null_tasks_dir_and_tasks_repo_as_not_set(
+    tasks: Path, config_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_config(config_file, '{"tasks_dir": null, "tasks_repo": null}')
+
+    assert cli.main(["config"]) == 0
+    assert cli.main(["config", "get", "tasks_repo"]) == 0
+
+    out = capsys.readouterr().out.splitlines()
+    assert out[2:4] == [
+        f"tasks_dir      {tasks} (TSKMNGR_DIR)",
+        "tasks_repo     not set (default)",
+    ]
+    assert out[-1] == ""
 
 
 def test_the_config_files_tasks_dir_comes_before_tskmngr_dir(
@@ -2573,10 +2595,11 @@ def test_remote_init_sets_up_the_remote_and_the_config(
     assert files == ["AGENTS.md", "tasks/.trash/.gitkeep"]
     agents = (Path(cli.__file__).parent / "tasks_repo_agents.md").read_text()
     assert (clone / "AGENTS.md").read_text(encoding="utf-8") == agents
-    # The default config written on this first run, with tasks_repo added last.
+    # The default config written on this first run, its null tasks_repo set
+    # in place.
     settings = json.loads(config_file.read_text(encoding="utf-8"))
     assert settings == {**DEFAULT_SETTINGS, "tasks_repo": url}
-    assert list(settings)[-1] == "tasks_repo"
+    assert list(settings) == list(DEFAULT_SETTINGS)
 
     # The next commands use it right away.
     assert cli.main(["add", "Buy milk"]) == 0
@@ -2652,7 +2675,7 @@ def test_remote_init_refuses_a_repository_that_isnt_empty(
         f"tskmngr: error: {url} isn't empty; remote init only sets up an empty "
         "repository. Nothing was changed\n"
     )
-    assert "tasks_repo" not in json.loads(config_file.read_text(encoding="utf-8"))
+    assert json.loads(config_file.read_text(encoding="utf-8"))["tasks_repo"] is None
     assert before is None
     assert sorted(path.name for path in (user_home / ".tskmngr").iterdir()) == [
         "config.json"
@@ -2676,7 +2699,7 @@ def test_remote_init_refuses_an_existing_clone_folder(
         f"{remote.as_uri()} there. Nothing was changed\n"
     )
     assert list(clone.iterdir()) == []
-    assert "tasks_repo" not in json.loads(config_file.read_text(encoding="utf-8"))
+    assert json.loads(config_file.read_text(encoding="utf-8"))["tasks_repo"] is None
     assert git(remote, "for-each-ref") == ""
 
 

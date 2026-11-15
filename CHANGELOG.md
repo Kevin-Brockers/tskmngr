@@ -355,6 +355,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   (version and changelog rename), `dev` is frozen until the tag, and a later
   pull request into `dev` sets the next development version; roadmap step
   M14.3 follows it
+- #TBD - The config file tskmngr creates on first run has every setting:
+  `tasks_dir` and `tasks_repo` as `null`, which now means not set, and
+  `keybindings` with every TUI binding and its default key; existing config
+  files aren't changed (#94)
 
 ### Removed
 

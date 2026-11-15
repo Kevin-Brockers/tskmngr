@@ -409,7 +409,8 @@ def _parser() -> argparse.ArgumentParser:
         help="show or edit the config file",
         description=(
             "Print the config file's path and every setting in use. A setting "
-            "the file leaves out is marked with where its value comes from."
+            "the file leaves out, or a null tasks_dir or tasks_repo, is marked "
+            "with where its value comes from."
         ),
     )
     config.set_defaults(handler=_config_show, parser=config, uses_tasks=False)
@@ -701,7 +702,8 @@ def _config_edit(args: argparse.Namespace) -> int:
 def format_config(config: Config, path: Path) -> list[str]:
     """The config file's path, then each setting in use, one per line.
 
-    A setting the file leaves out is followed by where its value comes from:
+    A setting the file leaves out, or a `tasks_dir` or `tasks_repo` it sets to
+    null, is followed by where its value comes from:
     `(default)`, or `(TSKMNGR_DIR)` for a tasks directory set by it. While
     `tasks_repo` is set, the tasks directory is marked `(tasks_repo)`, and
     `tasks_repo` says whether it's a remote URL, and where it's cloned, or a

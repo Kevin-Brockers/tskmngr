@@ -5,11 +5,25 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from textual.binding import Binding
 from textual.screen import Screen
 
 import tskmngr.widgets
-from tskmngr.app import BINDING_SCREENS, TskmngrApp, binding_ids, keymap_problem
-from tskmngr.config import DEFAULT_POLL_INTERVAL, DEFAULT_THEME, Config, ConfigError
+from tskmngr.app import (
+    BINDING_SCREENS,
+    TskmngrApp,
+    binding_ids,
+    keymap_problem,
+)
+from tskmngr.config import (
+    DEFAULT_KEYBINDINGS,
+    DEFAULT_POLL_INTERVAL,
+    DEFAULT_THEME,
+    Config,
+    ConfigError,
+    default_config_text,
+    parse_config,
+)
 from tskmngr.models import Task
 from tskmngr.query import SortKey
 from tskmngr.storage import TRASH, save_task, tasks_dir
@@ -246,6 +260,35 @@ async def test_keybindings_apply_to_dialogs(tmp_path: Path) -> None:
 
 def test_the_default_keys_dont_clash() -> None:
     assert keymap_problem({}) is None
+
+
+def test_the_default_config_lists_every_binding_with_its_own_key() -> None:
+    keys = {
+        binding.id: binding.key
+        for screen in BINDING_SCREENS
+        for binding in screen.BINDINGS
+        if isinstance(binding, Binding)
+    }
+
+    assert DEFAULT_KEYBINDINGS == keys
+    assert list(DEFAULT_KEYBINDINGS) == binding_ids()
+    assert keymap_problem(DEFAULT_KEYBINDINGS) is None
+
+
+@pytest.mark.asyncio
+async def test_the_default_config_file_keeps_every_key(tmp_path: Path) -> None:
+    save_task(tmp_path, make_task("AAAA", "First"), None)
+    config = parse_config(default_config_text(), tmp_path / "config.json")
+    app = TskmngrApp(tmp_path, config=config, poll_interval=0)
+    async with app.run_test() as pilot:
+        await pilot.press("d")
+        assert isinstance(app.screen, ConfirmDeleteScreen)
+
+        await pilot.press("escape")
+        assert isinstance(app.screen, TaskListScreen)
+
+        await pilot.press("n")
+        assert isinstance(app.screen, TaskFormScreen)
 
 
 @pytest.mark.parametrize(
