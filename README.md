@@ -686,6 +686,7 @@ are Textual key names, like `a`, `A`, `f2`, `ctrl+s`, `escape` or `slash`
 | `task_list.filter` | `/` | Filter the list |
 | `task_list.clear_filter` | `Escape` | Clear the filter |
 | `task_list.toggle_trash` | `t` | Hide or show the deleted tasks |
+| `task_list.sync` | `y` | Sync with the git repository, like `tskmngr sync`; only there while `tasks_repo` is set |
 | `task_detail.close` | `Escape` | Back to the list |
 | `task_detail.edit` | `e` | Edit the task |
 | `task_detail.external_editor` | `o` | Open the task's file in the editor |

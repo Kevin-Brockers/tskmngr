@@ -193,15 +193,18 @@ names, and `keybindings`, an object mapping TUI binding ids to keys as in
 Textual's keymap. All are optional.
 
 - On every run (any CLI command or the TUI), if nothing is at that path, the
-  app writes the default config there: every key except `tasks_dir` and
-  `tasks_repo`, at its default (`sort` `due`, `reverse` false, `theme`
-  `textual-dark`, `editor` `vim`, `poll_interval` 2, `columns`
+  app writes the default config there: every key at its default
+  (`tasks_dir` and `tasks_repo` `null`, `sort` `due`, `reverse` false,
+  `theme` `textual-dark`, `editor` `vim`, `poll_interval` 2, `columns`
   `["id", "status", "priority", "due", "title", "tags"]`, `trash_columns`
-  `["title", "tags", "deleted", "id"]`, `show_trash` true,
-  `keybindings` `{}`). The write is atomic and never
+  `["title", "tags", "deleted", "id"]`, `show_trash` true, `keybindings`
+  every TUI binding id with its default key). `null` for `tasks_dir` or
+  `tasks_repo` means not set, the same as leaving the key out. Config files
+  written before aren't changed. The write is atomic and never
   overwrites an existing file; otherwise the app only reads the file, except
   `tskmngr remote init` (see "Synced tasks"), which sets `tasks_repo` in it:
-  every other key and value is kept in its order, and the file is rewritten
+  every other key and value is kept in its order (a `null` `tasks_repo` is
+  replaced in place), and the file is rewritten
   atomically as indented JSON, so its spacing changes. If it can't be
   written, the CLI and the TUI stop with an error naming the file.
   `--help` and usage errors exit before this, so they don't write the file
@@ -239,7 +242,8 @@ Textual's keymap. All are optional.
   key, none taking the app's own keys), and stop on a problem; other CLI
   commands don't use those keys and run anyway.
 - `tskmngr config` prints the file's path and every setting in use, marking
-  the ones the file leaves out `(default)`, or `(TSKMNGR_DIR)` for the tasks
+  the ones the file leaves out (or, for `tasks_dir` and `tasks_repo`, sets to
+  `null`) `(default)`, or `(TSKMNGR_DIR)` for the tasks
   directory; while `tasks_repo` is set, the tasks directory is marked
   `(tasks_repo)` and `tasks_repo` notes whether it's remote or local.
   `config get KEY` prints one: plain text, `tasks_dir` as the full path,
@@ -297,10 +301,10 @@ its `tasks/` folder, and stops with an error if it can't be used.
   and a local repository aren't changed, a `user.name` or `user.email` set
   in a clone is never rewritten, and git's `GIT_AUTHOR_*` and
   `GIT_COMMITTER_*` variables still come first.
-- `tasks_repo` must be a string, like other keys' types; beyond that it isn't
-  checked when the config is loaded. `tskmngr config` notes whether it's a
-  remote URL or a local folder, and for a remote URL the clone's folder. The
-  default config file leaves it out.
+- `tasks_repo` must be a string or `null` (not set), like other keys' types;
+  beyond that it isn't checked when the config is loaded. `tskmngr config`
+  notes whether it's a remote URL or a local folder, and for a remote URL the
+  clone's folder. The default config file has it as `null`.
 
 Which CLI commands sync:
 

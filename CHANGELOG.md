@@ -382,3 +382,4 @@ its commit for changes that reached `dev` or `main` without a pull request.
   byte order mark is kept when the task is saved
 - [#47](https://github.com/Kevin-Brockers/tskmngr/pull/47) - The test suite passes again: the tests of the diff-review hook,
   which [#45](https://github.com/Kevin-Brockers/tskmngr/pull/45) removed along with the hook, are gone too
+- #TBD - The README's keybindings table lists `task_list.sync` (`y`)
