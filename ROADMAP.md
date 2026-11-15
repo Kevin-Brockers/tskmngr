@@ -452,7 +452,7 @@ the step IDs keep their numbers.
   any other `keybindings`; existing config files aren't changed. Document it
   in the README and update `AGENTS.md` ("Config file") to match ·
   `feature/default_config_all_keys` · closes #94 · [#97](https://github.com/Kevin-Brockers/tskmngr/pull/97)
-- [ ] **M17.2** `tskmngr remote init --sync URL` uses a remote repository
+- [x] **M17.2** `tskmngr remote init --sync URL` uses a remote repository
   that's already a tasks repository: one with a `tasks/` folder, the same
   layout check as M12.1. It clones it into `~/.tskmngr/remote_task_dir`
   (through a temp folder, as the first clone does), sets the tskmngr commit
@@ -464,7 +464,7 @@ the step IDs keep their numbers.
   init` to use. Without `--sync`, a repository that isn't empty still stops,
   and the error now points to `--sync`. Document it in the README and update
   `AGENTS.md` ("Synced tasks") to match · `feature/remote_init_sync` ·
-  closes #93
+  closes #93 · #TBD
 - [ ] **M17.3** Finished roadmap steps in `docs/finished_roadmap.md`: every
   `[x]` step (and every `[-]` one) moves there with its line, sub-steps and
   notes unchanged, under its milestone's heading and goal; `ROADMAP.md`

@@ -86,7 +86,7 @@ $ tskmngr done m2p
 | `done ID` | Mark a task as done. If it [repeats](#recurring-tasks), its next occurrence is added and its ID and due date printed |
 | `delete ID` | Move a task's file into `.trash/` (see [Deleted tasks](#deleted-tasks)) after asking; `-y/--yes` skips the question, and is required when there's no terminal to ask on |
 | `sync` | Sync the tasks with the git repository `tasks_repo` names: commit any changes, pull, then push (see [Synced tasks](#synced-tasks)); an error if `tasks_repo` isn't set |
-| `remote init URL` | Set up an existing, empty remote repository to keep the tasks in, and set `tasks_repo` to it (see [Synced tasks](#synced-tasks)) |
+| `remote init URL` | Set up an existing, empty remote repository to keep the tasks in, and set `tasks_repo` to it; with `--sync`, use a remote repository that's already a tasks repository, e.g. on a second computer (see [Synced tasks](#synced-tasks)) |
 | `config` | Print the [config file](#config-file)'s path and every setting in use; a setting the file leaves out (or sets to `null`, for `tasks_dir` and `tasks_repo`) is marked `(default)`, or `(TSKMNGR_DIR)` for a tasks directory that comes from it; while `tasks_repo` is set, the tasks directory is marked `(tasks_repo)` and `tasks_repo` says whether it's a remote URL, and where it's cloned, or a local folder |
 | `config get KEY` | Print the value in use of one setting: `tasks_dir` as the full path of the tasks directory, `tasks_repo` as its URL or full path (an empty line if it isn't set), `columns`, `trash_columns` and `keybindings` as JSON, the rest as plain text |
 | `config edit` | Open the config file in the [editor](#editor), even if it can't be used, then check it like the TUI does and name the key of any problem |
@@ -350,6 +350,20 @@ the config file. If the folder already exists, the repository isn't empty or
 anything. tskmngr writes the `AGENTS.md` only then, so it's yours to change
 afterwards.
 
+On another computer, or for a repository that already has a `tasks/` folder,
+add `--sync`:
+
+```bash
+tskmngr remote init --sync git@github.com:me/tasks.git
+```
+
+It clones the repository into `~/.tskmngr/remote_task_dir`, makes tskmngr the
+clone's [commit author](#commit-author) and sets `tasks_repo` to the URL in
+the config file, without adding or committing anything, so the repository's
+`AGENTS.md` stays as it is. It stops without changing anything if the folder
+already exists, `tasks_repo` is already another repository, or the
+repository is empty (set it up without `--sync`) or has no `tasks/` folder.
+
 `tasks_repo` is one of:
 
 - **A remote URL**, like `https://github.com/me/tasks.git` or
@@ -395,7 +409,7 @@ These commands sync:
 | `add`, `edit`, `done`, `delete` | Pull, then change the task files, commit and push |
 | `list` | Pull, then list |
 | `sync` | Commit any changes, pull, then push the commits not pushed yet |
-| `remote init` | Clone, then commit and push the setup |
+| `remote init` | Clone, then commit and push the setup; with `--sync`, only clone |
 | `show`, `config` | None |
 
 The TUI syncs too, in the background, so it never waits for the network:
@@ -435,8 +449,8 @@ commit in your contributions when its email is linked to your account, and
 `tskmngr@localhost` can't be. The commits are still in the repository, with
 tskmngr as their author and committer.
 
-`tskmngr remote init` and the first clone of a remote `tasks_repo` on a
-computer set this in the clone's own git config, `.git/config` in
+`tskmngr remote init` (with or without `--sync`) and the first clone of a
+remote `tasks_repo` on a computer set this in the clone's own git config, `.git/config` in
 `~/.tskmngr/remote_task_dir`, before anything is committed there, so even
 the setup commit is tskmngr's. Your global git config isn't touched, and
 neither are other repositories. If git can't write the setting, the command
