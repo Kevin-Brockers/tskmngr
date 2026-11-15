@@ -464,7 +464,7 @@ the step IDs keep their numbers.
   init` to use. Without `--sync`, a repository that isn't empty still stops,
   and the error now points to `--sync`. Document it in the README and update
   `AGENTS.md` ("Synced tasks") to match · `feature/remote_init_sync` ·
-  closes #93 · #TBD
+  closes #93 · [#98](https://github.com/Kevin-Brockers/tskmngr/pull/98)
 - [ ] **M17.3** Finished roadmap steps in `docs/finished_roadmap.md`: every
   `[x]` step (and every `[-]` one) moves there with its line, sub-steps and
   notes unchanged, under its milestone's heading and goal; `ROADMAP.md`
