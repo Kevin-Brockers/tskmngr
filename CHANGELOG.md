@@ -263,6 +263,11 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `user.name` and `user.email` in the clone's own git config; existing clones
   and local repositories aren't changed, and the README shows how to set or
   undo it by hand
+- #TBD - Roadmap milestone M17, before the 0.1.0 release: every key in the
+  default config file (#94), `tskmngr remote init --sync` for a repository
+  that's already a tasks repository (#93), and releases without the
+  project's working files, with finished roadmap steps moved to
+  `docs/finished_roadmap.md` (#95); M14.3 now depends on all four steps
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed
