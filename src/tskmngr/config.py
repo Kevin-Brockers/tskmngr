@@ -9,6 +9,7 @@ wrong type) is a `ConfigError`, so nothing runs with a half-read config.
 
     {
       "tasks_dir": "~/tasks",
+      "tasks_repo": null,
       "sort": "priority",
       "reverse": false,
       "theme": "nord",
@@ -22,19 +23,21 @@ wrong type) is a `ConfigError`, so nothing runs with a half-read config.
 
 `tasks_dir` may start with `~`; a relative path is read from the config
 file's folder. It comes before `TSKMNGR_DIR` (see `storage.tasks_dir`).
-`tasks_repo` (not in the example) is a git repository for the tasks, a remote
+`tasks_repo` (null in the example) is a git repository for the tasks, a remote
 URL or a local folder (see `gitsync.parse_tasks_repo`); while it's set,
 `tasks_dir` and `TSKMNGR_DIR` aren't used (see `tasks_directory`). Only its
-type is checked here.
+type is checked here. Either may be null, which means not set, as in the
+default file.
 `columns` names the TUI task list's columns in display order (see
 `display.Column`); the ones left out are hidden. `trash_columns` does the same
 for the deleted tasks view (`display.TrashColumn`), and `show_trash` says
 whether that view starts shown.
 `editor` is the editor `o` in the TUI and `tskmngr config edit` open files
 in: vim (the default) or nano (see `tskmngr.editor`).
-`keybindings` maps binding ids to keys, as Textual's keymap does. The theme
-and the binding ids are checked by the TUI, which knows the theme names and
-the bindings.
+`keybindings` maps binding ids to keys, as Textual's keymap does; the default
+file lists every binding with its default key (`DEFAULT_KEYBINDINGS`). The
+theme and the binding ids are checked by the TUI, which knows the theme names
+and the bindings.
 
 The old file at `~/.config/tskmngr/config.json` (`OLD_PATH`) isn't read.
 """
@@ -63,10 +66,41 @@ DEFAULT_POLL_INTERVAL = 2.0
 # Textual's default theme, which the TUI uses when the config has none.
 DEFAULT_THEME = "textual-dark"
 
-# What a new config file holds: every setting but `tasks_dir` and
-# `tasks_repo`, at its default, so the file shows what can be set. Without
-# them, `TSKMNGR_DIR` or the default tasks directory is used.
+# Every TUI binding id and its default key, as the screens define them, so a
+# new config file shows every key that can be remapped. Kept here, not read
+# from the screens, because this module doesn't import Textual; the tests
+# check that it matches them.
+DEFAULT_KEYBINDINGS: dict[str, str] = {
+    "task_list.open": "enter",
+    "task_list.new": "n",
+    "task_list.edit": "e",
+    "task_list.cycle_status": "s",
+    "task_list.delete": "d",
+    "task_list.external_editor": "o",
+    "task_list.sort": "S",
+    "task_list.reverse_sort": "R",
+    "task_list.filter": "slash",
+    "task_list.clear_filter": "escape",
+    "task_list.toggle_trash": "t",
+    "task_list.sync": "y",
+    "task_detail.close": "escape",
+    "task_detail.edit": "e",
+    "task_detail.external_editor": "o",
+    "task_detail.toggle_subtask": "space",
+    "task_form.save": "ctrl+s",
+    "task_form.cancel": "escape",
+    "confirm_delete.yes": "y",
+    "confirm_delete.no": "n,escape",
+    "confirm_discard.yes": "y",
+    "confirm_discard.no": "n,escape",
+}
+
+# What a new config file holds: every setting, at its default, so the file
+# shows what can be set. `tasks_dir` and `tasks_repo` are null, which means
+# not set: `TSKMNGR_DIR` or the default tasks directory is used.
 DEFAULT_SETTINGS: dict[str, object] = {
+    "tasks_dir": None,
+    "tasks_repo": None,
     "sort": SortKey.DUE.value,
     "reverse": False,
     "theme": DEFAULT_THEME,
@@ -75,7 +109,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "columns": [column.value for column in DEFAULT_COLUMNS],
     "trash_columns": [column.value for column in DEFAULT_TRASH_COLUMNS],
     "show_trash": True,
-    "keybindings": {},
+    "keybindings": dict(DEFAULT_KEYBINDINGS),
 }
 
 
@@ -113,8 +147,9 @@ class Config:
     show_trash: bool = True
     # Binding id to its keys, comma-separated, like Textual's keymap.
     keybindings: dict[str, str] = field(default_factory=dict)
-    # The keys the file sets; the other settings are at their defaults. Not
-    # compared, so a config equals another with the same settings.
+    # The keys the file sets; the other settings are at their defaults. A
+    # `tasks_dir` or `tasks_repo` of null isn't set. Not compared, so a config
+    # equals another with the same settings.
     keys: frozenset[str] = field(default=frozenset(), compare=False)
 
 
@@ -286,21 +321,26 @@ def parse_config(text: str, path: Path) -> Config:
             values[key] = _READERS[key](value, path)
         except _BadValue as error:
             raise ConfigError(path, f"{key}: {error}") from None
-    return Config(path=path, keys=frozenset(data), **values)  # type: ignore[arg-type]
+    keys = frozenset(key for key, value in data.items() if value is not None)
+    return Config(path=path, keys=keys, **values)  # type: ignore[arg-type]
 
 
 class _BadValue(Exception):
     """A setting's value can't be used; the message says what was expected."""
 
 
-def _tasks_dir(value: object, path: Path) -> Path:
+def _tasks_dir(value: object, path: Path) -> Path | None:
+    if value is None:
+        return None
     if not isinstance(value, str) or not value.strip():
         raise _BadValue(f"expected a folder path, got {_describe(value)}")
     directory = Path(value).expanduser()
     return directory if directory.is_absolute() else path.parent / directory
 
 
-def _tasks_repo(value: object, path: Path) -> TasksRepo:
+def _tasks_repo(value: object, path: Path) -> TasksRepo | None:
+    if value is None:
+        return None
     if not isinstance(value, str) or not value.strip():
         raise _BadValue(
             f"expected a git repository's URL or folder, got {_describe(value)}"

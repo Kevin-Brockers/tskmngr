@@ -87,7 +87,7 @@ $ tskmngr done m2p
 | `delete ID` | Move a task's file into `.trash/` (see [Deleted tasks](#deleted-tasks)) after asking; `-y/--yes` skips the question, and is required when there's no terminal to ask on |
 | `sync` | Sync the tasks with the git repository `tasks_repo` names: commit any changes, pull, then push (see [Synced tasks](#synced-tasks)); an error if `tasks_repo` isn't set |
 | `remote init URL` | Set up an existing, empty remote repository to keep the tasks in, and set `tasks_repo` to it (see [Synced tasks](#synced-tasks)) |
-| `config` | Print the [config file](#config-file)'s path and every setting in use; a setting the file leaves out is marked `(default)`, or `(TSKMNGR_DIR)` for a tasks directory that comes from it; while `tasks_repo` is set, the tasks directory is marked `(tasks_repo)` and `tasks_repo` says whether it's a remote URL, and where it's cloned, or a local folder |
+| `config` | Print the [config file](#config-file)'s path and every setting in use; a setting the file leaves out (or sets to `null`, for `tasks_dir` and `tasks_repo`) is marked `(default)`, or `(TSKMNGR_DIR)` for a tasks directory that comes from it; while `tasks_repo` is set, the tasks directory is marked `(tasks_repo)` and `tasks_repo` says whether it's a remote URL, and where it's cloned, or a local folder |
 | `config get KEY` | Print the value in use of one setting: `tasks_dir` as the full path of the tasks directory, `tasks_repo` as its URL or full path (an empty line if it isn't set), `columns`, `trash_columns` and `keybindings` as JSON, the rest as plain text |
 | `config edit` | Open the config file in the [editor](#editor), even if it can't be used, then check it like the TUI does and name the key of any problem |
 
@@ -322,8 +322,9 @@ tskmngr picks the first of these that is set:
 3. `TSKMNGR_DIR`
 4. `~/.local/share/tskmngr/tasks/`
 
-The config file tskmngr writes on first run leaves `tasks_dir` out, so
-`TSKMNGR_DIR` works until you add it.
+The config file tskmngr writes on first run has `tasks_dir` (and
+`tasks_repo`) set to `null`, which means not set, so `TSKMNGR_DIR` works
+until you give it a path.
 
 The directory is created when the first task is saved.
 
@@ -497,10 +498,14 @@ below the task list (see [TUI keys](#tui-keys)).
 
 Settings go in `~/.tskmngr/config.json`, a JSON object. If the file doesn't
 exist, tskmngr creates it the first time it runs (any command, or the TUI),
-with every setting except `tasks_dir` and `tasks_repo` at its default:
+with every setting at its default. `tasks_dir` and `tasks_repo` are `null`,
+which means not set, and `keybindings` lists every TUI binding with its
+default key:
 
 ```json
 {
+  "tasks_dir": null,
+  "tasks_repo": null,
   "sort": "due",
   "reverse": false,
   "theme": "textual-dark",
@@ -521,7 +526,30 @@ with every setting except `tasks_dir` and `tasks_repo` at its default:
     "id"
   ],
   "show_trash": true,
-  "keybindings": {}
+  "keybindings": {
+    "task_list.open": "enter",
+    "task_list.new": "n",
+    "task_list.edit": "e",
+    "task_list.cycle_status": "s",
+    "task_list.delete": "d",
+    "task_list.external_editor": "o",
+    "task_list.sort": "S",
+    "task_list.reverse_sort": "R",
+    "task_list.filter": "slash",
+    "task_list.clear_filter": "escape",
+    "task_list.toggle_trash": "t",
+    "task_list.sync": "y",
+    "task_detail.close": "escape",
+    "task_detail.edit": "e",
+    "task_detail.external_editor": "o",
+    "task_detail.toggle_subtask": "space",
+    "task_form.save": "ctrl+s",
+    "task_form.cancel": "escape",
+    "confirm_delete.yes": "y",
+    "confirm_delete.no": "n,escape",
+    "confirm_discard.yes": "y",
+    "confirm_discard.no": "n,escape"
+  }
 }
 ```
 
@@ -529,7 +557,9 @@ After that tskmngr only reads the file, except that
 [`tskmngr remote init`](#synced-tasks) sets `tasks_repo` in it (keeping the
 other settings, but rewriting the file's spacing); edit it to change your
 settings. Every setting is optional, so you can also remove the
-ones you don't need. If the file can't be created, tskmngr says why and exits.
+ones you don't need; `null` for `tasks_dir` or `tasks_repo` is the same as
+leaving it out. A file written by an earlier version isn't changed, and
+works as before. If the file can't be created, tskmngr says why and exits.
 
 `tskmngr config` shows where the file is and the settings in use, and
 `tskmngr config get KEY` prints one of them, for example
@@ -549,7 +579,7 @@ poll_interval  2
 columns        ["id", "status", "priority", "due", "title", "tags"]
 trash_columns  ["title", "tags", "deleted", "id"]
 show_trash     true
-keybindings    {}
+keybindings    {"task_list.open": "enter", "task_list.new": "n", "task_list.edit": "e", "task_list.cycle_status": "s", "task_list.delete": "d", "task_list.external_editor": "o", "task_list.sort": "S", "task_list.reverse_sort": "R", "task_list.filter": "slash", "task_list.clear_filter": "escape", "task_list.toggle_trash": "t", "task_list.sync": "y", "task_detail.close": "escape", "task_detail.edit": "e", "task_detail.external_editor": "o", "task_detail.toggle_subtask": "space", "task_form.save": "ctrl+s", "task_form.cancel": "escape", "confirm_delete.yes": "y", "confirm_delete.no": "n,escape", "confirm_discard.yes": "y", "confirm_discard.no": "n,escape"}
 ```
 
 `tskmngr config edit` opens the file in the [editor](#editor). When the
@@ -564,6 +594,7 @@ A file with every setting looks like this:
 ```json
 {
   "tasks_dir": "~/tasks",
+  "tasks_repo": null,
   "sort": "priority",
   "reverse": false,
   "theme": "nord",
@@ -582,8 +613,8 @@ exists, tskmngr warns about it on every run: move your settings to
 
 | Setting | Value | Default |
 | ------- | ----- | ------- |
-| `tasks_dir` | The tasks directory; `~` is your home, and a relative path is read from the config file's folder (`~/.tskmngr`). Comes before `TSKMNGR_DIR` | `TSKMNGR_DIR`, else `~/.local/share/tskmngr/tasks` |
-| `tasks_repo` | A git repository to keep the tasks in, in its `tasks/` folder: a remote URL, cloned into `~/.tskmngr/remote_task_dir`, or a local folder that's a repository; while it's set, `tasks_dir` and `TSKMNGR_DIR` aren't used (see [Synced tasks](#synced-tasks)) | not set: no sync |
+| `tasks_dir` | The tasks directory; `~` is your home, and a relative path is read from the config file's folder (`~/.tskmngr`). Comes before `TSKMNGR_DIR`; `null` means not set | `TSKMNGR_DIR`, else `~/.local/share/tskmngr/tasks` |
+| `tasks_repo` | A git repository to keep the tasks in, in its `tasks/` folder: a remote URL, cloned into `~/.tskmngr/remote_task_dir`, or a local folder that's a repository; while it's set, `tasks_dir` and `TSKMNGR_DIR` aren't used (see [Synced tasks](#synced-tasks)); `null` means not set | not set: no sync |
 | `sort` | How the TUI list and `tskmngr list` are sorted: `due`, `priority`, `status`, `created` or `updated` | `due` |
 | `reverse` | `true` reverses that order | `false` |
 | `theme` | A [Textual theme](https://textual.textualize.io/guide/design/) name for the TUI, like `nord`, `gruvbox` or `textual-light` | `textual-dark` |
@@ -592,7 +623,7 @@ exists, tskmngr warns about it on every run: move your settings to
 | `columns` | The TUI task list's columns, in the order shown, from `id`, `status`, `priority`, `due`, `created`, `updated`, `title` and `tags`; the ones left out are hidden (see below) | `["id", "status", "priority", "due", "title", "tags"]` |
 | `trash_columns` | The TUI's deleted tasks view's columns, in the order shown: the `columns` names and `deleted`, the delete time; the ones left out are hidden | `["title", "tags", "deleted", "id"]` |
 | `show_trash` | `false` starts the TUI with the deleted tasks view hidden; `t` shows it | `true` |
-| `keybindings` | New keys for the TUI, an object of binding ids and their keys (see below) | the keys under [TUI keys](#tui-keys) |
+| `keybindings` | Keys for the TUI, an object of binding ids and their keys (see below); a binding left out keeps its default key | the keys under [TUI keys](#tui-keys), all listed in the file tskmngr creates |
 
 `tskmngr list --sort` replaces `sort` and `reverse`; `--reverse` reverses the
 configured order. If the file isn't valid JSON, has a key tskmngr doesn't know
@@ -655,6 +686,7 @@ are Textual key names, like `a`, `A`, `f2`, `ctrl+s`, `escape` or `slash`
 | `task_list.filter` | `/` | Filter the list |
 | `task_list.clear_filter` | `Escape` | Clear the filter |
 | `task_list.toggle_trash` | `t` | Hide or show the deleted tasks |
+| `task_list.sync` | `y` | Sync with the git repository, like `tskmngr sync`; only there while `tasks_repo` is set |
 | `task_detail.close` | `Escape` | Back to the list |
 | `task_detail.edit` | `e` | Edit the task |
 | `task_detail.external_editor` | `o` | Open the task's file in the editor |
