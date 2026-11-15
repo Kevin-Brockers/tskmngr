@@ -355,7 +355,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   (version and changelog rename), `dev` is frozen until the tag, and a later
   pull request into `dev` sets the next development version; roadmap step
   M14.3 follows it
-- #TBD - The config file tskmngr creates on first run has every setting:
+- [#97](https://github.com/Kevin-Brockers/tskmngr/pull/97) - The config file tskmngr creates on first run has every setting:
   `tasks_dir` and `tasks_repo` as `null`, which now means not set, and
   `keybindings` with every TUI binding and its default key; existing config
   files aren't changed (#94)
@@ -382,4 +382,4 @@ its commit for changes that reached `dev` or `main` without a pull request.
   byte order mark is kept when the task is saved
 - [#47](https://github.com/Kevin-Brockers/tskmngr/pull/47) - The test suite passes again: the tests of the diff-review hook,
   which [#45](https://github.com/Kevin-Brockers/tskmngr/pull/45) removed along with the hook, are gone too
-- #TBD - The README's keybindings table lists `task_list.sync` (`y`)
+- [#97](https://github.com/Kevin-Brockers/tskmngr/pull/97) - The README's keybindings table lists `task_list.sync` (`y`)

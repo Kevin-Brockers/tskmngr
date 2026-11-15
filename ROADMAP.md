@@ -451,7 +451,7 @@ the step IDs keep their numbers.
   every TUI binding id with its default key instead of `{}`, checked like
   any other `keybindings`; existing config files aren't changed. Document it
   in the README and update `AGENTS.md` ("Config file") to match ·
-  `feature/default_config_all_keys` · closes #94 · #TBD
+  `feature/default_config_all_keys` · closes #94 · [#97](https://github.com/Kevin-Brockers/tskmngr/pull/97)
 - [ ] **M17.2** `tskmngr remote init --sync URL` uses a remote repository
   that's already a tasks repository: one with a `tasks/` folder, the same
   layout check as M12.1. It clones it into `~/.tskmngr/remote_task_dir`
