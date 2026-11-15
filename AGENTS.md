@@ -292,8 +292,16 @@ its `tasks/` folder, and stops with an error if it can't be used.
   already another URL, or the clone, commit or push fails. Only it writes the
   repository's `AGENTS.md`; it's never rewritten. A local path is a usage
   error.
-- A clone tskmngr makes (`remote init`, and the first clone of a remote URL)
-  gets `user.name` `tskmngr` and `user.email` `tskmngr@localhost` in its own
+- `tskmngr remote init --sync URL` uses a remote repository that's already a
+  tasks repository (one with a `tasks/` folder), e.g. on a second machine: it
+  clones it into a temp folder next to `~/.tskmngr/remote_task_dir`, renames
+  that into place and sets `tasks_repo` to the URL, adding and committing
+  nothing (the repository's `AGENTS.md` stays as it is). It stops, changing
+  nothing, if that folder exists, the repository is empty or has no
+  `tasks/`, `tasks_repo` is already another URL, or the clone fails. Plain
+  `remote init` on a repository that isn't empty says to use `--sync`.
+- A clone tskmngr makes (`remote init`, with or without `--sync`, and the
+  first clone of a remote URL) gets `user.name` `tskmngr` and `user.email` `tskmngr@localhost` in its own
   `.git/config` before anything is committed in it, so its commits don't
   count on the user's GitHub profile: GitHub only counts a commit there when
   its email is linked to the account. If git can't set them, the clone or
@@ -313,7 +321,7 @@ Which CLI commands sync:
 | `add`, `edit`, `done`, `delete` | Pull, then change the task files, commit and push |
 | `list` | Pull, then list |
 | `sync` | Commit any changes, pull, then push commits not pushed yet; an error while `tasks_repo` isn't set |
-| `remote init` | Clone, then commit and push the setup |
+| `remote init` | Clone, then commit and push the setup; with `--sync`, only clone |
 | `show`, `config` | None |
 
 The TUI syncs in the background (a thread in `widgets/syncing.py`, one job
