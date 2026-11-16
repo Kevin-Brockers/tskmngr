@@ -16,6 +16,7 @@ from tskmngr.gitsync import (
     has_upstream,
     init_remote,
     is_remote,
+    join_remote,
     open_repo,
     parse_tasks_repo,
     pull,
@@ -668,6 +669,106 @@ def test_init_remote_reports_a_refused_push_and_changes_nothing(
 
     assert tskmngr_folder(user_home) == []
     assert git(remote, "for-each-ref") == ""
+
+
+def test_init_remote_points_a_tasks_repository_to_sync(
+    laid_out: Path, user_home: Path
+) -> None:
+    with pytest.raises(RepoError, match="remote init --sync uses one that's"):
+        init_remote(laid_out.as_uri(), FILES)
+
+
+def test_join_remote_clones_a_tasks_repository(
+    laid_out: Path, user_home: Path, git: Git
+) -> None:
+    repo = join_remote(laid_out.as_uri())
+
+    assert repo == TasksRepo(laid_out.as_uri(), True, remote_tasks_dir())
+    # Nothing added or committed, here or in the remote.
+    assert subjects(git, laid_out) == ["setup"]
+    assert tskmngr_folder(user_home) == ["remote_task_dir"]
+    # The clone is what open_repo makes.
+    assert open_repo(repo) is False
+    check_layout(repo)
+    assert not has_changes(repo)
+    assert push(repo) is False
+    assert local_identity(repo.directory) == (
+        "user.name tskmngr\nuser.email tskmngr@localhost"
+    )
+
+
+def test_join_remote_uses_a_repository_init_remote_set_up(
+    remote: Path, user_home: Path, git: Git
+) -> None:
+    first = init_remote(remote.as_uri(), FILES)
+    first.directory.rename(user_home / "other_machine")
+
+    repo = join_remote(remote.as_uri())
+
+    assert (repo.directory / "AGENTS.md").read_text(encoding="utf-8") == "# Tasks\n"
+    assert subjects(git, remote) == ["tskmngr: remote init"]
+    check_layout(repo)
+
+
+def test_join_remote_commits_as_tskmngr(
+    laid_out: Path, user_home: Path, git: Git, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    only_config_identity(monkeypatch)
+    repo = join_remote(laid_out.as_uri())
+    write(repo, "AAAA.md", "---\ntitle: Buy milk\n---\n")
+
+    assert commit_all(repo, "add") is True
+    assert push(repo) is True
+
+    assert people(git, laid_out)[0] == TSKMNGR
+
+
+def test_join_remote_refuses_an_empty_repository(
+    remote: Path, user_home: Path, git: Git
+) -> None:
+    with pytest.raises(RepoError, match="is empty; set it up with remote init"):
+        join_remote(remote.as_uri())
+
+    assert tskmngr_folder(user_home) == []
+    assert git(remote, "for-each-ref") == ""
+
+
+def test_join_remote_refuses_a_repository_without_tasks(
+    tmp_path: Path, remote: Path, user_home: Path, git: Git
+) -> None:
+    seed = tmp_path / "seed"
+    git(tmp_path, "clone", "--quiet", str(remote), str(seed))
+    (seed / "README.md").write_text("# Not tasks\n", encoding="utf-8")
+    git(seed, "add", "--all")
+    git(seed, "commit", "--quiet", "-m", "readme")
+    git(seed, "push", "--quiet", "origin", "HEAD:main")
+
+    with pytest.raises(RepoError, match="has no tasks folder"):
+        join_remote(remote.as_uri())
+
+    assert tskmngr_folder(user_home) == []
+    assert subjects(git, remote) == ["readme"]
+
+
+def test_join_remote_leaves_an_existing_folder_alone(
+    laid_out: Path, user_home: Path
+) -> None:
+    folder = remote_tasks_dir()
+    folder.mkdir(parents=True)
+    (folder / "mine.md").write_text("mine", encoding="utf-8")
+
+    with pytest.raises(RepoError, match="already exists; move it away"):
+        join_remote(laid_out.as_uri())
+
+    assert [path.name for path in folder.iterdir()] == ["mine.md"]
+    assert tskmngr_folder(user_home) == ["remote_task_dir"]
+
+
+def test_join_remote_reports_a_failed_clone(tmp_path: Path, user_home: Path) -> None:
+    with pytest.raises(RepoError, match="can't clone"):
+        join_remote((tmp_path / "missing.git").as_uri())
+
+    assert tskmngr_folder(user_home) == []
 
 
 def test_setup_files_are_the_agents_template_and_a_gitkeep() -> None:

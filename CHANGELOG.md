@@ -268,6 +268,10 @@ its commit for changes that reached `dev` or `main` without a pull request.
   that's already a tasks repository (#93), and releases without the
   project's working files, with finished roadmap steps moved to
   `docs/finished_roadmap.md` (#95); M14.3 now depends on all four steps
+- [#98](https://github.com/Kevin-Brockers/tskmngr/pull/98) - `tskmngr remote init --sync URL` uses a remote repository that's
+  already a tasks repository (one with a `tasks/` folder), e.g. on a second
+  computer: it clones it and sets `tasks_repo`, committing nothing; plain
+  `remote init` on a repository that isn't empty now points to it (#93)
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
 
 ### Changed

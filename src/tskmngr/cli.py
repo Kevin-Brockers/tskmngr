@@ -389,18 +389,29 @@ def _parser() -> argparse.ArgumentParser:
     )
     remote_init = remote_commands.add_parser(
         "init",
-        help="set up an empty remote repository and use it as tasks_repo",
+        help="set up a remote repository, or clone one, and use it as tasks_repo",
         description=(
             "Set up an existing, empty remote repository for tskmngr: clone it "
             "into ~/.tskmngr/remote_task_dir, add AGENTS.md and "
             "tasks/.trash/.gitkeep, commit and push them, then set tasks_repo "
-            "to the URL in the config file. Stops without changing anything if "
-            "that folder exists, the repository isn't empty or tasks_repo is "
-            "already another repository."
+            "to the URL in the config file. With --sync, use a remote "
+            "repository that's already a tasks repository (one with a tasks "
+            "folder) instead: clone it there and set tasks_repo, committing "
+            "nothing. Stops without changing anything if that folder exists, "
+            "tasks_repo is already another repository, or the repository isn't "
+            "empty (without --sync) or has no tasks folder (with --sync)."
         ),
     )
     remote_init.add_argument(
         "url", type=_remote_url, metavar="URL", help="the repository's URL"
+    )
+    remote_init.add_argument(
+        "--sync",
+        action="store_true",
+        # Not `sync`: that attribute says whether a command syncs its tasks.
+        dest="join",
+        help="use a repository that's already a tasks repository, e.g. one "
+        "set up on another machine",
     )
     remote_init.set_defaults(handler=_remote_init, parser=remote_init, uses_tasks=False)
 
@@ -638,9 +649,11 @@ def _remote_url(value: str) -> str:
 def _remote_init(args: argparse.Namespace) -> int:
     """Set up an empty remote repository and make it the config's `tasks_repo`.
 
-    Stops before changing anything if `tasks_repo` is already another one, or
-    if `gitsync.init_remote` can't set it up. A config that already names
-    this URL is left as it is.
+    With `--sync`, clone a repository that's already a tasks repository
+    instead (`gitsync.join_remote`), committing nothing. Stops before
+    changing anything if `tasks_repo` is already another one, or if
+    `gitsync.init_remote` (or `join_remote`) can't set it up. A config that
+    already names this URL is left as it is.
     """
     location = args.url
     current = args.config.tasks_repo
@@ -650,10 +663,16 @@ def _remote_init(args: argparse.Namespace) -> int:
             "remote init doesn't replace it. Nothing was changed"
         )
     try:
-        repo = gitsync.init_remote(location, gitsync.setup_files())
+        if args.join:
+            repo = gitsync.join_remote(location)
+        else:
+            repo = gitsync.init_remote(location, gitsync.setup_files())
     except RepoError as error:
         raise CommandError(f"{error}. Nothing was changed") from error
-    print(f"Set up {location} and cloned it into {repo.directory}")
+    if args.join:
+        print(f"Cloned {location} into {repo.directory}")
+    else:
+        print(f"Set up {location} and cloned it into {repo.directory}")
     if current is None:
         try:
             set_tasks_repo(args.config_path, location)

@@ -12,14 +12,15 @@ with the deleted tasks in `tasks/.trash/`; other files at the root, like an
 
 `open_repo` clones or checks the folder and `check_layout` checks that it has
 `tasks/`; `RepoError` means it can't be used at all. `init_remote` sets up a
-new, empty remote repository in that layout. `commit_all`, `pull` and
+new, empty remote repository in that layout, and `join_remote` clones one
+that's already in it. `commit_all`, `pull` and
 `push` raise `SyncError` when git fails (no network, no access, no git
 identity), and `pull` raises `PullConflict` when the same task changed on both
 sides; the caller reports these as warnings, since the files on disk are
 still fine. Nothing here overwrites a task: a conflicting rebase is aborted,
 and uncommitted changes are never stashed.
 
-A clone tskmngr makes, by `open_repo` or `init_remote`, gets the commit
+A clone tskmngr makes, by `open_repo`, `init_remote` or `join_remote`, gets the commit
 author `tskmngr <tskmngr@localhost>` (`AUTHOR_NAME`, `AUTHOR_EMAIL`) in its
 own `.git/config`, before anything is committed in it, so its commits don't
 count on the user's GitHub profile: GitHub only counts a commit there when
@@ -301,7 +302,9 @@ def init_remote(location: str, files: Mapping[str, str]) -> TasksRepo:
         _clone_into(location, temp)
         if _output(temp, "for-each-ref"):
             raise RepoError(
-                f"{location} isn't empty; remote init only sets up an empty repository"
+                f"{location} isn't empty; remote init only sets up an empty "
+                "repository, and remote init --sync uses one that's already a "
+                "tasks repository"
             )
         _set_author(temp)
         for name, text in files.items():
@@ -330,6 +333,50 @@ def init_remote(location: str, files: Mapping[str, str]) -> TasksRepo:
     except OSError as error:
         reason = error.strerror or str(error)
         raise RepoError(f"can't set up {location} in {directory}: {reason}") from error
+    finally:
+        # Only ever the folder this made, never anyone else's.
+        shutil.rmtree(temp, ignore_errors=True)
+    return repo
+
+
+def join_remote(location: str) -> TasksRepo:
+    """Clone the remote tasks repository at `location`, for another machine.
+
+    For a repository that's already set up, by `init_remote` on another
+    machine or by hand: it must have a `tasks/` folder (`TASKS`). Clones it
+    and sets the clone's commit author (`_set_author`), adding and committing
+    nothing; the clone is then `remote_tasks_dir()`, as `open_repo` would have
+    made it. It's done in a temp folder next to that, renamed into place only
+    once it's checked, so on any error nothing is left behind. Raises
+    `RepoError` if the folder already exists, if the repository can't be
+    cloned, is empty or has no `tasks/`, or if setting the author fails.
+    """
+    repo = TasksRepo(location, True, remote_tasks_dir())
+    directory = repo.directory
+    if os.path.lexists(directory):
+        raise RepoError(
+            f"{directory} already exists; move it away to clone {location} there"
+        )
+    temp = directory.with_name(f".{directory.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        _clone_into(location, temp)
+        if not _output(temp, "for-each-ref"):
+            raise RepoError(
+                f"{location} is empty; set it up with remote init, without --sync"
+            )
+        if not (temp / TASKS).is_dir():
+            raise RepoError(
+                f"{location} has no {TASKS} folder, so it isn't a tasks "
+                "repository; remote init --sync only uses one that is, and "
+                "remote init only sets up an empty one"
+            )
+        _set_author(temp)
+        os.rename(temp, directory)
+    except SyncError as error:
+        raise RepoError(str(error)) from error
+    except OSError as error:
+        reason = error.strerror or str(error)
+        raise RepoError(f"can't clone {location} into {directory}: {reason}") from error
     finally:
         # Only ever the folder this made, never anyone else's.
         shutil.rmtree(temp, ignore_errors=True)

@@ -2673,6 +2673,7 @@ def test_remote_init_refuses_a_repository_that_isnt_empty(
 
     assert capsys.readouterr().err == (
         f"tskmngr: error: {url} isn't empty; remote init only sets up an empty "
+        "repository, and remote init --sync uses one that's already a tasks "
         "repository. Nothing was changed\n"
     )
     assert json.loads(config_file.read_text(encoding="utf-8"))["tasks_repo"] is None
@@ -2728,9 +2729,143 @@ def test_remote_init_says_to_set_tasks_repo_by_hand_if_it_cant(
     assert git(remote, "log", "--format=%s") == "tskmngr: remote init"
 
 
+def test_remote_init_sync_clones_a_tasks_repository_and_sets_the_config(
+    config_file: Path,
+    laid_out: Path,
+    user_home: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    url = laid_out.as_uri()
+
+    assert cli.main(["remote", "init", "--sync", url]) == 0
+
+    clone = clone_folder(user_home)
+    assert capsys.readouterr().out == (
+        f"Cloned {url} into {clone}\nSet tasks_repo to it in {config_file}\n"
+    )
+    # Nothing committed or pushed, and the repository's files left as they are.
+    assert git(laid_out, "log", "--format=%s") == "setup"
+    assert not (clone / "AGENTS.md").exists()
+    settings = json.loads(config_file.read_text(encoding="utf-8"))
+    assert settings == {**DEFAULT_SETTINGS, "tasks_repo": url}
+
+    # The next commands use it right away.
+    assert cli.main(["add", "Buy milk"]) == 0
+    [source] = load_all(clone / "tasks")
+    assert git(laid_out, "log", "--format=%s").splitlines() == [
+        f"tskmngr: add {source.task.id} Buy milk",
+        "setup",
+    ]
+
+
+def test_remote_init_sync_brings_in_the_tasks_from_another_machine(
+    config_file: Path,
+    remote: Path,
+    user_home: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    url = remote.as_uri()
+    assert cli.main(["remote", "init", url]) == 0
+    assert cli.main(["add", "Buy milk"]) == 0
+    # A second machine: no clone and no config file yet.
+    clone_folder(user_home).rename(user_home / "first_machine")
+    config_file.unlink()
+    capsys.readouterr()
+
+    assert cli.main(["remote", "init", "--sync", url]) == 0
+    assert cli.main(["list"]) == 0
+
+    assert "Buy milk" in capsys.readouterr().out
+
+
+def test_remote_init_sync_refuses_an_empty_repository(
+    config_file: Path,
+    remote: Path,
+    user_home: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    url = remote.as_uri()
+
+    assert cli.main(["remote", "init", "--sync", url]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: {url} is empty; set it up with remote init, without "
+        "--sync. Nothing was changed\n"
+    )
+    assert json.loads(config_file.read_text(encoding="utf-8"))["tasks_repo"] is None
+    assert not clone_folder(user_home).exists()
+    assert git(remote, "for-each-ref") == ""
+
+
+def test_remote_init_sync_refuses_a_repository_without_tasks(
+    tmp_path: Path,
+    config_file: Path,
+    remote: Path,
+    user_home: Path,
+    git: Git,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    seed = tmp_path / "seed"
+    git(tmp_path, "clone", "--quiet", str(remote), str(seed))
+    git(seed, "commit", "--quiet", "--allow-empty", "-m", "first")
+    git(seed, "push", "--quiet", "origin", "HEAD:main")
+    url = remote.as_uri()
+
+    assert cli.main(["remote", "init", "--sync", url]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: {url} has no tasks folder, so it isn't a tasks "
+        "repository; remote init --sync only uses one that is, and remote init "
+        "only sets up an empty one. Nothing was changed\n"
+    )
+    assert json.loads(config_file.read_text(encoding="utf-8"))["tasks_repo"] is None
+    assert not clone_folder(user_home).exists()
+
+
+def test_remote_init_sync_wont_replace_another_tasks_repo(
+    config_file: Path,
+    laid_out: Path,
+    user_home: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    text = '{"tasks_repo": "https://example.com/other.git"}'
+    write_config(config_file, text)
+
+    assert cli.main(["remote", "init", "--sync", laid_out.as_uri()]) == 1
+
+    assert "remote init doesn't replace it" in capsys.readouterr().err
+    assert config_file.read_text(encoding="utf-8") == text
+    assert not clone_folder(user_home).exists()
+
+
+def test_remote_init_sync_refuses_an_existing_clone_folder(
+    config_file: Path,
+    laid_out: Path,
+    user_home: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    clone = clone_folder(user_home)
+    clone.mkdir(parents=True)
+
+    assert cli.main(["remote", "init", "--sync", laid_out.as_uri()]) == 1
+
+    assert capsys.readouterr().err == (
+        f"tskmngr: error: {clone} already exists; move it away to clone "
+        f"{laid_out.as_uri()} there. Nothing was changed\n"
+    )
+    assert list(clone.iterdir()) == []
+    assert json.loads(config_file.read_text(encoding="utf-8"))["tasks_repo"] is None
+
+
 @pytest.mark.parametrize(
     ("argv", "message"),
     [
+        (
+            ["remote", "init", "--sync", "~/tasks"],
+            "argument URL: '~/tasks' isn't a remote URL",
+        ),
         (
             ["remote", "init", "~/tasks"],
             (
