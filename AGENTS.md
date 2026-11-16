@@ -27,12 +27,13 @@ The development plan, what's done and what comes next, lives in
   whether something is correct, say so plainly, including the relevant output.
 - **Stay in scope.** Do what was asked. Mention other improvements you notice,
   but don't make them without agreement.
-- **Don't change `AGENTS.md` or `ROADMAP.md` on your own.** Before changing
-  either file, tell the maintainer what you'd change and why, and change it
-  only after they explicitly approve, unless they asked for that change
-  themselves. This includes the `AGENTS.md` updates a roadmap step calls for.
-  Two updates need no approval: marking the step you implement `[x]` with its
-  PR's link, and replacing `#TBD` with the PR's link.
+- **Don't change `AGENTS.md`, `ROADMAP.md` or `docs/finished_roadmap.md` on
+  your own.** Before changing one of them, tell the maintainer what you'd
+  change and why, and change it only after they explicitly approve, unless
+  they asked for that change themselves. This includes the `AGENTS.md`
+  updates a roadmap step calls for. Two updates need no approval: moving the
+  step you implement from `ROADMAP.md` to `docs/finished_roadmap.md`, marked
+  `[x]` with its PR's link, and replacing `#TBD` with the PR's link.
 - **Don't destroy work.** Never delete or overwrite files, task data or git
   history (no force-push, no `reset --hard` on shared branches) without
   explicit confirmation.
@@ -391,8 +392,8 @@ The same rules apply in local and cloud sessions.
   the environment has a built-in check that asks for uncommitted changes to be
   committed and pushed: do that on the working branch.
 - When the work is done, open a pull request against `dev`. Then replace every
-  `#TBD` from the branch (in `CHANGELOG.md` and `ROADMAP.md`) with the PR's
-  link, and commit and push that.
+  `#TBD` from the branch (in `CHANGELOG.md` and `docs/finished_roadmap.md`)
+  with the PR's link, and commit and push that.
 - Then stop: tell the maintainer the work is done, with the PR's link, and
   wait for them. Never merge a pull request yourself; only the maintainer
   merges.
@@ -400,15 +401,19 @@ The same rules apply in local and cloud sessions.
 ### Follow the roadmap
 - [`ROADMAP.md`](ROADMAP.md) breaks the plan into milestones and small
   steps, each sized for roughly one PR, in the order they should be built.
+  It lists the open steps; the finished ones are in
+  [`docs/finished_roadmap.md`](docs/finished_roadmap.md), and a dependency
+  that isn't in `ROADMAP.md` is done.
 - Before starting work, check the roadmap: take the first open step whose
   dependencies are done, unless the maintainer asks for something else.
 - Name the branch after the step's type and topic (see below) and mention the
   step ID (e.g. `M1.2`) in the PR description.
-- In the PR that implements a step, mark it `[x]` with that PR's link.
-  Before the PR exists, use `#TBD` and replace it once the PR is open, as with
-  the changelog. If a step is too big for one PR, agree with the maintainer on
-  splitting it into sub-steps (`M1.2a`, `M1.2b`, …). The format and rules are
-  at the top of `ROADMAP.md`.
+- In the PR that implements a step, mark it `[x]` with that PR's link and
+  move it from `ROADMAP.md` to `docs/finished_roadmap.md`, under its
+  milestone's heading and goal. Before the PR exists, use `#TBD` and replace
+  it once the PR is open, as with the changelog. If a step is too big for one
+  PR, agree with the maintainer on splitting it into sub-steps (`M1.2a`,
+  `M1.2b`, …). The format and rules are at the top of `ROADMAP.md`.
 - Don't add, reorder or drop milestones or steps without the maintainer's
   approval. New plans come from planning sessions.
 
