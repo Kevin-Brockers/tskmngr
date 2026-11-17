@@ -63,29 +63,6 @@ A finished step keeps its line, gets the PR link appended, in the same
 
 ## Milestones
 
-### M17 · Complete default config, joining a tasks repository, lean releases
-
-Goal: the default config file shows every setting, an existing tasks
-repository can be used on another machine with `remote init --sync`, and a
-release holds only what users need while `dev` keeps the project's working
-files. From issues
-[#93](https://github.com/Kevin-Brockers/tskmngr/issues/93),
-[#94](https://github.com/Kevin-Brockers/tskmngr/issues/94) and
-[#95](https://github.com/Kevin-Brockers/tskmngr/issues/95), as agreed with the
-maintainer. Listed before M14 and built before its M14.3, so it's in 0.1.0;
-the step IDs keep their numbers.
-
-- [ ] **M17.4** Lean release content: the wheel, the sdist and the GitHub
-  Release's source archives leave out `AGENTS.md`, `ROADMAP.md`,
-  `docs/finished_roadmap.md` and `.claude/` (the build config's excludes,
-  and `export-ignore` in `.gitattributes` for the archives), and the README
-  in them has no Status section (cut by the release workflow, between
-  markers in the README); `main` and `dev` stay identical and always keep
-  all of these files. Document what a release leaves out in `release.yml`,
-  the README and `AGENTS.md` (the release workflow, and that `dev` always
-  has the README, `AGENTS.md` and `ROADMAP.md`) · `chore/release_excludes` ·
-  depends on M17.3 · closes #95
-
 ### M14 · First release
 
 Goal: tskmngr 0.1.0 is released from `main`, checked by CI, with a GitHub

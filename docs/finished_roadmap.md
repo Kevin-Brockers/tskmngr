@@ -430,6 +430,22 @@ the step IDs keep their numbers.
   the top of `ROADMAP.md`, `AGENTS.md` ("Follow the roadmap"; the files its
   two no-approval updates touch) and the `init-work` skill to match ·
   `docs/finished_roadmap` · part of #95 · [#99](https://github.com/Kevin-Brockers/tskmngr/pull/99)
+- [x] **M17.4** Lean release content: the wheel, the sdist and the GitHub
+  Release's source archives leave out `AGENTS.md`, `ROADMAP.md`,
+  `docs/finished_roadmap.md` and `.claude/` (the build config's excludes,
+  and `export-ignore` in `.gitattributes` for the archives), and the README
+  in them has no Status section (cut by the release workflow, between
+  markers in the README); `main` and `dev` stay identical and always keep
+  all of these files. Document what a release leaves out in `release.yml`,
+  the README and `AGENTS.md` (the release workflow, and that `dev` always
+  has the README, `AGENTS.md` and `ROADMAP.md`) · `chore/release_excludes` ·
+  depends on M17.3 · closes #95 · #TBD. As agreed with the maintainer
+  while building it: the Status section moved from the README to
+  `AGENTS.md` instead of being cut by the workflow (GitHub makes the source
+  archives itself, so a cut couldn't reach them); `uv build` already left
+  the files out of the wheel and sdist, so the build config is unchanged,
+  and `scripts/release_content.py` checks all three archives before a
+  release
 
 ### M14 · First release
 

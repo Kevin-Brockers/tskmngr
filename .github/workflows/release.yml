@@ -8,6 +8,14 @@ name: Release
 # pytest pass. Then it builds the wheel and sdist with `uv build` and creates
 # a GitHub Release with them attached and that section as its notes, through
 # the `gh` CLI on the runner.
+#
+# A release leaves out the project's working files, which `dev` and `main`
+# always keep: `AGENTS.md`, `ROADMAP.md`, `docs/finished_roadmap.md` and
+# `.claude/`. `uv build` only packs the package, the README, the license and
+# `pyproject.toml`, and `.gitattributes` leaves them out of the "Source code"
+# archives GitHub makes from the tag. The release stops, before creating
+# anything, if the wheel, the sdist or a `git archive` of the tag holds one
+# (`scripts/release_content.py`).
 on:
   push:
     tags: ["v*"]
@@ -46,6 +54,11 @@ jobs:
         run: uv run pytest
       - name: Build the wheel and sdist
         run: uv build
+      - name: Check that the release leaves out the working files
+        run: |
+          git archive --prefix=tskmngr/ -o "$RUNNER_TEMP/source.tar.gz" HEAD
+          uv run --no-project python scripts/release_content.py \
+            dist/*.whl dist/*.tar.gz "$RUNNER_TEMP/source.tar.gz"
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}

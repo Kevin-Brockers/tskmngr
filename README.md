@@ -9,26 +9,6 @@
 A terminal task manager with an interactive TUI, written in Python. Tasks are
 plain Markdown files, so they stay readable and editable outside the app.
 
-## Status
-
-Usable, but not released yet. [`ROADMAP.md`](ROADMAP.md) has the full plan;
-in short:
-
-- **Core** (done): task model, Markdown file format, storage, filtering,
-  search and sorting
-- **Command-line interface** (done): add, list, show, edit, complete and
-  delete tasks from the shell
-- **TUI** (done): the full app, with a task list, detail view, forms, a notes
-  editor, editing in vim or nano, filtering and sorting
-- **External edits and configuration** (done): the TUI picks up changes
-  made to the files while it runs, and a config file sets the tasks
-  directory, the default sort, the theme, how often the TUI checks the files
-  and the TUI's keys
-- **Next**: subtasks and recurring tasks
-
-The core, the command-line interface and the TUI together make the first
-usable release. [`CHANGELOG.md`](CHANGELOG.md) lists what has changed so far.
-
 ## Installation
 
 There's no release yet; the code lives on the `dev` branch. You need
@@ -730,9 +710,11 @@ uv tool install prek     # install prek (once per machine)
 prek install             # install the git pre-commit hook (once per clone)
 ```
 
-Changes go through pull requests against `dev`. [`AGENTS.md`](AGENTS.md)
-describes how to work on the code, for people and coding agents alike:
-branches, tests, the changelog and the roadmap.
+Changes go through pull requests against `dev`.
+[`AGENTS.md`](https://github.com/Kevin-Brockers/tskmngr/blob/dev/AGENTS.md)
+on `dev` describes how to work on the code, for people and coding agents
+alike: branches, tests, the changelog and the roadmap, and where the project
+stands.
 
 CI runs on GitHub Actions for every pull request into `dev` and `main` (into
 `main`, only the release pull request from `dev`) and every push to them, and
@@ -750,6 +732,11 @@ tag matches the version in `pyproject.toml` and that `CHANGELOG.md` has a
 section with entries for that version, and stops if not. It then lints and
 tests that commit, builds the wheel and sdist with `uv build` and creates a
 GitHub Release with them attached and the changelog section as its notes.
+A release leaves out the project's working files, which `dev` and `main`
+keep: `AGENTS.md`, `ROADMAP.md`, `docs/finished_roadmap.md` and `.claude/`.
+They aren't in the wheel or the sdist, and `.gitattributes` leaves them out
+of the release's source archives; the workflow stops if one of them is
+there.
 
 ## License
 
