@@ -272,7 +272,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   already a tasks repository (one with a `tasks/` folder), e.g. on a second
   computer: it clones it and sets `tasks_repo`, committing nothing; plain
   `remote init` on a repository that isn't empty now points to it (#93)
-- #TBD - `docs/finished_roadmap.md` holds the finished roadmap steps, and
+- [#99](https://github.com/Kevin-Brockers/tskmngr/pull/99) - `docs/finished_roadmap.md` holds the finished roadmap steps, and
   `ROADMAP.md` only the open ones; the pull request that implements a step
   now moves it there (part of #95)
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license

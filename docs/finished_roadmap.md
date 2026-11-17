@@ -429,7 +429,7 @@ the step IDs keep their numbers.
   `docs/finished_roadmap.md`, marked `[x]` with its link. Update the rules at
   the top of `ROADMAP.md`, `AGENTS.md` ("Follow the roadmap"; the files its
   two no-approval updates touch) and the `init-work` skill to match ·
-  `docs/finished_roadmap` · part of #95 · #TBD
+  `docs/finished_roadmap` · part of #95 · [#99](https://github.com/Kevin-Brockers/tskmngr/pull/99)
 
 ### M14 · First release
 
