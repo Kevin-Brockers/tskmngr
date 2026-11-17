@@ -105,6 +105,8 @@ tests/          # mirrors src/ layout; test_<module>.py
 scripts/
   release_notes.py  # the release workflow's tag, version and changelog
                 #   checks; not part of the package
+docs/
+  finished_roadmap.md  # the finished roadmap steps; see `ROADMAP.md`
 ```
 
 Keep the layers separate: `models`, `taskfile`, `storage`, `query`,
