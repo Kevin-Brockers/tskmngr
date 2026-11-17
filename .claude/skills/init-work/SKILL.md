@@ -12,7 +12,10 @@ Get up to speed on how this project is worked on and what comes next.
    working conventions (branches, commits and pull requests, changelog,
    dependencies).
 2. Read `ROADMAP.md` at the repository root in full, using the Read tool. It
-   holds the milestones and steps, which are done and which are open.
+   holds the open steps of each milestone. The finished ones are in
+   `docs/finished_roadmap.md`; a dependency that isn't in `ROADMAP.md` is
+   done. Read that file only when a step refers to a finished one you need
+   to know more about.
 3. Give the maintainer a short summary:
    - the first open step whose dependencies are done, with its ID, description
      and branch name, as given in `ROADMAP.md`;
