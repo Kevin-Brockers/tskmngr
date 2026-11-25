@@ -480,7 +480,7 @@ Release to install it from.
   listed in `AGENTS.md`'s project layout; the README and `RELEASING.md`
   changes get an entry in the `[0.1.0]` section · `chore/release_0_1_0` ·
   depends on M13.1, M14.2, M10.6, M15.1, M15.2, M16.1, M17.1, M17.2, M17.3,
-  M17.4 · #TBD. As agreed with the
+  M17.4 · [#101](https://github.com/Kevin-Brockers/tskmngr/pull/101). As agreed with the
   maintainer while building it: the status is updated in `AGENTS.md`, where
   M17.4 moved it, instead of in the README, and releases leave out
   `RELEASING.md` like the other working files

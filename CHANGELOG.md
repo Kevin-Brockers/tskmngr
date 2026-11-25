@@ -282,7 +282,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   keeps them out of the source archives, and the release workflow stops if
   the wheel, the sdist or a `git archive` of the tag holds one (#95)
 - [7982e5c](https://github.com/Kevin-Brockers/tskmngr/commit/7982e5c9b62c955e9fe1f08a551be97f5dabf555) - Initial repository with `README.md` and MIT license
-- #TBD - `RELEASING.md` lists the steps of a release, from the pull request
+- [#101](https://github.com/Kevin-Brockers/tskmngr/pull/101) - `RELEASING.md` lists the steps of a release, from the pull request
   into `dev` to the tag; releases leave it out like the other working files
 
 ### Changed
@@ -376,7 +376,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   files aren't changed (#94)
 - [#100](https://github.com/Kevin-Brockers/tskmngr/pull/100) - The project's status moved from the README to `AGENTS.md`, so
   releases don't ship it; the README links to `AGENTS.md` on `dev` (#95)
-- #TBD - The README installs tskmngr from the release's tag (`v0.1.0`)
+- [#101](https://github.com/Kevin-Brockers/tskmngr/pull/101) - The README installs tskmngr from the release's tag (`v0.1.0`)
   instead of the `dev` branch, and links to `RELEASING.md` on `dev`
 
 ### Removed
