@@ -1,0 +1,711 @@
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from tskmngr.config import (
+    DEFAULT_KEYBINDINGS,
+    DEFAULT_POLL_INTERVAL,
+    DEFAULT_SETTINGS,
+    DEFAULT_THEME,
+    SETTING_KEYS,
+    Config,
+    ConfigError,
+    config_path,
+    create_default_config,
+    default_config_text,
+    editor_setting,
+    load_config,
+    old_config_path,
+    parse_config,
+    set_tasks_repo,
+    tasks_directory,
+)
+from tskmngr.display import DEFAULT_COLUMNS, DEFAULT_TRASH_COLUMNS, Column, TrashColumn
+from tskmngr.editor import Editor
+from tskmngr.gitsync import TasksRepo
+from tskmngr.query import SortKey
+
+PATH = Path("/home/me/.tskmngr/config.json")
+
+SORT = "sort: expected one of due, priority, status, created, updated, got "
+POLL = "poll_interval: expected a number of seconds, 0 or more, got "
+NAMES = "id, status, priority, due, created, updated, title, tags"
+COLUMNS = f"columns: expected names from {NAMES}, got "
+TRASH_NAMES = NAMES + ", deleted"
+TRASH_COLUMNS = f"trash_columns: expected names from {TRASH_NAMES}, got "
+KEYS = (
+    "keybindings: task_list.new: expected one or more keys, separated by commas, got "
+)
+
+
+def error_message(text: str) -> str:
+    with pytest.raises(ConfigError) as excinfo:
+        parse_config(text, PATH)
+    assert str(excinfo.value) == f"{PATH}: {excinfo.value.message}"
+    return excinfo.value.message
+
+
+# Where the file is
+
+
+def test_config_path_is_in_dot_tskmngr(user_home: Path) -> None:
+    assert config_path() == user_home / ".tskmngr" / "config.json"
+
+
+def test_tskmngr_config_is_no_longer_read(
+    user_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TSKMNGR_CONFIG", str(tmp_path / "my.json"))
+    assert config_path() == user_home / ".tskmngr" / "config.json"
+
+
+def test_old_config_path_is_in_dot_config(user_home: Path) -> None:
+    assert old_config_path() == user_home / ".config" / "tskmngr" / "config.json"
+
+
+# Writing the default file
+
+
+def test_the_default_file_has_every_setting() -> None:
+    assert json.loads(default_config_text()) == DEFAULT_SETTINGS
+    assert tuple(DEFAULT_SETTINGS) == SETTING_KEYS
+
+
+def test_the_default_file_reads_as_the_defaults() -> None:
+    config = parse_config(default_config_text(), PATH)
+
+    assert config == Config(
+        path=PATH, theme=DEFAULT_THEME, keybindings=DEFAULT_KEYBINDINGS
+    )
+    assert config.tasks_dir is None
+    assert config.tasks_repo is None
+    assert config.poll_interval == DEFAULT_POLL_INTERVAL
+
+
+def test_the_default_file_leaves_tasks_dir_and_tasks_repo_unset() -> None:
+    config = parse_config(default_config_text(), PATH)
+
+    assert DEFAULT_SETTINGS["tasks_dir"] is None
+    assert DEFAULT_SETTINGS["tasks_repo"] is None
+    assert config.keys == frozenset(SETTING_KEYS) - {"tasks_dir", "tasks_repo"}
+
+
+def test_the_default_file_lists_every_keybinding() -> None:
+    assert DEFAULT_SETTINGS["keybindings"] == DEFAULT_KEYBINDINGS
+    # A copy, so changing one doesn't change the other.
+    assert DEFAULT_SETTINGS["keybindings"] is not DEFAULT_KEYBINDINGS
+
+
+def test_the_default_file_is_indented_json() -> None:
+    assert default_config_text() == (
+        "{\n"
+        '  "tasks_dir": null,\n'
+        '  "tasks_repo": null,\n'
+        '  "sort": "due",\n'
+        '  "reverse": false,\n'
+        '  "theme": "textual-dark",\n'
+        '  "editor": "vim",\n'
+        '  "poll_interval": 2,\n'
+        '  "columns": [\n'
+        '    "id",\n'
+        '    "status",\n'
+        '    "priority",\n'
+        '    "due",\n'
+        '    "title",\n'
+        '    "tags"\n'
+        "  ],\n"
+        '  "trash_columns": [\n'
+        '    "title",\n'
+        '    "tags",\n'
+        '    "deleted",\n'
+        '    "id"\n'
+        "  ],\n"
+        '  "show_trash": true,\n'
+        '  "keybindings": {\n'
+        '    "task_list.open": "enter",\n'
+        '    "task_list.new": "n",\n'
+        '    "task_list.edit": "e",\n'
+        '    "task_list.cycle_status": "s",\n'
+        '    "task_list.delete": "d",\n'
+        '    "task_list.external_editor": "o",\n'
+        '    "task_list.sort": "S",\n'
+        '    "task_list.reverse_sort": "R",\n'
+        '    "task_list.filter": "slash",\n'
+        '    "task_list.clear_filter": "escape",\n'
+        '    "task_list.toggle_trash": "t",\n'
+        '    "task_list.sync": "y",\n'
+        '    "task_detail.close": "escape",\n'
+        '    "task_detail.edit": "e",\n'
+        '    "task_detail.external_editor": "o",\n'
+        '    "task_detail.toggle_subtask": "space",\n'
+        '    "task_form.save": "ctrl+s",\n'
+        '    "task_form.cancel": "escape",\n'
+        '    "confirm_delete.yes": "y",\n'
+        '    "confirm_delete.no": "n,escape",\n'
+        '    "confirm_discard.yes": "y",\n'
+        '    "confirm_discard.no": "n,escape"\n'
+        "  }\n"
+        "}\n"
+    )
+
+
+def test_create_default_config_writes_the_file_and_its_folders(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / ".tskmngr" / "config.json"
+
+    assert create_default_config(path) is True
+
+    assert path.read_text(encoding="utf-8") == default_config_text()
+    assert list(path.parent.iterdir()) == [path]
+
+
+def test_create_default_config_never_overwrites_a_file(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.write_text('{"sort": "priority"}', encoding="utf-8")
+
+    assert create_default_config(path) is False
+
+    assert path.read_text(encoding="utf-8") == '{"sort": "priority"}'
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_create_default_config_leaves_a_folder_in_its_place(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.mkdir()
+
+    assert create_default_config(path) is False
+
+    assert path.is_dir()
+
+
+def test_create_default_config_keeps_a_file_made_meanwhile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "config.json"
+    real_link = os.link
+
+    def made_meanwhile(source: Path, target: Path) -> None:
+        path.write_text("{}", encoding="utf-8")
+        real_link(source, target)
+
+    monkeypatch.setattr(os, "link", made_meanwhile)
+
+    assert create_default_config(path) is False
+
+    assert path.read_text(encoding="utf-8") == "{}"
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_create_default_config_reports_a_folder_it_cant_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "config.json"
+
+    def unwritable(*args: object, **kwargs: object) -> int:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(os, "open", unwritable)
+
+    with pytest.raises(ConfigError) as excinfo:
+        create_default_config(path)
+
+    assert str(excinfo.value) == f"{path}: can't be created: Permission denied"
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_create_default_config_cleans_up_when_linking_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "config.json"
+
+    def no_links(source: Path, target: Path) -> None:
+        raise OSError(1, "Operation not permitted")
+
+    monkeypatch.setattr(os, "link", no_links)
+
+    with pytest.raises(ConfigError) as excinfo:
+        create_default_config(path)
+
+    assert excinfo.value.message == "can't be created: Operation not permitted"
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_create_default_config_reports_a_file_in_place_of_its_folder(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".tskmngr").write_text("", encoding="utf-8")
+    path = tmp_path / ".tskmngr" / "config.json"
+
+    with pytest.raises(ConfigError) as excinfo:
+        create_default_config(path)
+
+    assert excinfo.value.path == path
+    assert excinfo.value.message.startswith("can't be created: ")
+
+
+# Reading it
+
+
+def test_missing_file_gives_the_defaults(tmp_path: Path) -> None:
+    config = load_config(tmp_path / "config.json")
+
+    assert config == Config()
+    assert config.tasks_dir is None
+    assert config.sort is SortKey.DUE
+    assert config.reverse is False
+    assert config.theme is None
+    assert config.poll_interval == DEFAULT_POLL_INTERVAL == 2.0
+    assert config.columns == DEFAULT_COLUMNS
+    assert config.trash_columns == DEFAULT_TRASH_COLUMNS
+    assert config.show_trash is True
+
+
+def test_load_reads_the_file_at_config_path() -> None:
+    path = config_path()
+    path.parent.mkdir()
+    path.write_text('{"sort": "updated"}', encoding="utf-8")
+
+    assert load_config() == Config(path=path, sort=SortKey.UPDATED)
+
+
+def test_every_setting_is_read() -> None:
+    config = parse_config(
+        """{
+          "tasks_dir": "/srv/tasks",
+          "sort": "priority",
+          "reverse": true,
+          "theme": "nord",
+          "poll_interval": 0.5,
+          "columns": ["title", "due"],
+          "trash_columns": ["deleted", "status"],
+          "show_trash": false,
+          "keybindings": {"task_list.new": "a", "task_form.save": "ctrl+s,f2"}
+        }""",
+        PATH,
+    )
+
+    assert config == Config(
+        path=PATH,
+        tasks_dir=Path("/srv/tasks"),
+        sort=SortKey.PRIORITY,
+        reverse=True,
+        theme="nord",
+        poll_interval=0.5,
+        columns=(Column.TITLE, Column.DUE),
+        trash_columns=(TrashColumn.DELETED, TrashColumn.STATUS),
+        show_trash=False,
+        keybindings={"task_list.new": "a", "task_form.save": "ctrl+s,f2"},
+    )
+
+
+def test_an_empty_object_gives_the_defaults() -> None:
+    assert parse_config("{}", PATH) == Config(path=PATH)
+
+
+def test_the_keys_the_file_sets_are_kept() -> None:
+    config = parse_config('{"theme": "nord", "sort": "due"}', PATH)
+
+    assert config.keys == {"theme", "sort"}
+    # Not part of the comparison: the settings are the same as the defaults'.
+    assert config == Config(path=PATH, theme="nord")
+
+
+def test_a_missing_file_sets_no_keys(tmp_path: Path) -> None:
+    assert load_config(tmp_path / "config.json").keys == frozenset()
+
+
+def test_setting_keys_are_every_known_key_in_the_documented_order() -> None:
+    assert SETTING_KEYS == (
+        "tasks_dir",
+        "tasks_repo",
+        "sort",
+        "reverse",
+        "theme",
+        "editor",
+        "poll_interval",
+        "columns",
+        "trash_columns",
+        "show_trash",
+        "keybindings",
+    )
+
+
+def test_no_keybindings_by_default() -> None:
+    # A file without `keybindings` keeps every binding's own key.
+    assert Config().keybindings == {}
+
+
+@pytest.mark.parametrize("key", ["tasks_dir", "tasks_repo"])
+def test_null_tasks_dir_or_tasks_repo_is_not_set(key: str) -> None:
+    config = parse_config(f'{{"{key}": null, "sort": "priority"}}', PATH)
+
+    assert config == Config(path=PATH, sort=SortKey.PRIORITY)
+    assert config.keys == {"sort"}
+
+
+def test_null_tasks_dir_falls_back_to_tskmngr_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TSKMNGR_DIR", str(tmp_path / "env"))
+
+    config = parse_config('{"tasks_dir": null, "tasks_repo": null}', PATH)
+
+    assert tasks_directory(config) == tmp_path / "env"
+
+
+def test_spaces_around_keybinding_keys_are_dropped() -> None:
+    config = parse_config('{"keybindings": {"task_list.new": " a , f2 "}}', PATH)
+    assert config.keybindings == {"task_list.new": "a,f2"}
+
+
+def test_default_columns_are_id_status_priority_due_title_and_tags() -> None:
+    assert Config().columns == (
+        Column.ID,
+        Column.STATUS,
+        Column.PRIORITY,
+        Column.DUE,
+        Column.TITLE,
+        Column.TAGS,
+    )
+
+
+def test_tags_is_a_column_of_both_tables() -> None:
+    config = parse_config('{"columns": ["tags"], "trash_columns": ["tags"]}', PATH)
+
+    assert config.columns == (Column.TAGS,)
+    assert config.trash_columns == (TrashColumn.TAGS,)
+
+
+def test_columns_keep_their_order_and_may_include_created_and_updated() -> None:
+    config = parse_config('{"columns": ["updated", "title", "id", "created"]}', PATH)
+    assert config.columns == (Column.UPDATED, Column.TITLE, Column.ID, Column.CREATED)
+
+
+def test_default_trash_columns_are_title_tags_deleted_and_id() -> None:
+    assert Config().trash_columns == (
+        TrashColumn.TITLE,
+        TrashColumn.TAGS,
+        TrashColumn.DELETED,
+        TrashColumn.ID,
+    )
+
+
+def test_trash_columns_may_have_every_task_list_column_and_deleted() -> None:
+    names = ["id", "status", "priority", "due", "created", "updated", "title", "tags"]
+    config = parse_config(json.dumps({"trash_columns": [*names, "deleted"]}), PATH)
+
+    assert [column.value for column in config.trash_columns] == [*names, "deleted"]
+
+
+def test_deleted_is_only_a_trash_column() -> None:
+    assert error_message('{"columns": ["deleted"]}') == COLUMNS + "the text 'deleted'"
+
+
+def test_tasks_dir_expands_home() -> None:
+    config = parse_config('{"tasks_dir": "~/tasks"}', PATH)
+    assert config.tasks_dir == Path.home() / "tasks"
+
+
+def test_relative_tasks_dir_is_read_from_the_config_folder() -> None:
+    config = parse_config('{"tasks_dir": "tasks/mine"}', PATH)
+    assert config.tasks_dir == PATH.parent / "tasks" / "mine"
+
+
+@pytest.mark.parametrize(("value", "seconds"), [("0", 0.0), ("5", 5.0)])
+def test_poll_interval_may_be_a_whole_number(value: str, seconds: float) -> None:
+    interval = parse_config(f'{{"poll_interval": {value}}}', PATH).poll_interval
+    assert interval == seconds
+    assert isinstance(interval, float)
+
+
+# Broken files
+
+
+def test_invalid_json_names_line_and_column() -> None:
+    message = error_message('{\n  "sort": "due"\n  "reverse": true\n}')
+    assert message == "line 3, column 3: Expecting ',' delimiter"
+
+
+def test_an_empty_file_is_invalid() -> None:
+    assert error_message("") == "line 1, column 1: Expecting value"
+
+
+@pytest.mark.parametrize(
+    ("text", "got"), [("[]", "a list"), ('"due"', "the text 'due'"), ("null", "null")]
+)
+def test_the_file_must_hold_an_object(text: str, got: str) -> None:
+    assert error_message(text) == f"expected an object of settings, got {got}"
+
+
+def test_unknown_keys_are_refused() -> None:
+    assert error_message('{"sort": "due", "colour": "red"}') == (
+        "unknown key 'colour'; the known keys are tasks_dir, tasks_repo, sort, "
+        "reverse, theme, editor, poll_interval, columns, trash_columns, "
+        "show_trash, keybindings"
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ('{"tasks_dir": 5}', "tasks_dir: expected a folder path, got the number 5"),
+        ('{"tasks_dir": " "}', "tasks_dir: expected a folder path, got the text ' '"),
+        ('{"sort": "size"}', SORT + "the text 'size'"),
+        ('{"sort": ["due"]}', SORT + "a list"),
+        ('{"reverse": "yes"}', "reverse: expected true or false, got the text 'yes'"),
+        ('{"reverse": 1}', "reverse: expected true or false, got the number 1"),
+        ('{"theme": ""}', "theme: expected a theme name, got the text ''"),
+        ('{"theme": {}}', "theme: expected a theme name, got an object"),
+        ('{"poll_interval": -1}', POLL + "the number -1"),
+        ('{"poll_interval": "2"}', POLL + "the text '2'"),
+        ('{"poll_interval": true}', POLL + "the boolean true"),
+        ('{"poll_interval": NaN}', POLL + "the number nan"),
+        ('{"poll_interval": Infinity}', POLL + "the number inf"),
+        ('{"poll_interval": null}', POLL + "null"),
+        (
+            '{"columns": "id,title"}',
+            "columns: expected a list of column names, got the text 'id,title'",
+        ),
+        (
+            '{"columns": []}',
+            f"columns: expected at least one of {NAMES}, got an empty list",
+        ),
+        ('{"columns": ["id", "colour"]}', COLUMNS + "the text 'colour'"),
+        ('{"columns": ["ID"]}', COLUMNS + "the text 'ID'"),
+        ('{"columns": [1]}', COLUMNS + "the number 1"),
+        ('{"columns": [["id"]]}', COLUMNS + "a list"),
+        ('{"columns": ["id", "due", "id"]}', "columns: 'id' is listed twice"),
+        (
+            '{"trash_columns": "title"}',
+            "trash_columns: expected a list of column names, got the text 'title'",
+        ),
+        (
+            '{"trash_columns": []}',
+            f"trash_columns: expected at least one of {TRASH_NAMES}, got an empty list",
+        ),
+        ('{"trash_columns": ["colour"]}', TRASH_COLUMNS + "the text 'colour'"),
+        ('{"trash_columns": [null]}', TRASH_COLUMNS + "null"),
+        (
+            '{"trash_columns": ["deleted", "deleted"]}',
+            "trash_columns: 'deleted' is listed twice",
+        ),
+        (
+            '{"show_trash": "no"}',
+            "show_trash: expected true or false, got the text 'no'",
+        ),
+        ('{"show_trash": 0}', "show_trash: expected true or false, got the number 0"),
+        (
+            '{"keybindings": ["task_list.new"]}',
+            "keybindings: expected an object of binding ids and keys, got a list",
+        ),
+        ('{"keybindings": {"task_list.new": ""}}', KEYS + "the text ''"),
+        ('{"keybindings": {"task_list.new": " "}}', KEYS + "the text ' '"),
+        ('{"keybindings": {"task_list.new": "a,,b"}}', KEYS + "the text 'a,,b'"),
+        ('{"keybindings": {"task_list.new": "a,"}}', KEYS + "the text 'a,'"),
+        ('{"keybindings": {"task_list.new": ["a"]}}', KEYS + "a list"),
+        ('{"keybindings": {"task_list.new": null}}', KEYS + "null"),
+    ],
+)
+def test_values_of_the_wrong_kind_are_refused(text: str, message: str) -> None:
+    assert error_message(text) == message
+
+
+def test_a_file_that_isnt_utf8_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.write_bytes(b'{"theme": "\xff"}')
+
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(path)
+    assert str(excinfo.value) == f"{path}: not UTF-8 text"
+
+
+def test_a_file_that_cant_be_read_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.mkdir()
+
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(path)
+    assert excinfo.value.message.startswith("can't be read: ")
+
+
+def test_config_does_not_import_textual() -> None:
+    code = "import sys, tskmngr.config; sys.exit('textual' in sys.modules)"
+
+    subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_tasks_repo_is_a_url_or_a_folder_read_from_the_config_folder(
+    user_home: Path,
+) -> None:
+    remote = parse_config('{"tasks_repo": "https://example.com/t.git"}', PATH)
+    local = parse_config('{"tasks_repo": "tasks"}', PATH)
+
+    assert remote.tasks_repo == TasksRepo(
+        "https://example.com/t.git", True, user_home / ".tskmngr" / "remote_task_dir"
+    )
+    assert local.tasks_repo == TasksRepo(
+        str(PATH.parent / "tasks"), False, PATH.parent / "tasks"
+    )
+
+
+def test_tasks_repo_comes_before_tasks_dir_and_tskmngr_dir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TSKMNGR_DIR", "/elsewhere")
+    config = parse_config('{"tasks_dir": "/mine", "tasks_repo": "/repo"}', PATH)
+
+    assert tasks_directory(config) == Path("/repo/tasks")
+    assert tasks_directory(Config(tasks_dir=Path("/mine"))) == Path("/mine")
+
+
+# null is accepted: it means not set.
+@pytest.mark.parametrize("value", ["5", '" "', '["a"]'])
+def test_tasks_repo_must_be_text(value: str) -> None:
+    assert error_message(f'{{"tasks_repo": {value}}}').startswith(
+        "tasks_repo: expected a git repository's URL or folder, got "
+    )
+
+
+def test_set_tasks_repo_keeps_every_other_key_in_its_order(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(
+        '{"theme": "nord",   "sort": "priority",\n"tasks_dir": "~/Aufgaben/ü"}'
+    )
+
+    set_tasks_repo(path, "git@github.com:me/tasks.git")
+
+    assert path.read_text(encoding="utf-8") == (
+        "{\n"
+        '  "theme": "nord",\n'
+        '  "sort": "priority",\n'
+        '  "tasks_dir": "~/Aufgaben/ü",\n'
+        '  "tasks_repo": "git@github.com:me/tasks.git"\n'
+        "}\n"
+    )
+    config = load_config(path)
+    assert config.tasks_repo is not None
+    assert config.tasks_repo.location == "git@github.com:me/tasks.git"
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["config.json"]
+
+
+def test_set_tasks_repo_replaces_the_old_value(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.write_text('{"tasks_repo": "old", "sort": "due"}')
+
+    set_tasks_repo(path, "https://example.com/new.git")
+
+    assert json.loads(path.read_text()) == {
+        "tasks_repo": "https://example.com/new.git",
+        "sort": "due",
+    }
+
+
+def test_set_tasks_repo_replaces_a_null_in_its_place(tmp_path: Path) -> None:
+    path = tmp_path / "config.json"
+    path.write_text('{"tasks_dir": null, "tasks_repo": null, "sort": "due"}')
+
+    set_tasks_repo(path, "https://example.com/new.git")
+
+    settings = json.loads(path.read_text())
+    assert settings == {
+        "tasks_dir": None,
+        "tasks_repo": "https://example.com/new.git",
+        "sort": "due",
+    }
+    assert list(settings) == ["tasks_dir", "tasks_repo", "sort"]
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("{", "line 1, column 2: Expecting property name enclosed in double quotes"),
+        ("[]", "expected an object of settings, got a list"),
+    ],
+)
+def test_set_tasks_repo_refuses_a_file_that_isnt_an_object(
+    tmp_path: Path, text: str, message: str
+) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(text)
+
+    with pytest.raises(ConfigError) as error:
+        set_tasks_repo(path, "https://example.com/t.git")
+
+    assert str(error.value) == f"{path}: {message}"
+    assert path.read_text() == text
+
+
+def test_set_tasks_repo_reports_a_file_that_cant_be_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "config.json"
+    path.write_text("{}")
+
+    def refuse(source: object, target: object) -> None:
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(os, "replace", refuse)
+    with pytest.raises(ConfigError) as error:
+        set_tasks_repo(path, "https://example.com/t.git")
+
+    assert str(error.value) == f"{path}: can't be written: Permission denied"
+    assert path.read_text() == "{}"
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["config.json"]
+
+
+def test_the_editor_is_vim_by_default() -> None:
+    assert Config().editor is Editor.VIM
+    assert parse_config("{}", PATH).editor is Editor.VIM
+
+
+def test_the_editor_can_be_nano() -> None:
+    assert parse_config('{"editor": "nano"}', PATH).editor is Editor.NANO
+
+
+@pytest.mark.parametrize(
+    ("value", "shown"),
+    [
+        ('"code"', "the text 'code'"),
+        ('"VIM"', "the text 'VIM'"),
+        ('"nano -w"', "the text 'nano -w'"),
+        ("null", "null"),
+        ("1", "the number 1"),
+    ],
+)
+def test_any_other_editor_is_refused(value: str, shown: str) -> None:
+    assert error_message(f'{{"editor": {value}}}') == (
+        f"editor: expected vim or nano, got {shown}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "editor"),
+    [
+        ('{"editor": "nano"}', Editor.NANO),
+        # Other keys aren't checked, so a file broken elsewhere keeps its editor.
+        ('{"editor": "nano", "sort": "size", "colour": "red"}', Editor.NANO),
+        ('{"editor": "vim"}', Editor.VIM),
+        ("{}", Editor.VIM),
+        ('{"editor": "code"}', Editor.VIM),
+        ('{"editor": 1}', Editor.VIM),
+        ('{"editor": "nano"', Editor.VIM),
+        ('["nano"]', Editor.VIM),
+        ("\udcff", Editor.VIM),
+    ],
+)
+def test_editor_setting_reads_only_the_editor_and_falls_back_to_vim(
+    tmp_path: Path, text: str, editor: Editor
+) -> None:
+    path = tmp_path / "config.json"
+    path.write_text(text, encoding="utf-8", errors="surrogateescape")
+
+    assert editor_setting(path) is editor
+
+
+def test_editor_setting_of_a_missing_file_is_vim(tmp_path: Path) -> None:
+    assert editor_setting(tmp_path / "config.json") is Editor.VIM

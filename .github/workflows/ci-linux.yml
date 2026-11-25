@@ -1,0 +1,73 @@
+name: CI Linux
+
+# Runs on pull requests into `dev` and `main` and on pushes to them (the
+# README's badge shows the last result on `main`); it can also be started by
+# hand from the Actions tab. Into `main`, only the release pull request from
+# `dev` runs; one from any other branch is skipped.
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    # Into `main`, only the pull request from `dev`.
+    if: >-
+      github.event_name != 'pull_request' || github.base_ref != 'main'
+      || github.head_ref == 'dev'
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.12"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check .
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+  test:
+    if: >-
+      github.event_name != 'pull_request' || github.base_ref != 'main'
+      || github.head_ref == 'dev'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Test
+        run: uv run pytest
+
+  # Tests on the newest stable CPython that uv can download, so a new Python
+  # release is covered before it's added to the matrix above.
+  python_latest:
+    if: >-
+      github.event_name != 'pull_request' || github.base_ref != 'main'
+      || github.head_ref == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - name: Find the newest stable Python
+        run: |
+          latest=$(uv python list --only-downloads --output-format json | jq -r '
+            [.[] | select(.implementation == "cpython" and .variant == "default"
+                          and (.version | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")))]
+            | max_by(.version_parts | [.major, .minor, .patch]) | .version')
+          echo "Newest stable Python: $latest"
+          echo "UV_PYTHON=$latest" >> "$GITHUB_ENV"
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Test
+        run: uv run pytest

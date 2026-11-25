@@ -1,0 +1,8 @@
+# Left out of `git archive`, and so of the "Source code" archives of a GitHub
+# Release: the project's working files, which `dev` and `main` always keep
+# (see `scripts/release_content.py`, which the release workflow checks with).
+/AGENTS.md export-ignore
+/ROADMAP.md export-ignore
+/docs/finished_roadmap.md export-ignore
+/RELEASING.md export-ignore
+/.claude export-ignore

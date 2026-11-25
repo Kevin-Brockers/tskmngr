@@ -1,0 +1,937 @@
+"""The `tskmngr` entry point. With no arguments it launches the TUI."""
+
+import argparse
+import json
+import os
+import sys
+from collections.abc import Callable, Collection, Sequence
+from dataclasses import replace
+from datetime import UTC, date, datetime
+from enum import StrEnum
+from pathlib import Path
+
+from tskmngr import gitsync
+from tskmngr.app import TskmngrApp
+from tskmngr.config import (
+    DEFAULT_THEME,
+    SETTING_KEYS,
+    Config,
+    ConfigError,
+    config_path,
+    create_default_config,
+    editor_setting,
+    load_config,
+    old_config_path,
+    set_tasks_repo,
+    tasks_directory,
+)
+from tskmngr.display import format_next_occurrence, task_fields
+from tskmngr.editor import EditorNotFound, editor_command, not_found_hint, run_editor
+from tskmngr.gitsync import (
+    SYNC_MESSAGE,
+    PullConflict,
+    RepoError,
+    SyncError,
+    commit_message,
+)
+from tskmngr.models import (
+    Priority,
+    Repeat,
+    Status,
+    Task,
+    TaskValidationError,
+    new_task,
+    parse_due,
+    parse_repeat,
+)
+from tskmngr.query import (
+    SortKey,
+    filter_tasks,
+    match_id_prefix,
+    sort_tasks,
+    values_starting_with,
+)
+from tskmngr.recurrence import RecurrenceError, complete
+from tskmngr.storage import (
+    ENV_VAR,
+    ConflictError,
+    LoadResult,
+    delete_task,
+    load_tasks,
+    save_completed,
+    save_task,
+)
+from tskmngr.taskfile import TaskFile
+
+REPEAT_HELP = (
+    "repeat rule: daily, weekly, monthly, yearly or every N days, weeks, months "
+    "or years (quote it if it has spaces)"
+)
+
+# Statuses `tskmngr list` shows unless told otherwise.
+OPEN_STATUSES = (Status.TODO, Status.DOING)
+
+# How a command syncs while `tasks_repo` is set (the `sync` default of its
+# parser): CHANGE commits what's left over, pulls, runs the command, then
+# commits and pushes; PULL only pulls first. Other commands don't sync.
+CHANGE = "change"
+PULL = "pull"
+
+
+class CommandError(Exception):
+    """A command failed; `main` prints the message and returns 1."""
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the `tskmngr` command and return its exit code.
+
+    `argv` defaults to the command-line arguments. Usage errors exit with 2
+    (through argparse); a config file that can't be used and errors while
+    reading or saving tasks return 1. Writes the default config file if there
+    is none, and warns on stderr while the old one still exists. Only
+    `config edit` runs with a config file that can't be used, to fix it.
+
+    While the config sets `tasks_repo`, every command but `config` first
+    clones or checks the repository and its `tasks/` folder, the tasks
+    directory (stopping with 1 if it can't be used),
+    and the commands that change tasks, and `list`, sync with it; a failed
+    sync is a warning on stderr.
+    """
+    parser = _parser()
+    args, extra = parser.parse_known_args(argv)
+    # argparse takes a command's words only before or after its options, not
+    # both, so `list milk -t errands store` leaves "store" over.
+    takes_words = isinstance(getattr(args, "words", None), list)
+    if extra and takes_words and not any(arg.startswith("-") for arg in extra):
+        args.words += extra
+        extra = []
+    if extra:
+        getattr(args, "parser", parser).error(
+            f"unrecognized arguments: {' '.join(extra)}"
+        )
+    path = config_path()
+    old_path = old_config_path()
+    if os.path.exists(old_path):
+        print(
+            f"tskmngr: warning: {old_path} is no longer read; "
+            f"settings now go in {path}",
+            file=sys.stderr,
+        )
+    try:
+        create_default_config(path)
+        if getattr(args, "loads_config", True):
+            config = load_config(path)
+            if args.command is None:
+                app = TskmngrApp(config=config)
+            args.config = config
+            args.directory = tasks_directory(config)
+    except ConfigError as error:
+        print(f"tskmngr: error: config file {error}", file=sys.stderr)
+        return 1
+    repo = _tasks_repo(args)
+    if getattr(args, "uses_tasks", True) and repo is not None:
+        try:
+            _open_repo(repo)
+        except RepoError as error:
+            print(f"tskmngr: error: tasks_repo: {error}", file=sys.stderr)
+            return 1
+    if args.command is None:
+        app.run()
+        return 0
+    args.config_path = path
+    try:
+        _sync_before(args)
+        status = args.handler(args)
+    except CommandError as error:
+        print(f"tskmngr: error: {error}", file=sys.stderr)
+        return 1
+    if status == 0:
+        _sync_after(args)
+    return status
+
+
+def _open_repo(repo: gitsync.TasksRepo) -> None:
+    if gitsync.open_repo(repo):
+        print(f"tskmngr: cloned {repo.location} into {repo.directory}", file=sys.stderr)
+    gitsync.check_layout(repo)
+
+
+def _sync_before(args: argparse.Namespace) -> None:
+    """Pull before a command that syncs, first committing what's left over.
+
+    Changes nobody committed (made by hand, in the TUI or by a command whose
+    commit failed) are committed first, so the pull never has to stash them.
+    """
+    repo = _tasks_repo(args)
+    sync = getattr(args, "sync", None)
+    if repo is None or sync is None:
+        return
+    try:
+        if sync == CHANGE:
+            gitsync.commit_all(repo, SYNC_MESSAGE)
+        gitsync.pull(repo)
+    except SyncError as error:
+        _warn_not_synced(error)
+
+
+def _sync_after(args: argparse.Namespace) -> None:
+    """Commit and push what a command that changes tasks changed."""
+    repo = _tasks_repo(args)
+    if repo is None or getattr(args, "sync", None) != CHANGE:
+        return
+    try:
+        gitsync.commit_all(repo, getattr(args, "commit_message", SYNC_MESSAGE))
+        gitsync.push(repo)
+    except SyncError as error:
+        _warn_not_synced(error)
+
+
+def _tasks_repo(args: argparse.Namespace) -> gitsync.TasksRepo | None:
+    """The config's `tasks_repo`; None too for `config edit`, which has no config."""
+    config = getattr(args, "config", None)
+    return config.tasks_repo if config is not None else None
+
+
+def _warn_not_synced(error: SyncError) -> None:
+    later = "" if isinstance(error, PullConflict) else "; it's synced next time"
+    print(f"tskmngr: warning: not synced: {error}{later}", file=sys.stderr)
+
+
+def _commit_message(command: str, task: Task) -> str:
+    """A commit's message, e.g. `tskmngr: add 01JB3K7Q2X Buy milk`."""
+    return commit_message(command, task.id, task.title)
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="tskmngr",
+        description="A terminal task manager. Without a command, opens the TUI.",
+    )
+    commands = parser.add_subparsers(dest="command", title="commands")
+
+    add = commands.add_parser(
+        "add", help="add a task", description="Add a task and print its ID."
+    )
+    add.add_argument("title", help="the task's title (quote it if it has spaces)")
+    add.add_argument(
+        "-p",
+        "--priority",
+        choices=[priority.value for priority in Priority],
+        default=Priority.NORMAL.value,
+        help="default: %(default)s",
+    )
+    add.add_argument(
+        "-d", "--due", type=_due_date, metavar="YYYY-MM-DD", help="due date"
+    )
+    add.add_argument("--repeat", type=_repeat_rule, metavar="RULE", help=REPEAT_HELP)
+    add.add_argument(
+        "-t",
+        "--tag",
+        action="append",
+        default=[],
+        dest="tags",
+        metavar="TAG",
+        help="add a tag; repeat for more tags",
+    )
+    add.set_defaults(handler=_add, parser=add, sync=CHANGE)
+
+    list_ = commands.add_parser(
+        "list",
+        help="list tasks",
+        description="List tasks, by default the ones not done yet, soonest due first.",
+    )
+    list_.add_argument(
+        "words",
+        nargs="*",
+        metavar="WORD",
+        help="only tasks with every word in their title or notes",
+    )
+    statuses = list_.add_mutually_exclusive_group()
+    statuses.add_argument(
+        "-s",
+        "--status",
+        action="append",
+        type=_prefix_of(Status, "status"),
+        metavar=_choices_metavar(Status),
+        dest="statuses",
+        help=(
+            "only tasks with this status, or one starting with it; repeat for "
+            "more (default: todo and doing)"
+        ),
+    )
+    statuses.add_argument("-a", "--all", action="store_true", help="include done tasks")
+    list_.add_argument(
+        "-p",
+        "--priority",
+        action="append",
+        type=_prefix_of(Priority, "priority"),
+        metavar=_choices_metavar(Priority),
+        default=[],
+        dest="priorities",
+        help="only tasks with this priority, or one starting with it; repeat for more",
+    )
+    list_.add_argument(
+        "-t",
+        "--tag",
+        action="append",
+        default=[],
+        dest="tags",
+        metavar="TAG",
+        help="only tasks with this tag; repeat to require more tags",
+    )
+    list_.add_argument(
+        "--sort",
+        choices=[key.value for key in SortKey],
+        help="default: the config file's sort, else due",
+    )
+    list_.add_argument(
+        "-r", "--reverse", action="store_true", help="reverse the sort order"
+    )
+    list_.set_defaults(handler=_list, parser=list_, sync=PULL)
+
+    show = commands.add_parser(
+        "show",
+        help="show a task",
+        description="Show all fields of a task, then its notes.",
+    )
+    _add_id_argument(show)
+    show.set_defaults(handler=_show, parser=show)
+
+    edit = commands.add_parser(
+        "edit",
+        help="change a task's fields",
+        description="Change the given fields of a task; the rest stay as they are.",
+    )
+    _add_id_argument(edit)
+    edit.add_argument("--title", help="new title (quote it if it has spaces)")
+    edit.add_argument("-s", "--status", choices=[status.value for status in Status])
+    edit.add_argument(
+        "-p", "--priority", choices=[priority.value for priority in Priority]
+    )
+    due = edit.add_mutually_exclusive_group()
+    due.add_argument(
+        "-d", "--due", type=_due_date, metavar="YYYY-MM-DD", help="new due date"
+    )
+    due.add_argument("--no-due", action="store_true", help="remove the due date")
+    repeat = edit.add_mutually_exclusive_group()
+    repeat.add_argument(
+        "--repeat", type=_repeat_rule, metavar="RULE", help=f"new {REPEAT_HELP}"
+    )
+    repeat.add_argument(
+        "--no-repeat", action="store_true", help="stop the task from repeating"
+    )
+    edit.add_argument(
+        "-t",
+        "--tag",
+        action="append",
+        default=[],
+        dest="tags",
+        metavar="TAG",
+        help="add a tag; repeat for more tags",
+    )
+    untag = edit.add_mutually_exclusive_group()
+    untag.add_argument(
+        "--untag",
+        action="append",
+        default=[],
+        dest="untags",
+        metavar="TAG",
+        help="remove a tag; repeat for more tags",
+    )
+    untag.add_argument(
+        "--clear-tags", action="store_true", help="remove all tags before adding any"
+    )
+    edit.set_defaults(handler=_edit, parser=edit, sync=CHANGE)
+
+    done = commands.add_parser(
+        "done",
+        help="mark a task as done",
+        description=(
+            "Mark a task as done. If it repeats, its next occurrence is added "
+            "as a new task and its ID printed."
+        ),
+    )
+    _add_id_argument(done)
+    done.set_defaults(handler=_done, parser=done, sync=CHANGE)
+
+    delete = commands.add_parser(
+        "delete",
+        help="delete a task",
+        description=(
+            "Move a task's file into .trash/ in the tasks directory, after asking "
+            "for confirmation. Without a terminal to ask on, --yes is required."
+        ),
+    )
+    _add_id_argument(delete)
+    delete.add_argument(
+        "-y", "--yes", action="store_true", help="delete without asking"
+    )
+    delete.set_defaults(handler=_delete, parser=delete, sync=CHANGE)
+
+    sync = commands.add_parser(
+        "sync",
+        help="sync the tasks with tasks_repo",
+        description=(
+            "Commit any changes in the git repository the config file's "
+            "tasks_repo names, pull from it, then push the commits not pushed "
+            "yet."
+        ),
+    )
+    sync.set_defaults(handler=_sync, parser=sync)
+
+    remote = commands.add_parser(
+        "remote",
+        help="set up a git repository for the tasks",
+        description="Set up a git repository to keep the tasks in.",
+    )
+    remote_commands = remote.add_subparsers(
+        dest="remote_command", title="commands", required=True
+    )
+    remote_init = remote_commands.add_parser(
+        "init",
+        help="set up a remote repository, or clone one, and use it as tasks_repo",
+        description=(
+            "Set up an existing, empty remote repository for tskmngr: clone it "
+            "into ~/.tskmngr/remote_task_dir, add AGENTS.md and "
+            "tasks/.trash/.gitkeep, commit and push them, then set tasks_repo "
+            "to the URL in the config file. With --sync, use a remote "
+            "repository that's already a tasks repository (one with a tasks "
+            "folder) instead: clone it there and set tasks_repo, committing "
+            "nothing. Stops without changing anything if that folder exists, "
+            "tasks_repo is already another repository, or the repository isn't "
+            "empty (without --sync) or has no tasks folder (with --sync)."
+        ),
+    )
+    remote_init.add_argument(
+        "url", type=_remote_url, metavar="URL", help="the repository's URL"
+    )
+    remote_init.add_argument(
+        "--sync",
+        action="store_true",
+        # Not `sync`: that attribute says whether a command syncs its tasks.
+        dest="join",
+        help="use a repository that's already a tasks repository, e.g. one "
+        "set up on another machine",
+    )
+    remote_init.set_defaults(handler=_remote_init, parser=remote_init, uses_tasks=False)
+
+    config = commands.add_parser(
+        "config",
+        help="show or edit the config file",
+        description=(
+            "Print the config file's path and every setting in use. A setting "
+            "the file leaves out, or a null tasks_dir or tasks_repo, is marked "
+            "with where its value comes from."
+        ),
+    )
+    config.set_defaults(handler=_config_show, parser=config, uses_tasks=False)
+    config_commands = config.add_subparsers(dest="config_command", title="commands")
+    get = config_commands.add_parser(
+        "get",
+        help="print one setting",
+        description=(
+            "Print the value in use of one setting: tasks_dir as the full path "
+            "of the tasks directory, tasks_repo as its URL or full path (empty "
+            "if not set), columns, trash_columns and keybindings as JSON."
+        ),
+    )
+    get.add_argument(
+        "key", choices=SETTING_KEYS, metavar="KEY", help=", ".join(SETTING_KEYS)
+    )
+    get.set_defaults(handler=_config_get, parser=get, uses_tasks=False)
+    config_edit = config_commands.add_parser(
+        "edit",
+        help="open the config file in your editor",
+        description=(
+            "Open the config file in the editor it sets (vim or nano; vim if "
+            "it can't be read), even if it can't be used, and check it once "
+            "the editor exits."
+        ),
+    )
+    config_edit.set_defaults(
+        handler=_config_edit, parser=config_edit, loads_config=False, uses_tasks=False
+    )
+    return parser
+
+
+def _add_id_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "id", metavar="ID", help="the task's ID or a unique prefix of it"
+    )
+
+
+def _add(args: argparse.Namespace) -> int:
+    directory = args.directory
+    existing_ids = _load(directory).ids
+    try:
+        task = new_task(
+            args.title,
+            existing_ids=existing_ids,
+            priority=Priority(args.priority),
+            due=args.due,
+            repeat=args.repeat,
+            tags=args.tags,
+        )
+    except TaskValidationError as error:
+        args.parser.error(str(error))
+    try:
+        save_task(directory, task, None)
+        args.commit_message = _commit_message("add", task)
+    except ConflictError as error:
+        raise CommandError(f"can't save the task: {error}") from error
+    except OSError as error:
+        raise CommandError(
+            f"can't save the task in {directory}: {_reason(error)}"
+        ) from error
+    print(task.id)
+    return 0
+
+
+def _list(args: argparse.Namespace) -> int:
+    result = _load(args.directory)
+    for bad in result.bad_files:
+        print(f"tskmngr: warning: can't load {bad.path}: {bad.error}", file=sys.stderr)
+    if args.statuses:
+        # Each `-s` gave every status it starts.
+        statuses = [status for given in args.statuses for status in given]
+    else:
+        statuses = [] if args.all else list(OPEN_STATUSES)
+    tasks = filter_tasks(
+        [source.task for source in result.tasks],
+        statuses=statuses,
+        priorities=[priority for given in args.priorities for priority in given],
+        tags=args.tags,
+        text=" ".join(args.words),
+    )
+    key, reverse = _list_sort(args.sort, args.reverse, args.config)
+    tasks = sort_tasks(tasks, key, reverse=reverse)
+    print("\n".join(format_table(tasks)) if tasks else "No tasks.")
+    return 0
+
+
+def _list_sort(sort: str | None, reverse: bool, config: Config) -> tuple[SortKey, bool]:
+    """The sort for `list`: `--sort`, else the config's; `--reverse` flips it.
+
+    The config's `reverse` belongs to its `sort`, so `--sort` drops it.
+    """
+    if sort is not None:
+        return SortKey(sort), reverse
+    return config.sort, config.reverse != reverse
+
+
+def _show(args: argparse.Namespace) -> int:
+    source = _find(args, _load(args.directory))
+    print("\n".join(format_details(source.task)))
+    return 0
+
+
+def _edit(args: argparse.Namespace) -> int:
+    changes: dict[str, object] = {}
+    if args.title is not None:
+        changes["title"] = args.title
+    if args.status is not None:
+        changes["status"] = Status(args.status)
+    if args.priority is not None:
+        changes["priority"] = Priority(args.priority)
+    if args.due is not None or args.no_due:
+        changes["due"] = args.due
+    if args.repeat is not None or args.no_repeat:
+        changes["repeat"] = args.repeat
+    tag_changes = args.tags or args.untags or args.clear_tags
+    if not changes and not tag_changes:
+        args.parser.error("nothing to change; give at least one option")
+    added = [tag.lower() for tag in args.tags]
+    both = sorted(set(added) & {tag.lower() for tag in args.untags})
+    if both:
+        args.parser.error(f"can't both add and remove tag {both[0]!r}")
+
+    directory = args.directory
+    result = _load(directory)
+    source = _find(args, result)
+    task = source.task
+    if changes.get("repeat", task.repeat) != task.repeat:
+        # The day of the month it kept belongs to the old rule.
+        changes["repeat_from"] = None
+    if tag_changes:
+        tags = [] if args.clear_tags else list(task.tags)
+        for tag in args.untags:
+            if tag.lower() not in tags:
+                raise CommandError(f"task {task.id} has no tag {tag.lower()!r}")
+            tags.remove(tag.lower())
+        # Adding a tag the task already has changes nothing, like `done` twice.
+        changes["tags"] = tags + [
+            tag for tag in dict.fromkeys(added) if tag not in tags
+        ]
+    try:
+        edited = replace(task, **changes)
+    except TaskValidationError as error:
+        args.parser.error(str(error))
+    args.commit_message = _commit_message("edit", edited)
+    _save_changed(directory, source, edited, result.ids)
+    return 0
+
+
+def _done(args: argparse.Namespace) -> int:
+    directory = args.directory
+    result = _load(directory)
+    source = _find(args, result)
+    edited = replace(source.task, status=Status.DONE)
+    args.commit_message = _commit_message("done", edited)
+    _save_changed(directory, source, edited, result.ids)
+    return 0
+
+
+def _delete(args: argparse.Namespace) -> int:
+    directory = args.directory
+    source = _find(args, _load(directory))
+    task = source.task
+    if not args.yes:
+        if not sys.stdin.isatty():
+            raise CommandError(
+                f"not deleting task {task.id} without confirmation; "
+                "stdin isn't a terminal, so pass --yes"
+            )
+        if not _confirm(f"Delete task {task.id} {task.title!r}? [y/N] "):
+            print("Not deleted.", file=sys.stderr)
+            return 1
+    try:
+        trashed = delete_task(directory, source)
+    except ConflictError as error:
+        raise CommandError(f"can't delete the task: {error}") from error
+    except OSError as error:
+        raise CommandError(
+            f"can't delete the task in {directory}: {_reason(error)}"
+        ) from error
+    args.commit_message = _commit_message("delete", task)
+    print(f"Moved {task.id} to {trashed}")
+    return 0
+
+
+def _sync(args: argparse.Namespace) -> int:
+    """Commit what's left over, pull, then push; any failure is an error."""
+    repo = args.config.tasks_repo
+    if repo is None:
+        raise CommandError(
+            f"tasks_repo isn't set in {args.config_path}; set it to a git "
+            "repository's URL or folder to sync the tasks"
+        )
+    try:
+        gitsync.commit_all(repo, SYNC_MESSAGE)
+        if not gitsync.has_upstream(repo):
+            print(
+                f"{repo.directory} has no upstream branch, so the changes are "
+                "only committed"
+            )
+            return 0
+        gitsync.pull(repo)
+        gitsync.push(repo)
+    except SyncError as error:
+        raise CommandError(f"not synced: {error}") from error
+    print(f"Synced {repo.directory} with {repo.location}")
+    return 0
+
+
+def _config_show(args: argparse.Namespace) -> int:
+    print("\n".join(format_config(args.config, args.config_path)))
+    return 0
+
+
+def _remote_url(value: str) -> str:
+    """A `remote init` URL; anything else is a usage error."""
+    if not gitsync.is_remote(value):
+        raise argparse.ArgumentTypeError(
+            f"{value!r} isn't a remote URL, like https://github.com/me/tasks.git "
+            "or git@github.com:me/tasks.git"
+        )
+    return value
+
+
+def _remote_init(args: argparse.Namespace) -> int:
+    """Set up an empty remote repository and make it the config's `tasks_repo`.
+
+    With `--sync`, clone a repository that's already a tasks repository
+    instead (`gitsync.join_remote`), committing nothing. Stops before
+    changing anything if `tasks_repo` is already another one, or if
+    `gitsync.init_remote` (or `join_remote`) can't set it up. A config that
+    already names this URL is left as it is.
+    """
+    location = args.url
+    current = args.config.tasks_repo
+    if current is not None and current.location != location:
+        raise CommandError(
+            f"tasks_repo is already {current.location} in {args.config_path}; "
+            "remote init doesn't replace it. Nothing was changed"
+        )
+    try:
+        if args.join:
+            repo = gitsync.join_remote(location)
+        else:
+            repo = gitsync.init_remote(location, gitsync.setup_files())
+    except RepoError as error:
+        raise CommandError(f"{error}. Nothing was changed") from error
+    if args.join:
+        print(f"Cloned {location} into {repo.directory}")
+    else:
+        print(f"Set up {location} and cloned it into {repo.directory}")
+    if current is None:
+        try:
+            set_tasks_repo(args.config_path, location)
+        except ConfigError as error:
+            raise CommandError(
+                f"config file {error}; set tasks_repo to {location} in it by hand"
+            ) from error
+        print(f"Set tasks_repo to it in {args.config_path}")
+    return 0
+
+
+def _config_get(args: argparse.Namespace) -> int:
+    print(setting_value(args.config, args.key))
+    return 0
+
+
+def _config_edit(args: argparse.Namespace) -> int:
+    """Open the config file in its editor, then check it like the TUI does.
+
+    The editor is the file's `editor`, or vim when that can't be read (see
+    `config.editor_setting`). The file is left as the editor saved it.
+    Returns 1 if the editor failed or the file can't be used, naming the
+    problem.
+    """
+    path = args.config_path
+    editor = editor_setting(path)
+    try:
+        status = run_editor(editor_command(editor), path)
+    except (EditorNotFound, FileNotFoundError) as error:
+        raise CommandError(not_found_hint(editor, path)) from error
+    except OSError as error:
+        raise CommandError(f"can't start {editor}: {_reason(error)}") from error
+    if status != 0:
+        print(
+            f"tskmngr: warning: {editor} exited with status {status}",
+            file=sys.stderr,
+        )
+    try:
+        # The TUI checks the theme and keybindings too.
+        TskmngrApp(config=load_config(path))
+    except ConfigError as error:
+        raise CommandError(f"config file {error}") from error
+    return 0 if status == 0 else 1
+
+
+def format_config(config: Config, path: Path) -> list[str]:
+    """The config file's path, then each setting in use, one per line.
+
+    A setting the file leaves out, or a `tasks_dir` or `tasks_repo` it sets to
+    null, is followed by where its value comes from:
+    `(default)`, or `(TSKMNGR_DIR)` for a tasks directory set by it. While
+    `tasks_repo` is set, the tasks directory is marked `(tasks_repo)`, and
+    `tasks_repo` says whether it's a remote URL, and where it's cloned, or a
+    local folder.
+    """
+    width = max(len(key) for key in SETTING_KEYS)
+    lines = [f"Config file: {path}", ""]
+    repo = config.tasks_repo
+    for key in SETTING_KEYS:
+        value = setting_value(config, key)
+        if key == "tasks_dir" and repo is not None:
+            value += " (tasks_repo)"
+        elif key == "tasks_repo" and repo is not None:
+            where = f"remote URL, cloned into {repo.directory}"
+            value += f" ({where})" if repo.remote else " (local folder)"
+        elif key not in config.keys:
+            from_env = key == "tasks_dir" and os.environ.get(ENV_VAR)
+            if key == "tasks_repo":
+                value = "not set"
+            value += " (TSKMNGR_DIR)" if from_env else " (default)"
+        lines.append(f"{key:<{width}}  {value}")
+    return lines
+
+
+def setting_value(config: Config, key: str) -> str:
+    """The value in use of the setting `key`, as `config get` prints it.
+
+    Text, numbers and booleans are plain, `tasks_dir` is the tasks directory
+    used, `tasks_repo` its URL or full path (empty if it isn't set), and
+    `columns`, `trash_columns` and `keybindings` are JSON on one line.
+    """
+    match key:
+        case "tasks_dir":
+            return str(tasks_directory(config))
+        case "tasks_repo":
+            return config.tasks_repo.location if config.tasks_repo else ""
+        case "sort":
+            return config.sort.value
+        case "reverse":
+            return json.dumps(config.reverse)
+        case "theme":
+            return config.theme or DEFAULT_THEME
+        case "editor":
+            return config.editor.value
+        case "poll_interval":
+            seconds = config.poll_interval
+            return str(int(seconds)) if seconds.is_integer() else str(seconds)
+        case "columns":
+            return json.dumps([column.value for column in config.columns])
+        case "trash_columns":
+            return json.dumps([column.value for column in config.trash_columns])
+        case "show_trash":
+            return json.dumps(config.show_trash)
+        case "keybindings":
+            return json.dumps(config.keybindings)
+    raise ValueError(f"unknown setting {key!r}")
+
+
+def _confirm(prompt: str) -> bool:
+    """Ask a yes/no question on stderr and read the answer from stdin.
+
+    Only `y` or `yes` (any case) is a yes; anything else, end of input or
+    Ctrl-C is a no.
+    """
+    print(prompt, end="", file=sys.stderr, flush=True)
+    try:
+        answer = sys.stdin.readline()
+    except KeyboardInterrupt:
+        answer = ""
+    if not answer.endswith("\n"):
+        # Move past the prompt line, which the user didn't end with Enter.
+        print(file=sys.stderr)
+    return answer.strip().lower() in ("y", "yes")
+
+
+def _find(args: argparse.Namespace, result: LoadResult) -> TaskFile:
+    """The task whose ID starts with `args.id`, among files that failed to load too.
+
+    A malformed file can be picked or make a prefix ambiguous, so its error is
+    reported instead of a misleading "no task".
+    """
+    bad_files = {bad.path.stem: bad for bad in result.bad_files}
+    ids = [source.task.id for source in result.tasks] + list(bad_files)
+    try:
+        task_id = match_id_prefix(ids, args.id)
+    except ValueError as error:
+        args.parser.error(str(error))
+    except LookupError as error:
+        raise CommandError(str(error)) from error
+    if task_id in bad_files:
+        bad = bad_files[task_id]
+        raise CommandError(f"can't load {bad.path}: {bad.error}")
+    return next(source for source in result.tasks if source.task.id == task_id)
+
+
+def _save_changed(
+    directory: Path, source: TaskFile, task: Task, existing_ids: Collection[str]
+) -> None:
+    """Save `task` with `updated` set to now, unless it's the same as `source`'s.
+
+    A repeating task that's marked done gets its next occurrence, whose ID and
+    due date are printed.
+    """
+    if task == source.task:
+        return
+    now = datetime.now(UTC).replace(microsecond=0)
+    following = None
+    if task.status is Status.DONE and source.task.status is not Status.DONE:
+        try:
+            task, following = complete(
+                task, existing_ids=existing_ids, now=now, today=date.today()
+            )
+        except RecurrenceError as error:
+            raise CommandError(f"can't add the next occurrence: {error}") from error
+    else:
+        task = replace(task, updated=now)
+    try:
+        save_completed(directory, task, source, following)
+    except ConflictError as error:
+        raise CommandError(f"can't save the task: {error}") from error
+    except OSError as error:
+        raise CommandError(
+            f"can't save the task in {directory}: {_reason(error)}"
+        ) from error
+    if following is not None:
+        print(format_next_occurrence(following))
+
+
+def format_details(task: Task) -> list[str]:
+    """Format every field of a task as `Label: value` lines, then its notes.
+
+    Missing values are shown as `-`. The notes follow after a blank line, as
+    written in the file.
+    """
+    fields = task_fields(task)
+    width = max(len(label) for label, _ in fields) + 1
+    lines = [f"{label + ':':<{width}}  {value}" for label, value in fields]
+    notes = task.notes.rstrip("\r\n")
+    return [*lines, "", notes] if notes else lines
+
+
+def format_table(tasks: Sequence[Task]) -> list[str]:
+    """Format tasks as lines of aligned columns under a header line.
+
+    The title comes last and isn't padded; tags follow it as `#tag`.
+    """
+    header = ("ID", "STATUS", "PRIORITY", "DUE", "TITLE")
+    rows = [
+        (
+            task.id,
+            task.status.value,
+            task.priority.value,
+            task.due.isoformat() if task.due else "",
+            " ".join([task.title, *(f"#{tag}" for tag in task.tags)]),
+        )
+        for task in tasks
+    ]
+    widths = [max(len(row[i]) for row in [header, *rows]) for i in range(4)]
+    return [
+        "  ".join([*map(str.ljust, row[:4], widths), row[4]]) for row in [header, *rows]
+    ]
+
+
+def _load(directory: Path) -> LoadResult:
+    try:
+        return load_tasks(directory)
+    except OSError as error:
+        raise CommandError(
+            f"can't read the tasks in {directory}: {_reason(error)}"
+        ) from error
+
+
+def _reason(error: OSError) -> str:
+    return error.strerror or str(error)
+
+
+def _prefix_of[E: (Status, Priority)](
+    enum: type[E], name: str
+) -> Callable[[str], list[E]]:
+    """An argparse type for `enum`: the members a value starts, ignoring case."""
+
+    def parse(value: str) -> list[E]:
+        matches = values_starting_with(enum, value)
+        if not matches:
+            choices = ", ".join(member.value for member in enum)
+            raise argparse.ArgumentTypeError(
+                f"no {name} starts with {value!r} (choose from {choices})"
+            )
+        return matches
+
+    return parse
+
+
+def _choices_metavar(enum: type[StrEnum]) -> str:
+    """The choices as argparse shows them, like `{todo,doing,done}`."""
+    return "{" + ",".join(member.value for member in enum) + "}"
+
+
+def _repeat_rule(value: str) -> Repeat:
+    """Parse a repeat rule like `weekly` or `every 2 weeks`, for argparse."""
+    try:
+        return parse_repeat(value)
+    except TaskValidationError as error:
+        raise argparse.ArgumentTypeError(error.message) from None
+
+
+def _due_date(value: str) -> date:
+    """Parse a due date given as YYYY-MM-DD, for argparse."""
+    try:
+        return parse_due(value)
+    except TaskValidationError as error:
+        raise argparse.ArgumentTypeError(error.message) from None

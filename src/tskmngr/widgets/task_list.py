@@ -1,0 +1,631 @@
+"""The task list screen: every task in a table, soonest due first by default.
+
+Task files that can't be loaded are named in a warning panel above the table,
+so they're never hidden. The tasks directory is shown in the header. Enter
+opens the task under the cursor in the detail screen, `n` creates a task and
+`e` edits the one under the cursor. `s` moves the task under the cursor to the
+next status (todo → doing → done → todo) and saves it right away; a repeating
+task that becomes done gets its next occurrence (see `tskmngr.recurrence`); `d` asks
+whether to delete it and moves its file to `.trash/`; `o` opens its file in
+the editor (the config's `editor`). The list is reloaded from disk after each
+of these, and a save or delete that hits a conflict is shown instead of overwriting the file.
+It's also reloaded when the app notices task files changed on disk, keeping the
+cursor on the same task.
+
+`/` opens a filter bar above the table that narrows the list as you type (see
+`query.parse_filter`): words are searched in titles and notes, `#tag` needs a
+tag, `status:` and `priority:` restrict to a value. While a `#tag`, status
+or priority is typed, the rest of the first match is suggested (see
+`query.suggest_filter`), with the tags of every loaded task, and → accepts it.
+Enter goes back to the table and keeps the filter; Escape clears it.
+
+`t` shows or hides the deleted tasks view below the table (see
+`tskmngr.widgets.trash_view`), which takes the bottom quarter of the screen; it
+starts shown, and is reloaded with the list.
+
+`S` sorts by the next key (due → priority → status → created → updated →
+due), each in its default direction (see `query.sort_tasks`), and `R` reverses
+the order. The header of the sorted column gets ▲ when the smallest value is
+at the top (earliest date, lowest priority, doing for status, whose order is
+doing → todo → done) and ▼ when it's at the bottom.
+
+The config file's `columns` sets which columns are shown, in which order (see
+`shown_columns`). By default created and updated have a column only while the
+list is sorted by them.
+"""
+
+from collections.abc import Callable, Iterable, Sequence
+from dataclasses import replace
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import ClassVar
+
+# Cells and the warning are built as `Text` so a title like "[b]old" is shown
+# as written instead of read as markup.
+from rich.text import Text
+from textual.app import ComposeResult
+from textual.binding import Binding, BindingType
+from textual.screen import Screen
+from textual.suggester import Suggester
+from textual.widgets import DataTable, Footer, Header, Input, Static
+
+from tskmngr.display import (
+    DEFAULT_COLUMNS,
+    DEFAULT_TRASH_COLUMNS,
+    Column,
+    TrashColumn,
+    task_cell,
+)
+from tskmngr.models import Status, Task, next_status
+from tskmngr.query import (
+    SortKey,
+    TaskFilter,
+    parse_filter,
+    sort_tasks,
+    suggest_filter,
+)
+from tskmngr.recurrence import RecurrenceError
+from tskmngr.storage import (
+    BadFile,
+    ConflictError,
+    delete_task,
+    load_tasks,
+    task_path,
+)
+from tskmngr.taskfile import TaskFile
+from tskmngr.widgets.confirm_delete import ConfirmDeleteScreen
+from tskmngr.widgets.external_editor import edit_in_editor
+from tskmngr.widgets.saving import notify_next, save_task_and_next
+from tskmngr.widgets.syncing import Syncer, record_change
+from tskmngr.widgets.task_detail import TaskDetailScreen
+from tskmngr.widgets.task_form import TaskFormScreen
+from tskmngr.widgets.tasks_changed import TasksChanged
+from tskmngr.widgets.trash_view import TrashView
+
+# The order `S` steps through.
+SORT_KEYS = (
+    SortKey.DUE,
+    SortKey.PRIORITY,
+    SortKey.STATUS,
+    SortKey.CREATED,
+    SortKey.UPDATED,
+)
+
+# The header of each column.
+COLUMN_LABELS = {
+    Column.ID: "ID",
+    Column.STATUS: "Status",
+    Column.PRIORITY: "Priority",
+    Column.DUE: "Due",
+    Column.CREATED: "Created",
+    Column.UPDATED: "Updated",
+    Column.TITLE: "Title",
+    Column.TAGS: "Tags",
+}
+
+# The column of each sort key.
+SORT_COLUMNS = {
+    SortKey.DUE: Column.DUE,
+    SortKey.PRIORITY: Column.PRIORITY,
+    SortKey.STATUS: Column.STATUS,
+    SortKey.CREATED: Column.CREATED,
+    SortKey.UPDATED: Column.UPDATED,
+}
+
+# Their column is shown while sorting by them, even if `columns` leaves it out.
+TIME_SORT_KEYS = (SortKey.CREATED, SortKey.UPDATED)
+
+
+def shown_columns(
+    sort_key: SortKey, columns: Sequence[Column] = DEFAULT_COLUMNS
+) -> tuple[Column, ...]:
+    """The columns shown: `columns`, the config file's, in their order.
+
+    Sorting by created or updated also shows that column if `columns` leaves
+    it out, last, at the far right. Other hidden columns stay hidden while the
+    list is sorted by them.
+    """
+    shown = list(columns)
+    sorted_column = SORT_COLUMNS[sort_key]
+    if sort_key in TIME_SORT_KEYS and sorted_column not in shown:
+        shown.append(sorted_column)
+    return tuple(shown)
+
+
+def column_labels(
+    sort_key: SortKey, reverse: bool, columns: Sequence[Column] = DEFAULT_COLUMNS
+) -> tuple[str, ...]:
+    """The headers of `shown_columns`, with ▲ or ▼ on the sorted one.
+
+    ▲ means the smallest value is at the top: the earliest date, the lowest
+    priority, or doing first for status (doing → todo → done, its default
+    order). A hidden sorted column means no arrow.
+    """
+    # Priority sorts highest first by default, the others smallest first.
+    descending = (sort_key is SortKey.PRIORITY) != reverse
+    arrow = "▼" if descending else "▲"
+    sorted_column = SORT_COLUMNS[sort_key]
+    return tuple(
+        f"{COLUMN_LABELS[column]} {arrow}"
+        if column is sorted_column
+        else COLUMN_LABELS[column]
+        for column in shown_columns(sort_key, columns)
+    )
+
+
+def task_row(
+    task: Task,
+    sort_key: SortKey = SortKey.DUE,
+    columns: Sequence[Column] = DEFAULT_COLUMNS,
+) -> tuple[Text, ...]:
+    """The table cells for a task, matching `column_labels`.
+
+    The title is followed by `↻` if the task repeats, and its subtasks done
+    and total, like `[1/3]`, if it has any. Tags have their own column, as
+    `a, b`; without one, they follow the title as `#tag`.
+    """
+    shown = shown_columns(sort_key, columns)
+    tags_in_title = Column.TAGS not in shown
+    return tuple(
+        Text(task_cell(task, column, tags_in_title=tags_in_title)) for column in shown
+    )
+
+
+def bad_files_warning(directory: Path, bad_files: Sequence[BadFile]) -> Text:
+    """A warning naming each task file that couldn't be loaded, and why.
+
+    Files are named relative to `directory`, which the header already shows;
+    a file outside it keeps its full path.
+    """
+    count = len(bad_files)
+    noun = "task file" if count == 1 else "task files"
+    lines = [f"{count} {noun} couldn't be loaded:"]
+    lines += [
+        f"  {_display_path(directory, bad.path)}: {bad.error}" for bad in bad_files
+    ]
+    return Text("\n".join(lines))
+
+
+def _display_path(directory: Path, path: Path) -> Path:
+    return path.relative_to(directory) if path.is_relative_to(directory) else path
+
+
+class FilterSuggester(Suggester):
+    """Completes the `#tag`, status or priority being typed in the filter bar."""
+
+    def __init__(self, tags: Callable[[], Iterable[str]]) -> None:
+        # Case-sensitive so the text as typed is kept; `suggest_filter` ignores
+        # case itself. No cache: the tags change when the list is reloaded.
+        super().__init__(use_cache=False, case_sensitive=True)
+        self.tags = tags
+
+    async def get_suggestion(self, value: str) -> str | None:
+        return suggest_filter(value, self.tags())
+
+
+class TaskListScreen(Screen):
+    """All tasks in `directory`, done ones included, soonest due first.
+
+    `sort_key` and `reverse` set the starting sort (the config file's). It can
+    be changed with `S` and `R`; that lasts until the app exits. `columns` are
+    the table's columns, in order (see `shown_columns`), and `trash_columns`
+    the deleted tasks view's. `show_trash` is whether that view starts shown;
+    `t` toggles it until the app exits.
+    """
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        # Priority, so Enter reaches the screen before the focused table.
+        Binding("enter", "open_task", "Open", id="task_list.open", priority=True),
+        Binding("n", "new_task", "New", id="task_list.new"),
+        Binding("e", "edit_task", "Edit", id="task_list.edit"),
+        Binding("s", "cycle_status", "Status", id="task_list.cycle_status"),
+        Binding("d", "delete_task", "Delete", id="task_list.delete"),
+        Binding("o", "external_editor", "Editor", id="task_list.external_editor"),
+        Binding("S", "cycle_sort", "Sort", id="task_list.sort"),
+        Binding("R", "reverse_sort", "Reverse", id="task_list.reverse_sort"),
+        Binding("slash", "filter", "Filter", id="task_list.filter"),
+        Binding("escape", "clear_filter", "Clear", id="task_list.clear_filter"),
+        Binding("t", "toggle_trash", "Deleted", id="task_list.toggle_trash"),
+        # Only shown while the config sets `tasks_repo`.
+        Binding("y", "sync", "Sync", id="task_list.sync"),
+    ]
+
+    # Not the first focusable widget, the filter bar, which starts hidden.
+    AUTO_FOCUS = "#task-table"
+
+    FILTER_PLACEHOLDER = "Filter: words, #tag, status:todo, priority:high"
+
+    DEFAULT_CSS = """
+    TaskListScreen #load-warning {
+        display: none;
+        border: round $warning;
+        color: $text-warning;
+        padding: 0 1;
+        max-height: 50%;
+        overflow-y: auto;
+    }
+    TaskListScreen #load-warning.-shown {
+        display: block;
+    }
+    TaskListScreen #filter-input {
+        display: none;
+    }
+    TaskListScreen #filter-input.-shown {
+        display: block;
+    }
+    TaskListScreen #filter-input.-invalid {
+        border: tall $error;
+    }
+    TaskListScreen #filter-error {
+        display: none;
+        color: $text-error;
+        padding: 0 1;
+    }
+    TaskListScreen #filter-error.-shown {
+        display: block;
+    }
+    TaskListScreen #task-table {
+        height: 1fr;
+    }
+    TaskListScreen #no-tasks {
+        display: none;
+        padding: 1 2;
+        color: $text-muted;
+    }
+    TaskListScreen #no-tasks.-shown {
+        display: block;
+    }
+    TaskListScreen #trash-view {
+        /* A quarter of the screen's height, header and footer included. */
+        height: 25vh;
+    }
+    TaskListScreen #trash-view.-hidden {
+        display: none;
+    }
+    """
+
+    def __init__(
+        self,
+        directory: Path,
+        *,
+        sort_key: SortKey = SortKey.DUE,
+        reverse: bool = False,
+        columns: Sequence[Column] = DEFAULT_COLUMNS,
+        trash_columns: Sequence[TrashColumn] = DEFAULT_TRASH_COLUMNS,
+        show_trash: bool = True,
+    ) -> None:
+        super().__init__()
+        self.directory = directory
+        # The files shown, in table order; edits are saved through them.
+        self.tasks: list[TaskFile] = []
+        # Every loaded file, sorted, before the filter is applied.
+        self.loaded: list[TaskFile] = []
+        self.bad_files: list[BadFile] = []
+        # The filter in the bar, leaving out words with an error.
+        self.task_filter = TaskFilter()
+        self.sort_key = sort_key
+        self.sort_reverse = reverse
+        self.columns = tuple(columns)
+        self.trash_columns = tuple(trash_columns)
+        self.show_trash = show_trash
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static(id="load-warning")
+        # Not select_on_focus: `/` goes back to the filter to add to it.
+        yield Input(
+            placeholder=self.FILTER_PLACEHOLDER,
+            select_on_focus=False,
+            suggester=FilterSuggester(self._loaded_tags),
+            id="filter-input",
+        )
+        yield Static(id="filter-error")
+        table: DataTable[Text] = DataTable(id="task-table", cursor_type="row")
+        table.add_columns(*self._column_labels())
+        yield table
+        yield Static(Text("No tasks."), id="no-tasks")
+        trash = TrashView(self.directory, columns=self.trash_columns, id="trash-view")
+        trash.set_class(not self.show_trash, "-hidden")
+        yield trash
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.sub_title = str(self.directory)
+        self.load()
+
+    def _loaded_tags(self) -> set[str]:
+        """The tags of every loaded task, for the filter bar to suggest."""
+        return {tag for source in self.loaded for tag in source.task.tags}
+
+    def load(self) -> None:
+        """(Re)load the tasks, and the deleted ones, from disk and show them."""
+        if self.is_mounted:
+            # On mount the view loads itself.
+            self.query_one(TrashView).load()
+        warning = self.query_one("#load-warning", Static)
+        try:
+            result = load_tasks(self.directory)
+        except OSError as error:
+            self.loaded, self.bad_files = [], []
+            reason = error.strerror or str(error)
+            warning.update(Text(f"Can't read the tasks in {self.directory}: {reason}"))
+            warning.set_class(True, "-shown")
+            self._show_tasks()
+            return
+        self.loaded = sort_tasks(result.tasks, self.sort_key, reverse=self.sort_reverse)
+        self.bad_files = result.bad_files
+        if self.bad_files:
+            warning.update(bad_files_warning(self.directory, self.bad_files))
+        warning.set_class(bool(self.bad_files), "-shown")
+        self._show_tasks()
+
+    def _show_tasks(self) -> None:
+        """Show the loaded tasks that match the filter."""
+        self.tasks = self.task_filter.apply(self.loaded)
+        table = self.query_one("#task-table", DataTable)
+        labels = self._column_labels()
+        # Rebuilt only when the sort changes, so reloads keep the scroll position.
+        if [column.label.plain for column in table.columns.values()] != list(labels):
+            table.clear(columns=True)
+            table.add_columns(*labels)
+        table.clear()
+        for source in self.tasks:
+            table.add_row(
+                *task_row(source.task, self.sort_key, self.columns),
+                key=source.task.id,
+            )
+        no_tasks = self.query_one("#no-tasks", Static)
+        hidden = bool(self.loaded) and not self.tasks
+        no_tasks.update(Text("No tasks match the filter." if hidden else "No tasks."))
+        no_tasks.set_class(not self.tasks, "-shown")
+
+    def _column_labels(self) -> tuple[str, ...]:
+        return column_labels(self.sort_key, self.sort_reverse, self.columns)
+
+    def reload(self, task_id: str | None) -> None:
+        """Reload from disk, keeping the cursor on `task_id` if it's still shown.
+
+        If the task is gone or no longer matches the filter, the cursor stays
+        on the same row, so it lands on the task that took its place.
+        """
+        row = self.query_one("#task-table", DataTable).cursor_row
+        self.load()
+        if task_id is not None:
+            self._move_cursor(task_id, row)
+
+    def on_tasks_changed(self, message: TasksChanged) -> None:
+        """Task files changed on disk: reload, staying on the same task.
+
+        Done even under another screen, so the list is current when it's back.
+        """
+        current = self._current()
+        self.reload(current.task.id if current else None)
+
+    def _move_cursor(self, task_id: str | None, fallback_row: int) -> None:
+        table = self.query_one("#task-table", DataTable)
+        ids = [source.task.id for source in self.tasks]
+        if task_id in ids:
+            table.move_cursor(row=ids.index(task_id))
+        elif ids:
+            table.move_cursor(row=min(fallback_row, len(ids) - 1))
+
+    def action_filter(self) -> None:
+        """Show the filter bar and focus it."""
+        bar = self.query_one("#filter-input", Input)
+        bar.add_class("-shown")
+        bar.cursor_position = len(bar.value)
+        bar.focus()
+        self.refresh_bindings()
+
+    def action_clear_filter(self) -> None:
+        """Clear the filter, hide the bar and go back to the table."""
+        bar = self.query_one("#filter-input", Input)
+        bar.value = ""
+        self._apply_filter("")
+        bar.remove_class("-shown")
+        self.query_one("#task-table", DataTable).focus()
+        self.refresh_bindings()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "filter-input":
+            event.stop()
+            self._apply_filter(event.value)
+
+    def _apply_filter(self, text: str) -> None:
+        """Filter by `text`; words that can't be parsed are named and left out."""
+        task_filter, errors = parse_filter(text)
+        self.query_one("#filter-input", Input).set_class(bool(errors), "-invalid")
+        error = self.query_one("#filter-error", Static)
+        error.update(Text("\n".join(errors)))
+        error.set_class(bool(errors), "-shown")
+        if task_filter == self.task_filter:
+            return
+        current = self._current()
+        self.task_filter = task_filter
+        self._show_tasks()
+        # Stay on the task under the cursor if it still matches, else the top.
+        self._move_cursor(current.task.id if current else None, 0)
+
+    def action_toggle_trash(self) -> None:
+        """Show or hide the deleted tasks view."""
+        self.show_trash = not self.show_trash
+        self.query_one(TrashView).set_class(not self.show_trash, "-hidden")
+
+    def action_cycle_sort(self) -> None:
+        """Sort by the next key in `SORT_KEYS`, in its default direction."""
+        index = SORT_KEYS.index(self.sort_key)
+        self._sort(SORT_KEYS[(index + 1) % len(SORT_KEYS)], reverse=False)
+
+    def action_reverse_sort(self) -> None:
+        """Reverse the sort order; tasks without a due date stay last."""
+        self._sort(self.sort_key, reverse=not self.sort_reverse)
+
+    def _sort(self, key: SortKey, *, reverse: bool) -> None:
+        """Sort the list by `key`, keeping the cursor on the same task."""
+        current = self._current()
+        self.sort_key, self.sort_reverse = key, reverse
+        self.loaded = sort_tasks(self.loaded, key, reverse=reverse)
+        self._show_tasks()
+        self._move_cursor(current.task.id if current else None, 0)
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool:
+        if action == "clear_filter":
+            # Hidden from the footer, and Escape does nothing, without a bar.
+            return self.query_one("#filter-input").has_class("-shown")
+        if action == "sync":
+            # Hidden while there's no `tasks_repo` to sync with.
+            return isinstance(getattr(self.app, "syncer", None), Syncer)
+        return True
+
+    def _current(self) -> TaskFile | None:
+        """The task under the cursor, if there are any tasks."""
+        if not self.tasks:
+            return None
+        return self.tasks[self.query_one("#task-table", DataTable).cursor_row]
+
+    def action_open_task(self) -> None:
+        """Show the task under the cursor in the detail screen.
+
+        In the filter bar, Enter instead goes back to the table, keeping the
+        filter; a blank bar is hidden.
+        """
+        bar = self.query_one("#filter-input", Input)
+        if self.focused is bar:
+            if not bar.value.strip():
+                self.action_clear_filter()
+            else:
+                self.query_one("#task-table", DataTable).focus()
+            return
+        source = self._current()
+        if source is None:
+            return
+        task_id = source.task.id
+        self.app.push_screen(
+            TaskDetailScreen(self.directory, source),
+            # It may have been edited from there.
+            lambda _: self.reload(task_id),
+        )
+
+    def action_new_task(self) -> None:
+        self.app.push_screen(TaskFormScreen(self.directory), self._form_closed)
+
+    def action_edit_task(self) -> None:
+        """Edit the task under the cursor in the form."""
+        source = self._current()
+        if source is None:
+            return
+        self.app.push_screen(TaskFormScreen(self.directory, source), self._form_closed)
+
+    def _form_closed(self, task_id: str | None) -> None:
+        # None means cancelled: nothing was saved, so there's nothing to reload.
+        if task_id is None:
+            return
+        self.reload(task_id)
+        loaded = any(source.task.id == task_id for source in self.loaded)
+        if loaded and all(source.task.id != task_id for source in self.tasks):
+            self.notify(
+                f"Saved {task_id}, but the filter hides it. Press Escape to clear "
+                "the filter.",
+                title="Hidden by the filter",
+                markup=False,
+            )
+
+    def action_cycle_status(self) -> None:
+        """Save the task under the cursor with the next status."""
+        source = self._current()
+        if source is None:
+            return
+        task = replace(
+            source.task,
+            status=next_status(source.task.status),
+            updated=datetime.now(UTC).replace(microsecond=0),
+        )
+        try:
+            following = save_task_and_next(self.directory, task, source)
+        except ConflictError as error:
+            self._notify_error(
+                f"{error.path.name} {error.reason}. It was reloaded from disk; "
+                "the status wasn't changed.",
+                "Not saved",
+            )
+        except RecurrenceError as error:
+            self._notify_error(
+                f"Can't add the next occurrence: {error}. The status wasn't changed.",
+                "Not saved",
+            )
+        except OSError as error:
+            self._notify_error(
+                f"Can't save the task in {self.directory}: {error.strerror or error}",
+                "Not saved",
+            )
+        else:
+            command = "done" if task.status is Status.DONE else "edit"
+            record_change(self, command, task.id, task.title)
+            notify_next(self, following)
+        self.reload(task.id)
+
+    def action_delete_task(self) -> None:
+        """Ask whether to delete the task under the cursor, then delete it."""
+        source = self._current()
+        if source is None:
+            return
+        self.app.push_screen(
+            ConfirmDeleteScreen(source.task),
+            lambda yes: self._delete(source) if yes else None,
+        )
+
+    def _delete(self, source: TaskFile) -> None:
+        task_id = source.task.id
+        # Where the cursor goes afterwards: the next task, or else the previous.
+        ids = [s.task.id for s in self.tasks]
+        row = ids.index(task_id) if task_id in ids else 0
+        neighbours = ids[row + 1 :] + ids[:row][::-1]
+        try:
+            trashed = delete_task(self.directory, source)
+        except ConflictError as error:
+            self._notify_error(
+                f"{error.path.name} {error.reason}. It was reloaded from disk; "
+                "nothing was deleted.",
+                "Not deleted",
+            )
+            self.reload(task_id)
+            return
+        except OSError as error:
+            self._notify_error(
+                f"Can't delete the task in {self.directory}: {error.strerror or error}",
+                "Not deleted",
+            )
+            self.reload(task_id)
+            return
+        record_change(self, "delete", task_id, source.task.title)
+        self.notify(
+            f"Moved {task_id} to {_display_path(self.directory, trashed)}",
+            title="Deleted",
+            markup=False,
+        )
+        self.reload(neighbours[0] if neighbours else None)
+
+    def action_external_editor(self) -> None:
+        """Open the file of the task under the cursor in the user's editor."""
+        source = self._current()
+        if source is None:
+            return
+        task_id = source.task.id
+        edit_in_editor(self.app, task_path(self.directory, task_id))
+        self.reload(task_id)
+        edited = next((s for s in self.loaded if s.task.id == task_id), None)
+        record_change(self, "edit", task_id, edited.task.title if edited else None)
+
+    def action_sync(self) -> None:
+        """Sync the tasks with `tasks_repo` now: commit, pull, then push."""
+        syncer = getattr(self.app, "syncer", None)
+        if isinstance(syncer, Syncer):
+            syncer.sync(manual=True)
+
+    def _notify_error(self, message: str, title: str) -> None:
+        self.notify(message, title=title, severity="error", markup=False)
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        # Clicking a row selects it; Enter is handled by the binding.
+        event.stop()
+        self.action_open_task()
