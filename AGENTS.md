@@ -11,6 +11,26 @@ outside the app.
 The development plan, what's done and what comes next, lives in
 [`ROADMAP.md`](ROADMAP.md). Read it before starting any work.
 
+## Status
+
+Usable, but not released yet. [`ROADMAP.md`](ROADMAP.md) has the full plan;
+in short:
+
+- **Core** (done): task model, Markdown file format, storage, filtering,
+  search and sorting
+- **Command-line interface** (done): add, list, show, edit, complete and
+  delete tasks from the shell
+- **TUI** (done): the full app, with a task list, detail view, forms, a notes
+  editor, editing in vim or nano, filtering and sorting
+- **External edits and configuration** (done): the TUI picks up changes
+  made to the files while it runs, and a config file sets the tasks
+  directory, the default sort, the theme, how often the TUI checks the files
+  and the TUI's keys
+- **Next**: subtasks and recurring tasks
+
+The core, the command-line interface and the TUI together make the first
+usable release. [`CHANGELOG.md`](CHANGELOG.md) lists what has changed so far.
+
 ## General working etiquette
 
 - **Never make things up.** Don't invent data, file contents, API names,
@@ -105,6 +125,8 @@ tests/          # mirrors src/ layout; test_<module>.py
 scripts/
   release_notes.py  # the release workflow's tag, version and changelog
                 #   checks; not part of the package
+  release_content.py  # the release workflow's check that a release leaves
+                #   out the working files; not part of the package
 docs/
   finished_roadmap.md  # the finished roadmap steps; see `ROADMAP.md`
 ```
@@ -384,6 +406,17 @@ it worked.
   builds the wheel and sdist with `uv build` and creates a GitHub Release
   with them attached and that section as its notes. Only the maintainer
   pushes release tags.
+- A release leaves out the project's working files: `AGENTS.md`,
+  `ROADMAP.md`, `docs/finished_roadmap.md` and `.claude/`. `uv build` only
+  packs the package, the README, the license and `pyproject.toml`, and
+  `.gitattributes` leaves them out of `git archive`, and so of the release's
+  "Source code" archives, with `export-ignore`. Before creating the release,
+  `release.yml` checks the wheel, the sdist and a `git archive` of the tag
+  with `scripts/release_content.py` (its `LEFT_OUT`) and stops if one holds
+  them. `dev` and `main` always keep the README, `AGENTS.md`, `ROADMAP.md`
+  and the other working files; a new one that releases leave out goes in
+  `LEFT_OUT` and `.gitattributes`. The project's status is the "Status"
+  section above, not in the README, which ships with every release.
 
 ### Commit, push, open the pull request, then stop
 The same rules apply in local and cloud sessions.
