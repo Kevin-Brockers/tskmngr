@@ -24,7 +24,13 @@ from pathlib import Path, PurePosixPath
 
 # The project's working files, at the repository's root: a release leaves them
 # out. A name ending in `/` is a folder, with everything in it.
-LEFT_OUT = ("AGENTS.md", "ROADMAP.md", "docs/finished_roadmap.md", ".claude/")
+LEFT_OUT = (
+    "AGENTS.md",
+    "ROADMAP.md",
+    "docs/finished_roadmap.md",
+    "RELEASING.md",
+    ".claude/",
+)
 
 
 def archive_names(path: Path) -> list[str]:

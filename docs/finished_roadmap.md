@@ -469,3 +469,18 @@ Release to install it from.
   attached and that section as its notes, using the `gh` CLI on the runner
   (uv through `astral-sh/setup-uv`, as in CI) · `chore/release_workflow` ·
   depends on M14.1 · [#81](https://github.com/Kevin-Brockers/tskmngr/pull/81)
+- [x] **M14.3** Prepare 0.1.0, as agreed in M10.6: version `0.1.0` in
+  `pyproject.toml` and `uv.lock`; the changelog's `[Unreleased]` renamed to
+  `[0.1.0] - <planned date>` with a new empty `[Unreleased]` above it; the
+  README's status and installation updated (install with `uv tool install`
+  from the release's tag); a `RELEASING.md` with the steps (this pull
+  request into `dev`, no other merges into `dev` until the tag, the
+  maintainer's `dev` → `main` pull request, merge, tag `v0.1.0` on `main`,
+  push the tag, then a pull request into `dev` that sets `0.2.0.dev0`),
+  listed in `AGENTS.md`'s project layout; the README and `RELEASING.md`
+  changes get an entry in the `[0.1.0]` section · `chore/release_0_1_0` ·
+  depends on M13.1, M14.2, M10.6, M15.1, M15.2, M16.1, M17.1, M17.2, M17.3,
+  M17.4 · [#101](https://github.com/Kevin-Brockers/tskmngr/pull/101). As agreed with the
+  maintainer while building it: the status is updated in `AGENTS.md`, where
+  M17.4 moved it, instead of in the README, and releases leave out
+  `RELEASING.md` like the other working files

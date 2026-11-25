@@ -41,6 +41,7 @@ def make_wheel(path: Path, names: list[str]) -> Path:
         "AGENTS.md",
         "ROADMAP.md",
         "docs/finished_roadmap.md",
+        "RELEASING.md",
         ".claude",
         ".claude/settings.json",
         ".claude/skills/init-work/SKILL.md",
