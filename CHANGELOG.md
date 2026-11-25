@@ -275,7 +275,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
 - [#99](https://github.com/Kevin-Brockers/tskmngr/pull/99) - `docs/finished_roadmap.md` holds the finished roadmap steps, and
   `ROADMAP.md` only the open ones; the pull request that implements a step
   now moves it there (part of #95)
-- #TBD - Releases leave out the project's working files (`AGENTS.md`,
+- [#100](https://github.com/Kevin-Brockers/tskmngr/pull/100) - Releases leave out the project's working files (`AGENTS.md`,
   `ROADMAP.md`, `docs/finished_roadmap.md`, `.claude/`): `.gitattributes`
   keeps them out of the source archives, and the release workflow stops if
   the wheel, the sdist or a `git archive` of the tag holds one (#95)
@@ -370,7 +370,7 @@ its commit for changes that reached `dev` or `main` without a pull request.
   `tasks_dir` and `tasks_repo` as `null`, which now means not set, and
   `keybindings` with every TUI binding and its default key; existing config
   files aren't changed (#94)
-- #TBD - The project's status moved from the README to `AGENTS.md`, so
+- [#100](https://github.com/Kevin-Brockers/tskmngr/pull/100) - The project's status moved from the README to `AGENTS.md`, so
   releases don't ship it; the README links to `AGENTS.md` on `dev` (#95)
 
 ### Removed

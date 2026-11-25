@@ -439,7 +439,7 @@ the step IDs keep their numbers.
   all of these files. Document what a release leaves out in `release.yml`,
   the README and `AGENTS.md` (the release workflow, and that `dev` always
   has the README, `AGENTS.md` and `ROADMAP.md`) · `chore/release_excludes` ·
-  depends on M17.3 · closes #95 · #TBD. As agreed with the maintainer
+  depends on M17.3 · closes #95 · [#100](https://github.com/Kevin-Brockers/tskmngr/pull/100). As agreed with the maintainer
   while building it: the Status section moved from the README to
   `AGENTS.md` instead of being cut by the workflow (GitHub makes the source
   archives itself, so a cut couldn't reach them); `uv build` already left
