@@ -10,8 +10,8 @@ name: Release
 # the `gh` CLI on the runner.
 #
 # A release leaves out the project's working files, which `dev` and `main`
-# always keep: `AGENTS.md`, `ROADMAP.md`, `docs/finished_roadmap.md` and
-# `.claude/`. `uv build` only packs the package, the README, the license and
+# always keep: `AGENTS.md`, `ROADMAP.md`, `docs/finished_roadmap.md`,
+# `RELEASING.md` and `.claude/`. `uv build` only packs the package, the README, the license and
 # `pyproject.toml`, and `.gitattributes` leaves them out of the "Source code"
 # archives GitHub makes from the tag. The release stops, before creating
 # anything, if the wheel, the sdist or a `git archive` of the tag holds one

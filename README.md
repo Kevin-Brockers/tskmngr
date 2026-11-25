@@ -11,25 +11,29 @@ plain Markdown files, so they stay readable and editable outside the app.
 
 ## Installation
 
-There's no release yet; the code lives on the `dev` branch. You need
-[uv](https://docs.astral.sh/uv/), which also fetches Python 3.12 or newer if
-you don't have it.
+You need [uv](https://docs.astral.sh/uv/), which also fetches Python 3.12 or
+newer if you don't have it. The
+[releases](https://github.com/Kevin-Brockers/tskmngr/releases) list each
+version and what changed in it.
 
-To install the `tskmngr` command:
+To install the `tskmngr` command from the latest release, 0.1.0:
 
 ```bash
-uv tool install git+https://github.com/Kevin-Brockers/tskmngr@dev
+uv tool install git+https://github.com/Kevin-Brockers/tskmngr@v0.1.0
 tskmngr           # opens the TUI; quit with Ctrl+Q
 ```
 
 Or run it from a clone of the repository:
 
 ```bash
-git clone --branch dev https://github.com/Kevin-Brockers/tskmngr
+git clone --branch v0.1.0 https://github.com/Kevin-Brockers/tskmngr
 cd tskmngr
 uv sync
 uv run tskmngr
 ```
+
+The work towards the next release is on the `dev` branch; use `@dev` or
+`--branch dev` instead of the tag to try it.
 
 ## Command-line usage
 
@@ -732,8 +736,11 @@ tag matches the version in `pyproject.toml` and that `CHANGELOG.md` has a
 section with entries for that version, and stops if not. It then lints and
 tests that commit, builds the wheel and sdist with `uv build` and creates a
 GitHub Release with them attached and the changelog section as its notes.
+[`RELEASING.md`](https://github.com/Kevin-Brockers/tskmngr/blob/dev/RELEASING.md)
+on `dev` lists the steps of a release.
 A release leaves out the project's working files, which `dev` and `main`
-keep: `AGENTS.md`, `ROADMAP.md`, `docs/finished_roadmap.md` and `.claude/`.
+keep: `AGENTS.md`, `ROADMAP.md`, `docs/finished_roadmap.md`, `RELEASING.md`
+and `.claude/`.
 They aren't in the wheel or the sdist, and `.gitattributes` leaves them out
 of the release's source archives; the workflow stops if one of them is
 there.

@@ -13,23 +13,29 @@ The development plan, what's done and what comes next, lives in
 
 ## Status
 
-Usable, but not released yet. [`ROADMAP.md`](ROADMAP.md) has the full plan;
-in short:
+Version 0.1.0 is the first release, made from `main` with a GitHub Release
+(see [`RELEASING.md`](RELEASING.md)). [`ROADMAP.md`](ROADMAP.md) lists the
+open steps and [`docs/finished_roadmap.md`](docs/finished_roadmap.md) the
+finished ones; in short, all done:
 
-- **Core** (done): task model, Markdown file format, storage, filtering,
-  search and sorting
-- **Command-line interface** (done): add, list, show, edit, complete and
-  delete tasks from the shell
-- **TUI** (done): the full app, with a task list, detail view, forms, a notes
-  editor, editing in vim or nano, filtering and sorting
-- **External edits and configuration** (done): the TUI picks up changes
-  made to the files while it runs, and a config file sets the tasks
-  directory, the default sort, the theme, how often the TUI checks the files
-  and the TUI's keys
-- **Next**: subtasks and recurring tasks
+- **Core**: task model, Markdown file format, storage, filtering, search and
+  sorting
+- **Command-line interface**: add, list, show, edit, complete and delete
+  tasks from the shell, and view or edit the config file
+- **TUI**: the full app, with a task list, detail view, forms, a notes
+  editor, editing in vim or nano, filtering with suggestions, sorting, tag
+  suggestions and a deleted tasks view
+- **External edits and configuration**: the TUI picks up changes made to the
+  files while it runs, and `~/.tskmngr/config.json` sets the tasks
+  directory, the sort, the theme, the editor, the task list's columns and
+  the TUI's keys
+- **Subtasks and recurring tasks**: checklist items in the notes, and tasks
+  that repeat when they're done
+- **Synced tasks**: the tasks directory can be a git repository, synced on
+  every change, with `tskmngr remote init` to set one up
+- **Next**: no open steps; new ones come from planning sessions
 
-The core, the command-line interface and the TUI together make the first
-usable release. [`CHANGELOG.md`](CHANGELOG.md) lists what has changed so far.
+[`CHANGELOG.md`](CHANGELOG.md) lists what has changed in each release.
 
 ## General working etiquette
 
@@ -129,6 +135,8 @@ scripts/
                 #   out the working files; not part of the package
 docs/
   finished_roadmap.md  # the finished roadmap steps; see `ROADMAP.md`
+RELEASING.md    # the steps of a release, from the pull request into `dev`
+                #   to the tag
 ```
 
 Keep the layers separate: `models`, `taskfile`, `storage`, `query`,
@@ -407,7 +415,7 @@ it worked.
   with them attached and that section as its notes. Only the maintainer
   pushes release tags.
 - A release leaves out the project's working files: `AGENTS.md`,
-  `ROADMAP.md`, `docs/finished_roadmap.md` and `.claude/`. `uv build` only
+  `ROADMAP.md`, `docs/finished_roadmap.md`, `RELEASING.md` and `.claude/`. `uv build` only
   packs the package, the README, the license and `pyproject.toml`, and
   `.gitattributes` leaves them out of `git archive`, and so of the release's
   "Source code" archives, with `export-ignore`. Before creating the release,

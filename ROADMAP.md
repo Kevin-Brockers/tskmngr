@@ -62,21 +62,3 @@ A finished step keeps its line, gets the PR link appended, in the same
   (`M1.2a`, `M1.2b`, …) after agreeing with the maintainer.
 
 ## Milestones
-
-### M14 · First release
-
-Goal: tskmngr 0.1.0 is released from `main`, checked by CI, with a GitHub
-Release to install it from.
-
-- [ ] **M14.3** Prepare 0.1.0, as agreed in M10.6: version `0.1.0` in
-  `pyproject.toml` and `uv.lock`; the changelog's `[Unreleased]` renamed to
-  `[0.1.0] - <planned date>` with a new empty `[Unreleased]` above it; the
-  README's status and installation updated (install with `uv tool install`
-  from the release's tag); a `RELEASING.md` with the steps (this pull
-  request into `dev`, no other merges into `dev` until the tag, the
-  maintainer's `dev` → `main` pull request, merge, tag `v0.1.0` on `main`,
-  push the tag, then a pull request into `dev` that sets `0.2.0.dev0`),
-  listed in `AGENTS.md`'s project layout; the README and `RELEASING.md`
-  changes get an entry in the `[0.1.0]` section · `chore/release_0_1_0` ·
-  depends on M13.1, M14.2, M10.6, M15.1, M15.2, M16.1, M17.1, M17.2, M17.3,
-  M17.4
